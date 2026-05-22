@@ -1,0 +1,82 @@
+{% extends 'shops/base.html' %}
+{% block content %}
+<div class="page-header">
+  <div><h2 class="page-title">{{ action }} Sponsorship{% if sp %} — {{ sp.customer }}{% endif %}</h2></div>
+  <a href="{% url 'sponsorship_list' %}" class="btn-rms btn-outline-custom">← Back</a>
+</div>
+{% if error %}<div style="background:#FEE2E2;color:#991B1B;padding:12px 16px;border-radius:10px;margin-bottom:16px;font-size:14px">{{ error }}</div>{% endif %}
+
+<form method="POST" enctype="multipart/form-data">
+  {% csrf_token %}
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 32px">
+    <div>
+      <div class="form-section-title">Sponsorship Details</div>
+
+      <div class="form-group">
+        <label class="rms-label">Customer <span style="color:var(--danger)">*</span></label>
+        <input type="text" name="customer" value="{{ sp.customer|default:'' }}" list="customer_list" required class="rms-input" placeholder="Select or type customer name">
+        <datalist id="customer_list">
+          {% for c in all_customers %}<option value="{{ c }}">{% endfor %}
+        </datalist>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div class="form-group">
+          <label class="rms-label">Type</label>
+          <select name="type" class="rms-input">
+            {% for t in sp_types %}
+            <option value="{{ t }}" {% if sp.type == t %}selected{% endif %}>{{ t }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="rms-label">Status</label>
+          <select name="status" class="rms-input">
+            <option value="Active"  {% if sp.status == 'Active'  or not sp %}selected{% endif %}>Active</option>
+            <option value="Pending" {% if sp.status == 'Pending' %}selected{% endif %}>Pending</option>
+            <option value="Expired" {% if sp.status == 'Expired' %}selected{% endif %}>Expired</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="rms-label">Value (WST) <span style="color:var(--danger)">*</span></label>
+        <input type="number" name="value" value="{{ sp.value|default:'' }}" step="0.01" min="0" required class="rms-input" placeholder="0.00">
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div class="form-group">
+          <label class="rms-label">Start Date</label>
+          <input type="date" name="start" value="{{ sp.start|default:'' }}" class="rms-input">
+        </div>
+        <div class="form-group">
+          <label class="rms-label">End Date</label>
+          <input type="date" name="end" value="{{ sp.end|default:'' }}" class="rms-input">
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="rms-label">Notes</label>
+        <textarea name="notes" rows="3" class="rms-input" placeholder="Any additional details…">{{ sp.notes|default:'' }}</textarea>
+      </div>
+
+      {% if sp %}
+      <div style="margin-top:24px;padding-top:16px;border-top:1px solid var(--border)">
+        <button type="submit" name="delete_sponsorship" value="1"
+                onclick="return confirm('Delete this sponsorship?')"
+                class="btn-rms btn-danger-custom sm">🗑 Delete Sponsorship</button>
+      </div>
+      {% endif %}
+    </div>
+
+    <div style="border-left:1px solid var(--border);padding-left:32px">
+      {% include 'shops/photo_upload_panel.html' with photos=sp.photos.all prefix="sp" %}
+    </div>
+  </div>
+
+  <div style="display:flex;gap:10px;justify-content:flex-end;padding-top:22px;border-top:1px solid var(--border);margin-top:20px">
+    <a href="{% url 'sponsorship_list' %}" class="btn-rms btn-outline-custom">Cancel</a>
+    <button type="submit" class="btn-rms btn-primary-custom">{{ action }} Sponsorship</button>
+  </div>
+</form>
+{% endblock %}

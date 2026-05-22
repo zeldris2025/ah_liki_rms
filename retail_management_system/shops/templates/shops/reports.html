@@ -1,0 +1,135 @@
+{% extends 'shops/base.html' %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <h2 class="page-title">Reports &amp; Downloads</h2>
+    <p class="page-sub">Export filtered data to CSV</p>
+  </div>
+</div>
+
+<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:22px">
+
+  <!-- Shops -->
+  <div class="rms-card" style="padding:24px">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
+      <div style="width:44px;height:44px;background:#EFF6FF;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:22px">🏪</div>
+      <div>
+        <div style="font-weight:700;color:var(--primary);font-size:15px">Retail Shops</div>
+        <div style="color:var(--muted);font-size:12px">{{ shops.count }} shops total</div>
+      </div>
+    </div>
+    <form method="GET" action="{% url 'download_report' %}">
+      <input type="hidden" name="type" value="shops">
+      <div class="form-group">
+        <label class="rms-label">Island</label>
+        <select name="island" class="rms-input">
+          <option value="">All Islands</option>
+          <option value="Upolu">Upolu</option>
+          <option value="Savaii">Savaii</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="rms-label">Region</label>
+        <select name="region" class="rms-input">
+          <option value="">All Regions</option>
+          <option value="Region 1">Region 1</option>
+          <option value="Region 2">Region 2</option>
+          <option value="Region 3">Region 3</option>
+          <option value="Region 4">Region 4</option>
+        </select>
+      </div>
+      <button type="submit" class="btn-rms btn-primary-custom" style="width:100%;justify-content:center">
+        ⬇ Download Shops CSV
+      </button>
+    </form>
+  </div>
+
+  <!-- HORECCA -->
+  <div class="rms-card" style="padding:24px">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
+      <div style="width:44px;height:44px;background:#EDE9FE;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:22px">🏨</div>
+      <div>
+        <div style="font-weight:700;color:var(--primary);font-size:15px">HORECCA Clients</div>
+        <div style="color:var(--muted);font-size:12px">{{ businesses.count }} clients total</div>
+      </div>
+    </div>
+    <form method="GET" action="{% url 'download_report' %}">
+      <input type="hidden" name="type" value="horecca">
+      <div class="form-group">
+        <label class="rms-label">Island</label>
+        <select name="island" class="rms-input">
+          <option value="">All Islands</option>
+          <option value="Upolu">Upolu</option>
+          <option value="Savaii">Savaii</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="rms-label">Business Type</label>
+        <select name="type" class="rms-input">
+          <option value="">All Types</option>
+          <option value="HOTEL">Hotel</option>
+          <option value="CAFE">Café</option>
+          <option value="RESTAURANT">Restaurant</option>
+          <option value="OTHER">Other</option>
+        </select>
+      </div>
+      <button type="submit" class="btn-rms btn-primary-custom" style="width:100%;justify-content:center">
+        ⬇ Download HORECCA CSV
+      </button>
+    </form>
+  </div>
+
+  <!-- Sponsorships -->
+  <div class="rms-card" style="padding:24px">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
+      <div style="width:44px;height:44px;background:#FEF3C7;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:22px">🤝</div>
+      <div>
+        <div style="font-weight:700;color:var(--primary);font-size:15px">Sponsorships</div>
+        <div style="color:var(--muted);font-size:12px">{{ sponsorships.count }} total</div>
+      </div>
+    </div>
+    <form method="GET" action="{% url 'download_report' %}">
+      <input type="hidden" name="type" value="sponsorships">
+      <div class="form-group">
+        <label class="rms-label">Status</label>
+        <select name="status" class="rms-input">
+          <option value="">All Statuses</option>
+          <option value="Active">Active</option>
+          <option value="Expired">Expired</option>
+          <option value="Pending">Pending</option>
+        </select>
+      </div>
+      <div class="form-group" style="visibility:hidden">
+        <label class="rms-label">&nbsp;</label>
+        <select class="rms-input"><option></option></select>
+      </div>
+      <button type="submit" class="btn-rms btn-primary-custom" style="width:100%;justify-content:center">
+        ⬇ Download Sponsorships CSV
+      </button>
+    </form>
+  </div>
+
+</div>
+
+<!-- Summary table -->
+<div class="rms-card" style="margin-top:28px;padding:24px">
+  <div style="font-weight:700;color:var(--primary);font-size:15px;margin-bottom:16px">Sponsorship Summary by Status</div>
+  <table class="rms-table">
+    <thead>
+      <tr><th>Status</th><th>Count</th><th>Total Value (WST)</th></tr>
+    </thead>
+    <tbody>
+      {% regroup sponsorships by status as status_groups %}
+      {% for group in status_groups %}
+      <tr>
+        <td><span class="badge-custom {% if group.grouper == 'Active' %}badge-green{% elif group.grouper == 'Expired' %}badge-red{% else %}badge-amber{% endif %}">{{ group.grouper }}</span></td>
+        <td>{{ group.list|length }}</td>
+        <td style="font-weight:700;color:var(--success)">—</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="3" style="color:var(--muted);text-align:center;padding:24px">No sponsorships yet.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

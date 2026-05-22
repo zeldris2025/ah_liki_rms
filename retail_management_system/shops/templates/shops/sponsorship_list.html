@@ -1,0 +1,88 @@
+{% extends 'shops/base.html' %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <h2 class="page-title">Sponsorships</h2>
+    <p class="page-sub">Track signage, coolers, events and other sponsorship deals</p>
+  </div>
+  <div style="display:flex;gap:10px">
+    <a href="{% url 'reports' %}?type=sponsorships" class="btn-rms btn-accent-custom">⬇ Export CSV</a>
+    <a href="{% url 'add_sponsorship' %}" class="btn-rms btn-primary-custom">+ Add Sponsorship</a>
+  </div>
+</div>
+
+<!-- Summary stats -->
+<div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:22px">
+  <div class="stat-card" style="flex:1;min-width:130px">
+    <div class="stat-label">Total Sponsorships</div>
+    <div class="stat-value" style="color:var(--primary)">{{ sponsorships.count }}</div>
+  </div>
+  <div class="stat-card" style="flex:1;min-width:130px">
+    <div class="stat-label">Active</div>
+    <div class="stat-value" style="color:var(--success)">{{ active_count }}</div>
+    <div class="stat-sub">WST {{ active_val|floatformat:2 }}</div>
+  </div>
+  <div class="stat-card" style="flex:1;min-width:130px">
+    <div class="stat-label">Total Value</div>
+    <div class="stat-value" style="color:var(--accent)">WST {{ total_val|floatformat:2 }}</div>
+  </div>
+</div>
+
+<!-- Filter -->
+<form method="GET" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:18px;align-items:center">
+  <select name="status" style="padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px">
+    <option value="">All Statuses</option>
+    <option value="Active"  {% if selected_status == 'Active'  %}selected{% endif %}>Active</option>
+    <option value="Expired" {% if selected_status == 'Expired' %}selected{% endif %}>Expired</option>
+    <option value="Pending" {% if selected_status == 'Pending' %}selected{% endif %}>Pending</option>
+  </select>
+  <button type="submit" class="btn-rms btn-primary-custom sm">Filter</button>
+  {% if selected_status %}<a href="{% url 'sponsorship_list' %}" class="btn-rms btn-outline-custom sm">✕ Clear</a>{% endif %}
+</form>
+
+<div class="rms-card">
+  <table class="rms-table">
+    <thead>
+      <tr>
+        <th>Customer</th><th>Type</th><th>Value (WST)</th><th>Status</th>
+        <th>Start</th><th>End</th><th>Photos</th><th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% if not sponsorships %}
+      <tr><td colspan="8" style="text-align:center;padding:48px;color:var(--muted)">No sponsorships found.</td></tr>
+      {% endif %}
+      {% for sp in sponsorships %}
+      <tr>
+        <td style="font-weight:700;color:var(--primary)">{{ sp.customer }}</td>
+        <td>
+          <span class="badge-custom badge-blue">{{ sp.type }}</span>
+        </td>
+        <td style="font-weight:700;color:var(--success)">{{ sp.value|floatformat:2 }}</td>
+        <td>
+          <span class="badge-custom {% if sp.status == 'Active' %}badge-green{% elif sp.status == 'Expired' %}badge-red{% else %}badge-amber{% endif %}">
+            {{ sp.status }}
+          </span>
+        </td>
+        <td style="color:var(--muted);font-size:12px">{{ sp.start|default:"—" }}</td>
+        <td style="color:var(--muted);font-size:12px">{{ sp.end|default:"—" }}</td>
+        <td>
+          {% with cnt=sp.photos.count %}
+          {% if cnt %}
+          <span style="display:inline-flex;align-items:center;gap:4px;color:var(--info);font-weight:700;font-size:12px;background:#DBEAFE;padding:2px 8px;border-radius:999px">📷 {{ cnt }}</span>
+          {% else %}<span style="color:var(--muted);font-size:12px">—</span>{% endif %}
+          {% endwith %}
+        </td>
+        <td>
+          <div style="display:flex;gap:6px">
+            <a href="{% url 'edit_sponsorship' sp.id %}" class="btn-rms btn-outline-custom sm">Edit</a>
+            <a href="{% url 'delete_sponsorship' sp.id %}" class="btn-rms btn-danger-custom sm"
+               onclick="return confirm('Delete this sponsorship?')">Del</a>
+          </div>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

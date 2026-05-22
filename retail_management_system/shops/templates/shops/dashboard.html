@@ -1,0 +1,89 @@
+{% extends 'shops/base.html' %}
+{% block content %}
+<div style="margin-bottom:26px">
+  <h2 style="color:var(--primary);margin:0;font-size:22px;font-weight:700">Ah Liki Wholesale — Dashboard</h2>
+  <p style="color:var(--muted);margin:6px 0 0;font-size:14px">Overview across Upolu and Savaii</p>
+</div>
+
+<!-- Stat cards -->
+<div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:26px">
+  <div class="stat-card" style="flex:1;min-width:130px">
+    <div class="stat-label">Total Shops</div>
+    <div class="stat-value" style="color:var(--primary)">{{ shops.count }}</div>
+    <div class="stat-sub">Upolu &amp; Savaii</div>
+  </div>
+  <div class="stat-card" style="flex:1;min-width:130px">
+    <div class="stat-label">Photos Uploaded</div>
+    <div class="stat-value" style="color:var(--info)">{{ total_photos }}</div>
+    <div class="stat-sub">across {{ shops_with_photos }} shops</div>
+  </div>
+  <div class="stat-card" style="flex:1;min-width:130px">
+    <div class="stat-label">Tip Top Partners</div>
+    <div class="stat-value" style="color:var(--success)">{{ tip_top_count }}</div>
+  </div>
+  <div class="stat-card" style="flex:1;min-width:130px">
+    <div class="stat-label">HORECCA Clients</div>
+    <div class="stat-value" style="color:#7C3AED">{{ businesses.count }}</div>
+  </div>
+  <div class="stat-card" style="flex:1;min-width:130px">
+    <div class="stat-label">Active Sponsorships</div>
+    <div class="stat-value" style="color:var(--accent)">{{ active_spons.count }}</div>
+    <div class="stat-sub">WST {{ active_val|floatformat:0 }}</div>
+  </div>
+</div>
+
+<!-- Charts -->
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:22px">
+  <div class="rms-card" style="padding:20px">
+    <div style="font-weight:700;font-size:14px;color:var(--primary);margin-bottom:14px">Shops by Region</div>
+    <canvas id="regionChart" height="150"></canvas>
+  </div>
+  <div class="rms-card" style="padding:20px">
+    <div style="font-weight:700;font-size:14px;color:var(--primary);margin-bottom:14px">HORECCA by Type</div>
+    <canvas id="bizChart" height="150"></canvas>
+  </div>
+</div>
+
+<!-- Recent shops -->
+<div class="rms-card" style="padding:20px">
+  <div style="font-weight:700;font-size:14px;color:var(--primary);margin-bottom:14px">Recent Shops</div>
+  {% for s in recent_shops %}
+  <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border)">
+    <div style="display:flex;align-items:center;gap:12px">
+      <div style="width:36px;height:36px;border-radius:8px;background:var(--surface);border:1px solid var(--border);overflow:hidden;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:16px">
+        {% with first=s.photos.first %}{% if first %}<img src="{{ first.image.url }}" style="width:100%;height:100%;object-fit:cover">{% else %}🏪{% endif %}{% endwith %}
+      </div>
+      <div>
+        <a href="{% url 'shop_detail' s.id %}" style="font-weight:600;font-size:14px;color:var(--primary);text-decoration:none">{{ s.name }}</a>
+        <div style="color:var(--muted);font-size:12px">{{ s.island }} · {{ s.region }}</div>
+      </div>
+    </div>
+    <div style="display:flex;gap:6px;align-items:center">
+      {% with cnt=s.photos.count %}{% if cnt %}<span style="color:var(--muted);font-size:12px">{{ cnt }} 📷</span>{% endif %}{% endwith %}
+      <span class="badge-custom {% if s.island == 'Upolu' %}badge-blue{% else %}badge-amber{% endif %}">{{ s.island }}</span>
+      {% if s.tip_top %}<span class="badge-custom badge-green">Tip Top</span>{% endif %}
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+var rData = {{ region_data|safe }};
+var bData = {{ biz_data|safe }};
+new Chart(document.getElementById('regionChart'), {
+  type:'bar', data:{
+    labels: rData.map(d=>d.label),
+    datasets:[{data: rData.map(d=>d.value), backgroundColor:'#0D2D5A', borderRadius:4}]
+  }, options:{plugins:{legend:{display:false}}, scales:{y:{beginAtZero:true}}}
+});
+new Chart(document.getElementById('bizChart'), {
+  type:'bar', data:{
+    labels: bData.map(d=>d.label),
+    datasets:[{data: bData.map(d=>d.value), backgroundColor:'#7C3AED', borderRadius:4}]
+  }, options:{plugins:{legend:{display:false}}, scales:{y:{beginAtZero:true}}}
+});
+</script>
+{% endblock %}

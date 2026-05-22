@@ -1,0 +1,36 @@
+{# Include with: {% include 'shops/photo_upload_panel.html' with obj=shop photos=shop.photos.all prefix="shop" %} #}
+<div class="form-section-title" style="margin-top:20px">Photos &amp; Documents</div>
+
+{% if photos %}
+<div class="photo-grid" style="margin-bottom:14px">
+  {% for p in photos %}
+  <div class="photo-thumb">
+    <div style="position:relative">
+      <img src="{{ p.image.url }}" alt="{{ p.note }}">
+      <label style="position:absolute;top:4px;left:4px;display:flex;align-items:center;gap:4px;cursor:pointer">
+        <input type="checkbox" name="delete_photos" value="{{ p.pk }}" style="accent-color:var(--danger)">
+        <span style="background:rgba(220,38,38,.85);color:#fff;font-size:10px;padding:1px 5px;border-radius:4px">Del</span>
+      </label>
+    </div>
+    <input type="text" name="note_{{ p.pk }}" value="{{ p.note }}" placeholder="Label (optional)"
+           class="note-input">
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<!-- Drop zone -->
+<div class="form-group" style="margin-bottom: 0;">
+  <label class="rms-label" style="margin-bottom: 10px;">Add New Photos</label>
+</div>
+<div class="drop-zone" id="{{ prefix }}_dropzone">
+  <div class="dz-icon">📷</div>
+  <p>Click or drag &amp; drop photos</p>
+  <small>JPG, PNG, WEBP · multiple files OK — each photo can have its own label</small>
+  <input type="file" id="{{ prefix }}_file_input" name="images" accept="image/*" multiple style="display:none">
+</div>
+
+<!-- Preview area with individual labels for each image -->
+<div id="{{ prefix }}_preview" class="photo-grid" style="margin-top:10px"></div>
+
+<script data-dropzone-init="{{ prefix }}_dropzone" data-input="{{ prefix }}_file_input" data-preview="{{ prefix }}_preview" data-note="{{ prefix }}_photo_note" type="text/data-attrs"></script>
