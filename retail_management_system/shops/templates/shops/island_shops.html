@@ -2,10 +2,10 @@
 {% block content %}
 <div class="page-header">
   <div>
-    <h2 class="page-title">{{ island }} — {{ region }}</h2>
+    <h2 class="page-title">{{ island }} — {% if territory %}{{ territory }}{% else %}{{ region }}{% endif %}</h2>
     <p class="page-sub">{{ page_obj.paginator.count }} shop{{ page_obj.paginator.count|pluralize }}</p>
   </div>
-  <a href="{% url 'add_shop' %}" class="btn-rms btn-primary-custom">+ Add Shop</a>
+  <a href="{% url 'add_shop' %}" class="btn-sms btn-primary-custom">+ Add Shop</a>
 </div>
 
 <form method="GET" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:20px;align-items:center">
@@ -16,12 +16,13 @@
     <option value="1" {% if request.GET.tip_top == '1' %}selected{% endif %}>Tip Top</option>
     <option value="0" {% if request.GET.tip_top == '0' %}selected{% endif %}>Non Tip Top</option>
   </select>
-  <button type="submit" class="btn-rms btn-primary-custom sm">Filter</button>
+  <button type="submit" class="btn-sms btn-primary-custom sm">Filter</button>
 </form>
 
 <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:16px">
   {% for shop in page_obj %}
-  <div class="rms-card">
+  <div class="sms-card shop-card" onclick="window.location.href='{% url 'shop_detail' shop.id %}'"
+       style="cursor:pointer;transition:transform .15s,box-shadow .15s">
     <div style="background:linear-gradient(135deg,var(--primary),var(--primary2));height:140px;overflow:hidden;position:relative">
       {% with first=shop.photos.first %}
       {% if first %}<img src="{{ first.image.url }}" style="width:100%;height:100%;object-fit:cover">
@@ -32,15 +33,20 @@
       {% endif %}{% endwith %}
     </div>
     <div style="padding:16px">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;flex-wrap:wrap;gap:8px">
         <a href="{% url 'shop_detail' shop.id %}" style="font-weight:700;font-size:15px;color:var(--primary);text-decoration:none">{{ shop.name }}</a>
-        {% if shop.tip_top %}<span class="badge-custom badge-amber">Tip Top</span>{% endif %}
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          {% if shop.tip_top %}<span class="badge-custom badge-green">Tip Top</span>{% endif %}
+          {% if shop.taula_fridge %}<span class="badge-custom badge-blue">Taula</span>{% endif %}
+          {% if shop.talofa_voucher %}<span class="badge-custom badge-accent">Talofa</span>{% endif %}
+          {% if shop.faakau_com %}<span class="badge-custom badge-amber">Faakau.com</span>{% endif %}
+        </div>
       </div>
       <div style="color:var(--muted);font-size:12px;margin-bottom:2px">👤 {{ shop.owner|default:"—" }}</div>
       <div style="color:var(--muted);font-size:12px;margin-bottom:14px">📞 {{ shop.phone|default:"—" }}</div>
       <div style="display:flex;gap:8px">
-        <a href="{% url 'shop_detail' shop.id %}" class="btn-rms btn-outline-custom sm">View</a>
-        <a href="{% url 'edit_shop' shop.id %}"   class="btn-rms btn-outline-custom sm">Edit</a>
+        <a href="{% url 'shop_detail' shop.id %}" class="btn-sms btn-outline-custom sm" onclick="event.stopPropagation()">View</a>
+        <a href="{% url 'edit_shop' shop.id %}"   class="btn-sms btn-outline-custom sm" onclick="event.stopPropagation()">Edit</a>
       </div>
     </div>
   </div>
@@ -49,11 +55,15 @@
   {% endfor %}
 </div>
 
+<style>
+  .shop-card:hover { transform: translateY(-3px); box-shadow: 0 8px 20px rgba(15,23,42,.12); }
+</style>
+
 {% if page_obj.has_other_pages %}
 <div style="display:flex;justify-content:center;gap:6px;margin-top:20px">
-  {% if page_obj.has_previous %}<a href="?page={{ page_obj.previous_page_number }}&q={{ request.GET.q }}&tip_top={{ request.GET.tip_top }}" class="btn-rms btn-outline-custom sm">← Prev</a>{% endif %}
+  {% if page_obj.has_previous %}<a href="?page={{ page_obj.previous_page_number }}&q={{ request.GET.q }}&tip_top={{ request.GET.tip_top }}" class="btn-sms btn-outline-custom sm">← Prev</a>{% endif %}
   <span style="padding:6px 16px;font-size:13px;color:var(--muted)">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
-  {% if page_obj.has_next %}<a href="?page={{ page_obj.next_page_number }}&q={{ request.GET.q }}&tip_top={{ request.GET.tip_top }}" class="btn-rms btn-outline-custom sm">Next →</a>{% endif %}
+  {% if page_obj.has_next %}<a href="?page={{ page_obj.next_page_number }}&q={{ request.GET.q }}&tip_top={{ request.GET.tip_top }}" class="btn-sms btn-outline-custom sm">Next →</a>{% endif %}
 </div>
 {% endif %}
 {% endblock %}

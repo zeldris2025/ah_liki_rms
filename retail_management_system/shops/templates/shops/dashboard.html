@@ -34,18 +34,18 @@
 
 <!-- Charts -->
 <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:22px">
-  <div class="rms-card" style="padding:20px">
+  <div class="sms-card" style="padding:20px">
     <div style="font-weight:700;font-size:14px;color:var(--primary);margin-bottom:14px">Shops by Region</div>
     <canvas id="regionChart" height="150"></canvas>
   </div>
-  <div class="rms-card" style="padding:20px">
+  <div class="sms-card" style="padding:20px">
     <div style="font-weight:700;font-size:14px;color:var(--primary);margin-bottom:14px">HORECCA by Type</div>
     <canvas id="bizChart" height="150"></canvas>
   </div>
 </div>
 
 <!-- Recent shops -->
-<div class="rms-card" style="padding:20px">
+<div class="sms-card" style="padding:20px">
   <div style="font-weight:700;font-size:14px;color:var(--primary);margin-bottom:14px">Recent Shops</div>
   {% for s in recent_shops %}
   <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border)">
@@ -58,10 +58,13 @@
         <div style="color:var(--muted);font-size:12px">{{ s.island }} · {{ s.region }}</div>
       </div>
     </div>
-    <div style="display:flex;gap:6px;align-items:center">
+    <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
       {% with cnt=s.photos.count %}{% if cnt %}<span style="color:var(--muted);font-size:12px">{{ cnt }} 📷</span>{% endif %}{% endwith %}
       <span class="badge-custom {% if s.island == 'Upolu' %}badge-blue{% else %}badge-amber{% endif %}">{{ s.island }}</span>
       {% if s.tip_top %}<span class="badge-custom badge-green">Tip Top</span>{% endif %}
+      {% if s.taula_fridge %}<span class="badge-custom badge-blue">Taula</span>{% endif %}
+      {% if s.talofa_voucher %}<span class="badge-custom badge-accent">Talofa</span>{% endif %}
+      {% if s.faakau_com %}<span class="badge-custom badge-amber">Faakau.com</span>{% endif %}
     </div>
   </div>
   {% endfor %}

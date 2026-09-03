@@ -1,0 +1,10 @@
+customer,type,value,status,start,end,notes
+Coca-Cola Samoa,Cooler,15000,Active,2026-01-01,2026-12-31,2x Coolers for shops
+Fosters Beer,Signage,12000,Active,2026-01-01,2026-12-31,Branded signage
+Toyota Samoa,Vehicle,25000,Active,2026-01-15,2026-12-15,Vehicle branding
+Samoa Police,Uniform,8000,Pending,2026-02-01,2026-08-31,Uniform sponsorship
+Digicel Samoa,Digital,10000,Active,2026-01-01,2026-06-30,Social media ads
+National Events,Event,20000,Active,2026-07-01,2026-08-31,Island Games support
+Health Ministry,Other,5000,Expired,2025-01-01,2025-12-31,Community health campaign
+Samoa Breweries,Cooler,18000,Active,2026-02-01,2026-12-31,Coolers in restaurants
+Tourism Board,Signage,16000,Pending,2026-03-01,2026-12-31,Tourist information signs

@@ -1,0 +1,149 @@
+{% extends 'shops/base.html' %}
+{% block content %}
+<div style="margin-bottom:26px">
+  <a href="{% url 'survey_detail' survey.id %}" style="color:var(--accent);text-decoration:none;font-size:13px;font-weight:600;margin-bottom:8px;display:inline-block">← Back to Survey</a>
+  <h1 class="page-title">{{ action }} Response</h1>
+  <p class="page-sub">Survey: <strong>{{ survey.title }}</strong></p>
+</div>
+
+<div class="sms-card" style="max-width:800px;padding:24px">
+  <form method="POST">
+    {% csrf_token %}
+    
+    {% if form.non_field_errors %}
+    <div style="background:#FEE2E2;border:1px solid #FECACA;border-radius:8px;padding:12px 14px;margin-bottom:16px;color:#991B1B;font-size:13px">
+      {{ form.non_field_errors }}
+    </div>
+    {% endif %}
+    
+    <!-- Product Information -->
+    <h3 style="font-size:13px;font-weight:700;color:var(--primary);text-transform:uppercase;letter-spacing:.07em;margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid var(--border)">Product Information</h3>
+    
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px">
+      <div class="form-group">
+        <label class="sms-label">Product Name</label>
+        {{ form.product }}
+        {% if form.product.errors %}<p style="color:var(--danger);font-size:12px;margin:4px 0 0">{{ form.product.errors.0 }}</p>{% endif %}
+      </div>
+      
+      <div class="form-group">
+        <label class="sms-label">Category <span style="font-size:11px;color:var(--muted)">(select or type new)</span></label>
+        <div style="position:relative">
+          <input type="text" id="category_input" list="category_list" name="category" class="sms-input" placeholder="e.g., SODA, SNACKS, BEVERAGES..." value="{{ form.category.value|default:'' }}" style="width:100%">
+          <datalist id="category_list">
+            <option value="SODA">SODA</option>
+            <option value="SNACKS">SNACKS</option>
+            <option value="BEVERAGES">BEVERAGES</option>
+            <option value="ALCOHOL">ALCOHOL</option>
+            <option value="WATER">WATER</option>
+            <option value="JUICE">JUICE</option>
+            <option value="ENERGY DRINK">ENERGY DRINK</option>
+            <option value="MILK PRODUCTS">MILK PRODUCTS</option>
+            <option value="CONFECTIONERY">CONFECTIONERY</option>
+            <option value="SNACK FOODS">SNACK FOODS</option>
+            <option value="FROZEN FOODS">FROZEN FOODS</option>
+            <option value="DAIRY">DAIRY</option>
+          </datalist>
+        </div>
+        {% if form.category.errors %}<p style="color:var(--danger);font-size:12px;margin:4px 0 0">{{ form.category.errors.0 }}</p>{% endif %}
+        <p style="font-size:11px;color:var(--muted);margin:4px 0 0">💡 Type or select from suggestions</p>
+      </div>
+    </div>
+    
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px">
+      <div class="form-group">
+        <label class="sms-label">Price (WST)</label>
+        {{ form.price }}
+        {% if form.price.errors %}<p style="color:var(--danger);font-size:12px;margin:4px 0 0">{{ form.price.errors.0 }}</p>{% endif %}
+      </div>
+      
+      <div class="form-group">
+        <label class="sms-label">Quantity</label>
+        {{ form.quantity }}
+        {% if form.quantity.errors %}<p style="color:var(--danger);font-size:12px;margin:4px 0 0">{{ form.quantity.errors.0 }}</p>{% endif %}
+      </div>
+    </div>
+    
+    <!-- Customer & Location -->
+    <h3 style="font-size:13px;font-weight:700;color:var(--primary);text-transform:uppercase;letter-spacing:.07em;margin:20px 0 12px;padding-bottom:12px;border-bottom:1px solid var(--border)">Customer & Location</h3>
+    
+    <div class="form-group">
+      <label class="sms-label">Customer/Store Name</label>
+      {{ form.customer }}
+      {% if form.customer.errors %}<p style="color:var(--danger);font-size:12px;margin:4px 0 0">{{ form.customer.errors.0 }}</p>{% endif %}
+    </div>
+    
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px">
+      <div class="form-group">
+        <label class="sms-label">Location</label>
+        {{ form.location }}
+        {% if form.location.errors %}<p style="color:var(--danger);font-size:12px;margin:4px 0 0">{{ form.location.errors.0 }}</p>{% endif %}
+      </div>
+      
+      <div class="form-group">
+        <label class="sms-label">Region</label>
+        {{ form.region }}
+        {% if form.region.errors %}<p style="color:var(--danger);font-size:12px;margin:4px 0 0">{{ form.region.errors.0 }}</p>{% endif %}
+      </div>
+    </div>
+    
+    <!-- Survey Data -->
+    <h3 style="font-size:13px;font-weight:700;color:var(--primary);text-transform:uppercase;letter-spacing:.07em;margin:20px 0 12px;padding-bottom:12px;border-bottom:1px solid var(--border)">Survey Data</h3>
+    
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px">
+      <div class="form-group">
+        <label class="sms-label">Week #</label>
+        {{ form.week }}
+        {% if form.week.errors %}<p style="color:var(--danger);font-size:12px;margin:4px 0 0">{{ form.week.errors.0 }}</p>{% endif %}
+      </div>
+      
+      <div class="form-group">
+        <label class="sms-label">Rating</label>
+        {{ form.rating }}
+        {% if form.rating.errors %}<p style="color:var(--danger);font-size:12px;margin:4px 0 0">{{ form.rating.errors.0 }}</p>{% endif %}
+      </div>
+    </div>
+    
+    <div class="form-group">
+      <label class="sms-label">Notes</label>
+      {{ form.notes }}
+      {% if form.notes.errors %}<p style="color:var(--danger);font-size:12px;margin:4px 0 0">{{ form.notes.errors.0 }}</p>{% endif %}
+    </div>
+    
+    <div class="form-group">
+      <label class="sms-label">Recorded By</label>
+      {{ form.recorded_by }}
+      {% if form.recorded_by.errors %}<p style="color:var(--danger);font-size:12px;margin:4px 0 0">{{ form.recorded_by.errors.0 }}</p>{% endif %}
+    </div>
+    
+    <div style="display:flex;gap:12px;margin-top:24px">
+      <button type="submit" class="btn-sms btn-primary-custom">{{ action }} Response</button>
+      <a href="{% url 'survey_detail' survey.id %}" class="btn-sms btn-outline-custom">Cancel</a>
+    </div>
+  </form>
+</div>
+
+<style>
+  .sms-input {
+    width: 100%;
+    padding: 9px 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 14px;
+    background: var(--card);
+    color: #1F2937;
+    outline: none;
+  }
+  .sms-input:focus {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(15, 23, 42, 0.1);
+  }
+  select.sms-input {
+    cursor: pointer;
+  }
+  textarea.sms-input {
+    resize: vertical;
+    font-family: 'Segoe UI', system-ui, sans-serif;
+  }
+</style>
+{% endblock %}

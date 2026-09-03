@@ -10,27 +10,27 @@
 <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:22px">
 
   <!-- Shops -->
-  <div class="rms-card" style="padding:24px">
+  <div class="sms-card" style="padding:24px">
     <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
       <div style="width:44px;height:44px;background:#EFF6FF;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:22px">🏪</div>
       <div>
-        <div style="font-weight:700;color:var(--primary);font-size:15px">Retail Shops</div>
+        <div style="font-weight:700;color:var(--primary);font-size:15px">Sales Shops</div>
         <div style="color:var(--muted);font-size:12px">{{ shops.count }} shops total</div>
       </div>
     </div>
     <form method="GET" action="{% url 'download_report' %}">
       <input type="hidden" name="type" value="shops">
       <div class="form-group">
-        <label class="rms-label">Island</label>
-        <select name="island" class="rms-input">
+        <label class="sms-label">Island</label>
+        <select name="island" class="sms-input">
           <option value="">All Islands</option>
           <option value="Upolu">Upolu</option>
           <option value="Savaii">Savaii</option>
         </select>
       </div>
       <div class="form-group">
-        <label class="rms-label">Region</label>
-        <select name="region" class="rms-input">
+        <label class="sms-label">Region</label>
+        <select name="region" class="sms-input">
           <option value="">All Regions</option>
           <option value="Region 1">Region 1</option>
           <option value="Region 2">Region 2</option>
@@ -38,14 +38,14 @@
           <option value="Region 4">Region 4</option>
         </select>
       </div>
-      <button type="submit" class="btn-rms btn-primary-custom" style="width:100%;justify-content:center">
+      <button type="submit" class="btn-sms btn-primary-custom" style="width:100%;justify-content:center">
         ⬇ Download Shops CSV
       </button>
     </form>
   </div>
 
   <!-- HORECCA -->
-  <div class="rms-card" style="padding:24px">
+  <div class="sms-card" style="padding:24px">
     <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
       <div style="width:44px;height:44px;background:#EDE9FE;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:22px">🏨</div>
       <div>
@@ -56,16 +56,16 @@
     <form method="GET" action="{% url 'download_report' %}">
       <input type="hidden" name="type" value="horecca">
       <div class="form-group">
-        <label class="rms-label">Island</label>
-        <select name="island" class="rms-input">
+        <label class="sms-label">Island</label>
+        <select name="island" class="sms-input">
           <option value="">All Islands</option>
           <option value="Upolu">Upolu</option>
           <option value="Savaii">Savaii</option>
         </select>
       </div>
       <div class="form-group">
-        <label class="rms-label">Business Type</label>
-        <select name="type" class="rms-input">
+        <label class="sms-label">Business Type</label>
+        <select name="type" class="sms-input">
           <option value="">All Types</option>
           <option value="HOTEL">Hotel</option>
           <option value="CAFE">Café</option>
@@ -73,14 +73,14 @@
           <option value="OTHER">Other</option>
         </select>
       </div>
-      <button type="submit" class="btn-rms btn-primary-custom" style="width:100%;justify-content:center">
+      <button type="submit" class="btn-sms btn-primary-custom" style="width:100%;justify-content:center">
         ⬇ Download HORECCA CSV
       </button>
     </form>
   </div>
 
   <!-- Sponsorships -->
-  <div class="rms-card" style="padding:24px">
+  <div class="sms-card" style="padding:24px">
     <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
       <div style="width:44px;height:44px;background:#FEF3C7;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:22px">🤝</div>
       <div>
@@ -91,8 +91,8 @@
     <form method="GET" action="{% url 'download_report' %}">
       <input type="hidden" name="type" value="sponsorships">
       <div class="form-group">
-        <label class="rms-label">Status</label>
-        <select name="status" class="rms-input">
+        <label class="sms-label">Status</label>
+        <select name="status" class="sms-input">
           <option value="">All Statuses</option>
           <option value="Active">Active</option>
           <option value="Expired">Expired</option>
@@ -100,10 +100,10 @@
         </select>
       </div>
       <div class="form-group" style="visibility:hidden">
-        <label class="rms-label">&nbsp;</label>
-        <select class="rms-input"><option></option></select>
+        <label class="sms-label">&nbsp;</label>
+        <select class="sms-input"><option></option></select>
       </div>
-      <button type="submit" class="btn-rms btn-primary-custom" style="width:100%;justify-content:center">
+      <button type="submit" class="btn-sms btn-primary-custom" style="width:100%;justify-content:center">
         ⬇ Download Sponsorships CSV
       </button>
     </form>
@@ -112,9 +112,9 @@
 </div>
 
 <!-- Summary table -->
-<div class="rms-card" style="margin-top:28px;padding:24px">
+<div class="sms-card" style="margin-top:28px;padding:24px">
   <div style="font-weight:700;color:var(--primary);font-size:15px;margin-bottom:16px">Sponsorship Summary by Status</div>
-  <table class="rms-table">
+  <table class="sms-table">
     <thead>
       <tr><th>Status</th><th>Count</th><th>Total Value (WST)</th></tr>
     </thead>

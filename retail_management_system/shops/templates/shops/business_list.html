@@ -6,8 +6,8 @@
     <p class="page-sub">Hotels, restaurants, cafés and other Ah Liki Wholesale customers</p>
   </div>
   <div style="display:flex;gap:10px">
-    <a href="{% url 'reports' %}?type=horecca" class="btn-rms btn-accent-custom">⬇ Export CSV</a>
-    <a href="{% url 'add_business' %}" class="btn-rms btn-primary-custom">+ Add Client</a>
+    <a href="{% url 'reports' %}?type=horecca" class="btn-sms btn-accent-custom">⬇ Export CSV</a>
+    <a href="{% url 'add_business' %}" class="btn-sms btn-primary-custom">+ Add Client</a>
   </div>
 </div>
 
@@ -26,13 +26,13 @@
     <option value="{{ val }}" {% if selected_business_type == val %}selected{% endif %}>{{ label }}</option>
     {% endfor %}
   </select>
-  <button type="submit" class="btn-rms btn-primary-custom sm">Filter</button>
+  <button type="submit" class="btn-sms btn-primary-custom sm">Filter</button>
 </form>
 
 {% with type_icons="HOTEL:🏨,CAFE:☕,RESTAURANT:🍽️,OTHER:🏢" %}
 <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:16px">
   {% for b in businesses %}
-  <div class="rms-card">
+  <div class="sms-card">
     <div style="background:linear-gradient(135deg,var(--primary),var(--primary2));height:80px;display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden">
       {% with first=b.photos.first %}
       {% if first %}<img src="{{ first.image.url }}" style="width:100%;height:100%;object-fit:cover;position:absolute;inset:0;opacity:.6">{% endif %}
@@ -50,8 +50,8 @@
       <div style="color:var(--muted);font-size:12px;margin-bottom:2px">📍 {{ b.location|default:"—" }}</div>
       <div style="color:var(--muted);font-size:12px;margin-bottom:14px">🏝️ {{ b.island|default:"—" }}</div>
       <div style="display:flex;gap:8px">
-        <a href="{% url 'edit_business' b.id %}"   class="btn-rms btn-outline-custom sm">Edit</a>
-        <a href="{% url 'delete_business' b.id %}" class="btn-rms btn-danger-custom sm"
+        <a href="{% url 'edit_business' b.id %}"   class="btn-sms btn-outline-custom sm">Edit</a>
+        <a href="{% url 'delete_business' b.id %}" class="btn-sms btn-danger-custom sm"
            onclick="return confirm('Delete {{ b.name }}?')">Delete</a>
       </div>
     </div>

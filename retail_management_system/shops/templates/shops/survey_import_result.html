@@ -1,0 +1,73 @@
+{% extends 'shops/base.html' %}
+{% block content %}
+<div style="margin-bottom:26px">
+  <a href="{% url 'survey_detail' survey.id %}" style="color:var(--accent);text-decoration:none;font-size:13px;font-weight:600;margin-bottom:8px;display:inline-block">← Back to Survey</a>
+  <h1 class="page-title">Import Results</h1>
+  <p class="page-sub">Survey: <strong>{{ survey.title }}</strong></p>
+</div>
+
+{% if error %}
+<!-- Error State -->
+<div class="sms-card" style="padding:20px;background:#FEE2E2;border-color:#FECACA">
+  <div style="display:flex;gap:14px;align-items:flex-start">
+    <div style="font-size:28px">❌</div>
+    <div>
+      <h3 style="margin:0 0 8px;font-size:15px;font-weight:700;color:#991B1B">Import Failed</h3>
+      <p style="margin:0;color:#7F1D1D;font-size:13px">{{ error }}</p>
+    </div>
+  </div>
+</div>
+{% else %}
+<!-- Success State -->
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px">
+  <div class="stat-card" style="background:#DCFCE7;border-color:#BBEF63">
+    <div class="stat-label" style="color:#166534">Imported Successfully</div>
+    <div class="stat-value" style="color:#16A34A">{{ imported }}</div>
+  </div>
+  {% if errors %}
+  <div class="stat-card" style="background:#FEE2E2;border-color:#FECACA">
+    <div class="stat-label" style="color:#991B1B">Errors Encountered</div>
+    <div class="stat-value" style="color:#DC2626">{{ errors|length }}</div>
+  </div>
+  {% endif %}
+</div>
+
+{% if errors %}
+<!-- Error Details -->
+<div class="sms-card" style="padding:20px;margin-bottom:20px">
+  <h3 style="margin:0 0 12px;font-size:14px;font-weight:700;color:var(--primary)">⚠️ Issues During Import</h3>
+  <div style="background:#FEF3C7;border:1px solid #FDE68A;border-radius:8px;padding:12px;max-height:200px;overflow-y:auto">
+    <ul style="margin:0;padding-left:20px;font-size:12px;color:#78350F;line-height:1.6">
+      {% for error_msg in errors %}
+      <li>{{ error_msg }}</li>
+      {% endfor %}
+    </ul>
+  </div>
+</div>
+{% endif %}
+
+<!-- Success Message -->
+<div class="sms-card" style="padding:20px;background:#DBEAFE;border-color:#BFDBFE;margin-bottom:20px">
+  <div style="display:flex;gap:14px;align-items:flex-start">
+    <div style="font-size:28px">✅</div>
+    <div>
+      <h3 style="margin:0 0 6px;font-size:15px;font-weight:700;color:#1E40AF">Import Completed</h3>
+      <p style="margin:0;color:#1E40AF;font-size:13px">
+        {% if imported == 1 %}
+          1 response has been added to your survey.
+        {% else %}
+          {{ imported }} responses have been added to your survey.
+        {% endif %}
+      </p>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<!-- Action Buttons -->
+<div style="display:flex;gap:8px">
+  <a href="{% url 'survey_detail' survey.id %}" class="btn-sms btn-primary-custom">View Survey Data</a>
+  <a href="{% url 'survey_analysis' survey.id %}" class="btn-sms btn-accent-custom">📊 Analyze</a>
+  <a href="{% url 'import_survey_responses' survey.id %}" class="btn-sms btn-outline-custom">📥 Import More</a>
+</div>
+{% endblock %}

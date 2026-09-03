@@ -1,6 +1,64 @@
 from django.contrib import admin
 from django.utils.html import format_html
-from .models import Shop, ShopPhoto, Business, BusinessPhoto, Sponsorship, SponsorshipPhoto
+from import_export.admin import ImportExportModelAdmin
+from import_export import resources
+from .models import Shop, ShopPhoto, Business, BusinessPhoto, Sponsorship, SponsorshipPhoto, ShopSales
+
+
+# ── Import/Export Resources ───────────────────────────────────────────────────
+
+class ShopResource(resources.ModelResource):
+    class Meta:
+        model = Shop
+        fields = ('id', 'name', 'owner', 'phone', 'address', 'island', 'territory', 'tip_top', 'taula_fridge', 'talofa_voucher', 'faakau_com', 'created')
+        export_order = fields
+        skip_unchanged = True
+        report_skipped = True
+
+    def before_import_row(self, row, **kwargs):
+        # Check if shop with this name already exists
+        name = row.get('name', '').strip()
+        if name and Shop.objects.filter(name__iexact=name).exists():
+            # Skip this row if shop already exists
+            return True
+        return False
+
+
+class BusinessResource(resources.ModelResource):
+    class Meta:
+        model = Business
+        fields = ('id', 'name', 'business_type', 'island', 'location', 'created_at', 'updated_at')
+        export_order = fields
+
+
+class SponsorshipResource(resources.ModelResource):
+    class Meta:
+        model = Sponsorship
+        fields = ('id', 'customer', 'type', 'value', 'status', 'start', 'end', 'notes', 'created')
+        export_order = fields
+
+
+class SalesResource(resources.ModelResource):
+    class Meta:
+        model = ShopSales
+        fields = ('id', 'shop', 'products', 'quantity', 'total_sales', 'date', 'created_at')
+        export_order = fields
+        skip_unchanged = True
+        report_skipped = True
+
+    def before_import_row(self, row, **kwargs):
+        shop_name = row.get('shop', '').strip()
+        date = row.get('date', '').strip()
+        if shop_name and date:
+            try:
+                shop = Shop.objects.get(name__iexact=shop_name)
+                from datetime import datetime
+                sale_date = datetime.strptime(date, '%Y-%m-%d').date()
+                if ShopSales.objects.filter(shop=shop, date=sale_date).exists():
+                    return True
+            except:
+                pass
+        return False
 
 
 class ShopPhotoInline(admin.TabularInline):
@@ -17,10 +75,11 @@ class ShopPhotoInline(admin.TabularInline):
 
 
 @admin.register(Shop)
-class ShopAdmin(admin.ModelAdmin):
+class ShopAdmin(ImportExportModelAdmin):
+    resource_class = ShopResource
     inlines = [ShopPhotoInline]
-    list_display  = ('name', 'owner', 'phone', 'island', 'region', 'tip_top', 'photo_count')
-    list_filter   = ('island', 'region', 'tip_top')
+    list_display  = ('name', 'owner', 'phone', 'island', 'territory', 'tip_top', 'taula_fridge', 'talofa_voucher', 'faakau_com', 'photo_count')
+    list_filter   = ('island', 'territory', 'tip_top', 'taula_fridge', 'talofa_voucher', 'faakau_com')
     search_fields = ('name', 'owner')
 
     def photo_count(self, obj):
@@ -42,7 +101,8 @@ class BusinessPhotoInline(admin.TabularInline):
 
 
 @admin.register(Business)
-class BusinessAdmin(admin.ModelAdmin):
+class BusinessAdmin(ImportExportModelAdmin):
+    resource_class = BusinessResource
     inlines = [BusinessPhotoInline]
     list_display  = ('name', 'business_type', 'island', 'location', 'photo_count', 'created_at')
     list_filter   = ('business_type', 'island')
@@ -67,7 +127,8 @@ class SponsorshipPhotoInline(admin.TabularInline):
 
 
 @admin.register(Sponsorship)
-class SponsorshipAdmin(admin.ModelAdmin):
+class SponsorshipAdmin(ImportExportModelAdmin):
+    resource_class = SponsorshipResource
     inlines = [SponsorshipPhotoInline]
     list_display  = ('customer', 'type', 'value', 'status', 'start', 'end', 'photo_count')
     list_filter   = ('status', 'type')
@@ -76,3 +137,17 @@ class SponsorshipAdmin(admin.ModelAdmin):
     def photo_count(self, obj):
         return obj.photos.count()
     photo_count.short_description = "Photos"
+
+
+@admin.register(ShopSales)
+class ShopSalesAdmin(ImportExportModelAdmin):
+    resource_class = SalesResource
+    list_display  = ('shop', 'products', 'quantity', 'total_sales', 'date')
+    list_filter   = ('date', 'shop__territory')
+    search_fields = ('shop__name', 'products')
+    date_hierarchy = 'date'
+    
+    
+admin.site.site_header = "Retail Management System"
+admin.site.site_title = "Retail Management Admin"
+admin.site.index_title = "Retail Management Admin"

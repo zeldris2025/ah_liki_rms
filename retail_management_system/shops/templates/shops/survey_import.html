@@ -1,0 +1,84 @@
+{% extends 'shops/base.html' %}
+{% block content %}
+<div style="margin-bottom:26px">
+  <a href="{% url 'survey_detail' survey.id %}" style="color:var(--accent);text-decoration:none;font-size:13px;font-weight:600;margin-bottom:8px;display:inline-block">← Back to Survey</a>
+  <h1 class="page-title">📥 Import Survey Data</h1>
+  <p class="page-sub">Bulk upload responses from CSV file</p>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 350px;gap:20px">
+  <!-- Main form -->
+  <div class="sms-card" style="padding:24px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+      <h3 style="margin:0;color:var(--text-primary);font-size:15px;font-weight:700">Upload Survey Responses</h3>
+      <a href="{% url 'download_survey_template' %}" style="padding:8px 12px;background:var(--accent);color:white;border-radius:6px;text-decoration:none;font-size:12px;font-weight:600;display:inline-flex;align-items:center;gap:6px;transition:background 0.2s;hover:opacity:0.9" title="Download a blank template to fill in">
+        📥 Download Template
+      </a>
+    </div>
+    
+    <form method="POST" enctype="multipart/form-data">
+      {% csrf_token %}
+      
+      {% if form.non_field_errors %}
+      <div style="background:#FEE2E2;border:1px solid #FECACA;border-radius:8px;padding:12px 14px;margin-bottom:16px;color:#991B1B;font-size:13px">
+        {{ form.non_field_errors }}
+      </div>
+      {% endif %}
+      
+      <div class="form-group">
+        {{ form.csv_file }}
+        {% if form.csv_file.errors %}<p style="color:var(--danger);font-size:12px;margin:4px 0 0">{{ form.csv_file.errors.0 }}</p>{% endif %}
+      </div>
+      
+      <div style="display:flex;gap:12px;margin-top:20px">
+        <button type="submit" class="btn-sms btn-primary-custom">📤 Upload & Import</button>
+        <a href="{% url 'survey_detail' survey.id %}" class="btn-sms btn-outline-custom">Cancel</a>
+      </div>
+    </form>
+  </div>
+  
+  <!-- Instructions panel -->
+  <div class="sms-card" style="padding:20px">
+    <h3 style="margin:0 0 12px;font-size:13px;font-weight:700;color:var(--primary);text-transform:uppercase">CSV Format</h3>
+    <p style="font-size:12px;color:var(--muted);line-height:1.5;margin:0 0 12px">Your CSV file should have these columns (in this order):</p>
+    
+    <div style="background:var(--surface);border-radius:8px;padding:12px;font-family:monospace;font-size:11px;color:#666;margin-bottom:12px;overflow-x:auto">
+      product<br>
+      category<br>
+      customer<br>
+      location<br>
+      region<br>
+      week<br>
+      price<br>
+      quantity<br>
+      rating<br>
+      notes
+    </div>
+    
+    <h3 style="margin:16px 0 8px;font-size:13px;font-weight:700;color:var(--primary);text-transform:uppercase">Category Examples</h3>
+    <p style="font-size:11px;color:var(--muted);margin:0 0 8px">Use any of these or add your own:</p>
+    <div style="background:var(--surface);border-radius:8px;padding:12px;font-size:10px;color:#666;line-height:1.6">
+      SODA • SNACKS • BEVERAGES • ALCOHOL • WATER • JUICE • ENERGY DRINK • MILK PRODUCTS • CONFECTIONERY • FROZEN FOODS • DAIRY • SNACK FOODS
+    </div>
+    
+    <h3 style="margin:16px 0 8px;font-size:13px;font-weight:700;color:var(--primary);text-transform:uppercase">Example Row</h3>
+    <div style="background:var(--surface);border-radius:8px;padding:12px;font-family:monospace;font-size:10px;color:#666;overflow-x:auto;line-height:1.4">
+      COKE CAN 330ml,SODA,24/7 SAVALALO,SAVALALO,REGION 2,3,3.00,100,5,Good sales
+    </div>
+    
+    <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border)">
+      <p style="font-size:11px;color:var(--muted);margin:0">✓ Optional fields can be empty<br>✓ Price uses decimal format (3.00)<br>✓ Rating is 1-5 scale<br>✓ Category can be any value</p>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+<style>
+  .form-group {
+    margin-bottom: 0;
+  }
+  input[type="file"].sms-input {
+    padding: 12px;
+    cursor: pointer;
+  }
+</style>

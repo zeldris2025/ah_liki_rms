@@ -1,0 +1,450 @@
+{% extends 'shops/base.html' %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <a href="{% url 'survey_detail' survey.id %}" style="color:var(--accent);text-decoration:none;font-size:13px;font-weight:600;margin-bottom:8px;display:inline-block">← Back to Survey</a>
+    <h1 class="page-title">📊 Survey Analysis</h1>
+    <p class="page-sub">{{ survey.title }} • Detailed insights and trends</p>
+  </div>
+</div>
+
+<!-- Summary Stats -->
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:20px">
+  <div class="stat-card">
+    <div class="stat-label">Total Responses</div>
+    <div class="stat-value" style="color:var(--primary)">{{ stats.total_responses }}</div>
+  </div>
+  {% if stats.avg_price %}
+  <div class="stat-card">
+    <div class="stat-label">Average Price</div>
+    <div class="stat-value" style="color:var(--accent)">WST {{ stats.avg_price|floatformat:2 }}</div>
+  </div>
+  {% endif %}
+  {% if stats.avg_rating %}
+  <div class="stat-card">
+    <div class="stat-label">Average Rating</div>
+    <div class="stat-value" style="color:var(--success)">{{ stats.avg_rating|floatformat:1 }}/5</div>
+  </div>
+  {% endif %}
+  {% if stats.total_quantity %}
+  <div class="stat-card">
+    <div class="stat-label">Total Quantity</div>
+    <div class="stat-value" style="color:var(--info)">{{ stats.total_quantity }}</div>
+  </div>
+  {% endif %}
+  <div class="stat-card">
+    <div class="stat-label">Unique Locations</div>
+    <div class="stat-value" style="color:#7C3AED">{{ stats.unique_locations }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Unique Regions</div>
+    <div class="stat-value" style="color:#EC4899">{{ stats.unique_regions }}</div>
+  </div>
+  {% if stats.unique_customers %}
+  <div class="stat-card">
+    <div class="stat-label">Unique Customers</div>
+    <div class="stat-value" style="color:#F59E0B">{{ stats.unique_customers }}</div>
+  </div>
+  {% endif %}
+  {% if stats.total_revenue %}
+  <div class="stat-card">
+    <div class="stat-label">Total Revenue</div>
+    <div class="stat-value" style="color:#059669">WST {{ stats.total_revenue|floatformat:2 }}</div>
+  </div>
+  {% endif %}
+</div>
+
+<!-- Charts Grid -->
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(350px,1fr));gap:20px;margin-bottom:20px">
+  
+  <!-- Chart 1: Responses by Location -->
+  {% if location_data %}
+  <div class="sms-card" style="padding:20px">
+    <div style="font-weight:700;font-size:14px;color:var(--primary);margin-bottom:14px">Responses by Location</div>
+    <canvas id="locationChart" height="200"></canvas>
+  </div>
+  {% endif %}
+  
+  <!-- Chart 2: Responses by Region -->
+  {% if region_data %}
+  <div class="sms-card" style="padding:20px">
+    <div style="font-weight:700;font-size:14px;color:var(--primary);margin-bottom:14px">Responses by Region</div>
+    <canvas id="regionChart" height="200"></canvas>
+  </div>
+  {% endif %}
+  
+  <!-- Chart 3: Top Products -->
+  {% if product_data %}
+  <div class="sms-card" style="padding:20px">
+    <div style="font-weight:700;font-size:14px;color:var(--primary);margin-bottom:14px">Top Products Surveyed</div>
+    <canvas id="productChart" height="200"></canvas>
+  </div>
+  {% endif %}
+  
+  <!-- Chart 4: Price Distribution -->
+  {% if price_data %}
+  <div class="sms-card" style="padding:20px">
+    <div style="font-weight:700;font-size:14px;color:var(--primary);margin-bottom:14px">Average Price by Product</div>
+    <canvas id="priceChart" height="200"></canvas>
+  </div>
+  {% endif %}
+  
+  <!-- Chart 5: Rating Distribution -->
+  {% if rating_data %}
+  <div class="sms-card" style="padding:20px">
+    <div style="font-weight:700;font-size:14px;color:var(--primary);margin-bottom:14px">Rating Distribution</div>
+    <canvas id="ratingChart" height="200"></canvas>
+  </div>
+  {% endif %}
+  
+  <!-- Chart 6: Top Categories -->
+  {% if category_data %}
+  <div class="sms-card" style="padding:20px">
+    <div style="font-weight:700;font-size:14px;color:var(--primary);margin-bottom:14px">Top Categories</div>
+    <canvas id="categoryChart" height="200"></canvas>
+  </div>
+  {% endif %}
+
+  <!-- Chart 7: Top Customers (NEW) -->
+  {% if customer_data %}
+  <div class="sms-card" style="padding:20px">
+    <div style="font-weight:700;font-size:14px;color:var(--primary);margin-bottom:14px">Top Customers</div>
+    <canvas id="customerChart" height="200"></canvas>
+  </div>
+  {% endif %}
+
+  <!-- Chart 8: Weekly Trends (NEW) -->
+  {% if weekly_data %}
+  <div class="sms-card" style="padding:20px">
+    <div style="font-weight:700;font-size:14px;color:var(--primary);margin-bottom:14px">Weekly Activity Trends</div>
+    <canvas id="weeklyChart" height="200"></canvas>
+  </div>
+  {% endif %}
+
+  <!-- Chart 9: Quantity by Product (NEW) -->
+  {% if quantity_data %}
+  <div class="sms-card" style="padding:20px">
+    <div style="font-weight:700;font-size:14px;color:var(--primary);margin-bottom:14px">Quantity Distribution by Product</div>
+    <canvas id="quantityChart" height="200"></canvas>
+  </div>
+  {% endif %}
+
+  <!-- Chart 10: Revenue by Location (NEW) -->
+  {% if revenue_data %}
+  <div class="sms-card" style="padding:20px">
+    <div style="font-weight:700;font-size:14px;color:var(--primary);margin-bottom:14px">Revenue by Location</div>
+    <canvas id="revenueChart" height="200"></canvas>
+  </div>
+  {% endif %}
+
+  <!-- Chart 11: Rating by Category (NEW) -->
+  {% if category_rating_data %}
+  <div class="sms-card" style="padding:20px">
+    <div style="font-weight:700;font-size:14px;color:var(--primary);margin-bottom:14px">Average Rating by Category</div>
+    <canvas id="categoryRatingChart" height="200"></canvas>
+  </div>
+  {% endif %}
+</div>
+
+<!-- Data Tables -->
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:20px">
+  
+  {% if location_data %}
+  <div class="sms-card" style="padding:20px">
+    <h3 style="margin:0 0 14px;font-size:14px;font-weight:700;color:var(--primary)">Top Locations</h3>
+    <table class="sms-table" style="font-size:12px">
+      <thead>
+        <tr>
+          <th>Location</th>
+          <th style="text-align:right">Count</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in location_data %}
+        <tr>
+          <td>{{ item.location }}</td>
+          <td style="text-align:right;font-weight:600">{{ item.count }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+  
+  {% if category_data %}
+  <div class="sms-card" style="padding:20px">
+    <h3 style="margin:0 0 14px;font-size:14px;font-weight:700;color:var(--primary)">Categories</h3>
+    <table class="sms-table" style="font-size:12px">
+      <thead>
+        <tr>
+          <th>Category</th>
+          <th style="text-align:right">Count</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in category_data %}
+        <tr>
+          <td>{{ item.category }}</td>
+          <td style="text-align:right;font-weight:600">{{ item.count }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+  
+  {% if region_data %}
+  <div class="sms-card" style="padding:20px">
+    <h3 style="margin:0 0 14px;font-size:14px;font-weight:700;color:var(--primary)">Regions</h3>
+    <table class="sms-table" style="font-size:12px">
+      <thead>
+        <tr>
+          <th>Region</th>
+          <th style="text-align:right">Count</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in region_data %}
+        <tr>
+          <td>{{ item.region }}</td>
+          <td style="text-align:right;font-weight:600">{{ item.count }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+</div>
+
+<div style="margin-top:20px">
+  <a href="{% url 'survey_detail' survey.id %}" class="btn-sms btn-outline-custom">← Back to Responses</a>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+// Common chart options
+const chartOptions = {
+  responsive: true,
+  maintainAspectRatio: true,
+  plugins: {
+    legend: { display: false }
+  }
+};
+
+// Location Chart
+{% if location_data %}
+new Chart(document.getElementById('locationChart'), {
+  type: 'bar',
+  data: {
+    labels: [{% for item in location_data %}'{{ item.location }}'{% if not forloop.last %},{% endif %}{% endfor %}],
+    datasets: [{
+      data: [{% for item in location_data %}{{ item.count }}{% if not forloop.last %},{% endif %}{% endfor %}],
+      backgroundColor: '#0D2D5A',
+      borderRadius: 4,
+      borderSkipped: false
+    }]
+  },
+  options: {
+    ...chartOptions,
+    scales: { y: { beginAtZero: true } },
+    indexAxis: 'x'
+  }
+});
+{% endif %}
+
+// Region Chart
+{% if region_data %}
+new Chart(document.getElementById('regionChart'), {
+  type: 'doughnut',
+  data: {
+    labels: [{% for item in region_data %}'{{ item.region }}'{% if not forloop.last %},{% endif %}{% endfor %}],
+    datasets: [{
+      data: [{% for item in region_data %}{{ item.count }}{% if not forloop.last %},{% endif %}{% endfor %}],
+      backgroundColor: ['#0D2D5A', '#0EA5E9', '#16A34A', '#DC2626', '#7C3AED', '#EC4899']
+    }]
+  },
+  options: chartOptions
+});
+{% endif %}
+
+// Product Chart
+{% if product_data %}
+new Chart(document.getElementById('productChart'), {
+  type: 'bar',
+  data: {
+    labels: [{% for item in product_data %}'{{ item.product|truncatewords:3 }}'{% if not forloop.last %},{% endif %}{% endfor %}],
+    datasets: [{
+      data: [{% for item in product_data %}{{ item.count }}{% if not forloop.last %},{% endif %}{% endfor %}],
+      backgroundColor: '#0EA5E9',
+      borderRadius: 4
+    }]
+  },
+  options: {
+    ...chartOptions,
+    scales: { y: { beginAtZero: true } }
+  }
+});
+{% endif %}
+
+// Price Chart
+{% if price_data %}
+new Chart(document.getElementById('priceChart'), {
+  type: 'bar',
+  data: {
+    labels: [{% for item in price_data %}'{{ item.product|truncatewords:3 }}'{% if not forloop.last %},{% endif %}{% endfor %}],
+    datasets: [{
+      label: 'WST',
+      data: [{% for item in price_data %}{{ item.avg_price|floatformat:2 }}{% if not forloop.last %},{% endif %}{% endfor %}],
+      backgroundColor: '#16A34A',
+      borderRadius: 4
+    }]
+  },
+  options: {
+    ...chartOptions,
+    scales: { y: { beginAtZero: true } }
+  }
+});
+{% endif %}
+
+// Rating Chart
+{% if rating_data %}
+new Chart(document.getElementById('ratingChart'), {
+  type: 'bar',
+  data: {
+    labels: [{% for item in rating_data %}'{{ item.rating }} ⭐'{% if not forloop.last %},{% endif %}{% endfor %}],
+    datasets: [{
+      data: [{% for item in rating_data %}{{ item.count }}{% if not forloop.last %},{% endif %}{% endfor %}],
+      backgroundColor: '#DC2626',
+      borderRadius: 4
+    }]
+  },
+  options: {
+    ...chartOptions,
+    scales: { y: { beginAtZero: true } }
+  }
+});
+{% endif %}
+
+// Category Chart
+{% if category_data %}
+new Chart(document.getElementById('categoryChart'), {
+  type: 'polarArea',
+  data: {
+    labels: [{% for item in category_data %}'{{ item.category }}'{% if not forloop.last %},{% endif %}{% endfor %}],
+    datasets: [{
+      data: [{% for item in category_data %}{{ item.count }}{% if not forloop.last %},{% endif %}{% endfor %}],
+      backgroundColor: ['#0D2D5A', '#0EA5E9', '#16A34A', '#DC2626', '#7C3AED', '#EC4899', '#F59E0B']
+    }]
+  },
+  options: chartOptions
+});
+{% endif %}
+
+// Customer Chart (NEW)
+{% if customer_data %}
+new Chart(document.getElementById('customerChart'), {
+  type: 'bar',
+  data: {
+    labels: [{% for item in customer_data %}'{{ item.customer|truncatewords:3 }}'{% if not forloop.last %},{% endif %}{% endfor %}],
+    datasets: [{
+      label: 'Responses',
+      data: [{% for item in customer_data %}{{ item.count }}{% if not forloop.last %},{% endif %}{% endfor %}],
+      backgroundColor: '#7C3AED',
+      borderRadius: 4
+    }]
+  },
+  options: {
+    ...chartOptions,
+    scales: { y: { beginAtZero: true } },
+    indexAxis: 'y'
+  }
+});
+{% endif %}
+
+// Weekly Trends Chart (NEW)
+{% if weekly_data %}
+new Chart(document.getElementById('weeklyChart'), {
+  type: 'line',
+  data: {
+    labels: [{% for item in weekly_data %}'Week {{ item.week }}'{% if not forloop.last %},{% endif %}{% endfor %}],
+    datasets: [{
+      label: 'Responses',
+      data: [{% for item in weekly_data %}{{ item.count }}{% if not forloop.last %},{% endif %}{% endfor %}],
+      borderColor: '#0EA5E9',
+      backgroundColor: 'rgba(14, 165, 233, 0.1)',
+      tension: 0.4,
+      fill: true,
+      borderWidth: 2
+    }]
+  },
+  options: {
+    ...chartOptions,
+    scales: { y: { beginAtZero: true } }
+  }
+});
+{% endif %}
+
+// Quantity Distribution Chart (NEW)
+{% if quantity_data %}
+new Chart(document.getElementById('quantityChart'), {
+  type: 'bar',
+  data: {
+    labels: [{% for item in quantity_data %}'{{ item.product|truncatewords:3 }}'{% if not forloop.last %},{% endif %}{% endfor %}],
+    datasets: [{
+      label: 'Total Qty',
+      data: [{% for item in quantity_data %}{{ item.total_qty }}{% if not forloop.last %},{% endif %}{% endfor %}],
+      backgroundColor: '#F59E0B',
+      borderRadius: 4
+    }]
+  },
+  options: {
+    ...chartOptions,
+    scales: { y: { beginAtZero: true } }
+  }
+});
+{% endif %}
+
+// Revenue by Location Chart (NEW)
+{% if revenue_data %}
+new Chart(document.getElementById('revenueChart'), {
+  type: 'bar',
+  data: {
+    labels: [{% for item in revenue_data %}'{{ item.location }}'{% if not forloop.last %},{% endif %}{% endfor %}],
+    datasets: [{
+      label: 'Revenue (WST)',
+      data: [{% for item in revenue_data %}{{ item.total_revenue|floatformat:2 }}{% if not forloop.last %},{% endif %}{% endfor %}],
+      backgroundColor: '#059669',
+      borderRadius: 4
+    }]
+  },
+  options: {
+    ...chartOptions,
+    scales: { y: { beginAtZero: true } }
+  }
+});
+{% endif %}
+
+// Rating by Category Chart (NEW)
+{% if category_rating_data %}
+new Chart(document.getElementById('categoryRatingChart'), {
+  type: 'radar',
+  data: {
+    labels: [{% for item in category_rating_data %}'{{ item.category }}'{% if not forloop.last %},{% endif %}{% endfor %}],
+    datasets: [{
+      label: 'Average Rating',
+      data: [{% for item in category_rating_data %}{{ item.avg_rating|floatformat:2 }}{% if not forloop.last %},{% endif %}{% endfor %}],
+      borderColor: '#DC2626',
+      backgroundColor: 'rgba(220, 38, 38, 0.1)',
+      pointBackgroundColor: '#DC2626',
+      tension: 0.4,
+      borderWidth: 2
+    }]
+  },
+  options: {
+    ...chartOptions,
+    scales: { r: { beginAtZero: true, max: 5 } }
+  }
+});
+{% endif %}
+</script>
+{% endblock %}

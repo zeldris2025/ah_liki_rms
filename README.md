@@ -1,4 +1,4 @@
-# Ah Liki Wholesale — Retail Management System
+# Ah Liki Wholesale — Sales and Marketing System
 
 ## Quick Start
 

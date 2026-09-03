@@ -2,7 +2,7 @@
 {% block content %}
 <div class="page-header">
   <div><h2 class="page-title">{{ action }} HORECCA Client{% if biz %} — {{ biz.name }}{% endif %}</h2></div>
-  <a href="{% url 'business_list' %}" class="btn-rms btn-outline-custom">← Back</a>
+  <a href="{% url 'business_list' %}" class="btn-sms btn-outline-custom">← Back</a>
 </div>
 {% if error %}<div style="background:#FEE2E2;color:#991B1B;padding:12px 16px;border-radius:10px;margin-bottom:16px;font-size:14px">{{ error }}</div>{% endif %}
 
@@ -12,12 +12,12 @@
     <div>
       <div class="form-section-title">Client Details</div>
       <div class="form-group">
-        <label class="rms-label">Business Name <span style="color:var(--danger)">*</span></label>
-        <input type="text" name="name" value="{{ biz.name|default:'' }}" required class="rms-input">
+        <label class="sms-label">Business Name <span style="color:var(--danger)">*</span></label>
+        <input type="text" name="name" value="{{ biz.name|default:'' }}" required class="sms-input">
       </div>
       <div class="form-group">
-        <label class="rms-label">Type</label>
-        <select name="business_type" class="rms-input">
+        <label class="sms-label">Type</label>
+        <select name="business_type" class="sms-input">
           <option value="HOTEL"      {% if biz.business_type == 'HOTEL'      %}selected{% endif %}>Hotel</option>
           <option value="CAFE"       {% if biz.business_type == 'CAFE'       %}selected{% endif %}>Café</option>
           <option value="RESTAURANT" {% if biz.business_type == 'RESTAURANT' %}selected{% endif %}>Restaurant</option>
@@ -25,21 +25,21 @@
         </select>
       </div>
       <div class="form-group">
-        <label class="rms-label">Island</label>
-        <select name="island" class="rms-input">
+        <label class="sms-label">Island</label>
+        <select name="island" class="sms-input">
           <option value="Upolu"  {% if biz.island == 'Upolu'  or not biz %}selected{% endif %}>Upolu</option>
           <option value="Savaii" {% if biz.island == 'Savaii' %}selected{% endif %}>Savaii</option>
         </select>
       </div>
       <div class="form-group">
-        <label class="rms-label">Location</label>
-        <input type="text" name="location" value="{{ biz.location|default:'' }}" class="rms-input">
+        <label class="sms-label">Location</label>
+        <input type="text" name="location" value="{{ biz.location|default:'' }}" class="sms-input">
       </div>
       {% if biz %}
       <div style="margin-top:24px;padding-top:16px;border-top:1px solid var(--border)">
         <button type="submit" name="delete_business" value="1"
                 onclick="return confirm('Delete {{ biz.name }}?')"
-                class="btn-rms btn-danger-custom sm">🗑 Delete Client</button>
+                class="btn-sms btn-danger-custom sm">🗑 Delete Client</button>
       </div>
       {% endif %}
     </div>
@@ -48,8 +48,8 @@
     </div>
   </div>
   <div style="display:flex;gap:10px;justify-content:flex-end;padding-top:22px;border-top:1px solid var(--border);margin-top:20px">
-    <a href="{% url 'business_list' %}" class="btn-rms btn-outline-custom">Cancel</a>
-    <button type="submit" class="btn-rms btn-primary-custom">{{ action }} Client</button>
+    <a href="{% url 'business_list' %}" class="btn-sms btn-outline-custom">Cancel</a>
+    <button type="submit" class="btn-sms btn-primary-custom">{{ action }} Client</button>
   </div>
 </form>
 {% endblock %}

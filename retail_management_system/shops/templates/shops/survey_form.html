@@ -1,0 +1,87 @@
+{% extends 'shops/base.html' %}
+{% block content %}
+<div style="margin-bottom:26px">
+  <a href="{% url 'survey_list' %}" style="color:var(--accent);text-decoration:none;font-size:13px;font-weight:600;margin-bottom:8px;display:inline-block">← Back to Surveys</a>
+  <h1 class="page-title">{{ action }} Survey</h1>
+  <p class="page-sub">Create a new survey for staff to enter market research and product data</p>
+</div>
+
+<div class="sms-card" style="max-width:700px;padding:24px">
+  <form method="POST">
+    {% csrf_token %}
+    
+    {% if form.non_field_errors %}
+    <div style="background:#FEE2E2;border:1px solid #FECACA;border-radius:8px;padding:12px 14px;margin-bottom:16px;color:#991B1B;font-size:13px">
+      {{ form.non_field_errors }}
+    </div>
+    {% endif %}
+    
+    <div class="form-group">
+      <label class="sms-label">Survey Title *</label>
+      {{ form.title }}
+      {% if form.title.errors %}<p style="color:var(--danger);font-size:12px;margin:4px 0 0">{{ form.title.errors.0 }}</p>{% endif %}
+    </div>
+    
+    <div class="form-group">
+      <label class="sms-label">Category *</label>
+      {{ form.category }}
+      {% if form.category.errors %}<p style="color:var(--danger);font-size:12px;margin:4px 0 0">{{ form.category.errors.0 }}</p>{% endif %}
+    </div>
+    
+    <div class="form-group">
+      <label class="sms-label">Description</label>
+      {{ form.description }}
+      {% if form.description.errors %}<p style="color:var(--danger);font-size:12px;margin:4px 0 0">{{ form.description.errors.0 }}</p>{% endif %}
+    </div>
+    
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+      <div class="form-group">
+        <label class="sms-label">Location</label>
+        {{ form.location }}
+        {% if form.location.errors %}<p style="color:var(--danger);font-size:12px;margin:4px 0 0">{{ form.location.errors.0 }}</p>{% endif %}
+      </div>
+      
+      <div class="form-group">
+        <label class="sms-label">Region</label>
+        {{ form.region }}
+        {% if form.region.errors %}<p style="color:var(--danger);font-size:12px;margin:4px 0 0">{{ form.region.errors.0 }}</p>{% endif %}
+      </div>
+    </div>
+    
+    <div class="form-group">
+      <label class="sms-label">Period</label>
+      {{ form.period }}
+      {% if form.period.errors %}<p style="color:var(--danger);font-size:12px;margin:4px 0 0">{{ form.period.errors.0 }}</p>{% endif %}
+    </div>
+    
+    <div style="display:flex;gap:12px;margin-top:24px">
+      <button type="submit" class="btn-sms btn-primary-custom">{{ action }} Survey</button>
+      <a href="{% url 'survey_list' %}" class="btn-sms btn-outline-custom">Cancel</a>
+    </div>
+  </form>
+</div>
+
+<style>
+  .sms-input {
+    width: 100%;
+    padding: 9px 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 14px;
+    background: var(--card);
+    color: #1F2937;
+    outline: none;
+  }
+  .sms-input:focus {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(15, 23, 42, 0.1);
+  }
+  select.sms-input {
+    cursor: pointer;
+  }
+  textarea.sms-input {
+    resize: vertical;
+    font-family: 'Segoe UI', system-ui, sans-serif;
+  }
+</style>
+{% endblock %}

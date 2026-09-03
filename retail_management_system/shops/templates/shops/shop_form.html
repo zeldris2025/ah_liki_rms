@@ -4,7 +4,7 @@
   <div>
     <h2 class="page-title">{{ action }} Shop{% if shop %} — {{ shop.name }}{% endif %}</h2>
   </div>
-  <a href="{% url 'shop_list' %}" class="btn-rms btn-outline-custom">← Back</a>
+  <a href="{% url 'shop_list' %}" class="btn-sms btn-outline-custom">← Back</a>
 </div>
 {% if error %}<div style="background:#FEE2E2;color:#991B1B;padding:12px 16px;border-radius:10px;margin-bottom:16px;font-size:14px">{{ error }}</div>{% endif %}
 
@@ -17,47 +17,74 @@
       <div class="form-section-title">Shop Details</div>
 
       <div class="form-group">
-        <label class="rms-label">Shop Name <span style="color:var(--danger)">*</span></label>
-        <input type="text" name="name" value="{{ shop.name|default:'' }}" required class="rms-input" placeholder="e.g. Faleolo Grocery">
+        <label class="sms-label">Shop Name <span style="color:var(--danger)">*</span></label>
+        <input type="text" name="name" value="{{ shop.name|default:'' }}" required class="sms-input" placeholder="e.g. Faleolo Grocery">
       </div>
       <div class="form-group">
-        <label class="rms-label">Owner</label>
-        <input type="text" name="owner" value="{{ shop.owner|default:'' }}" class="rms-input">
+        <label class="sms-label">Owner</label>
+        <input type="text" name="owner" value="{{ shop.owner|default:'' }}" class="sms-input">
       </div>
       <div class="form-group">
-        <label class="rms-label">Phone</label>
-        <input type="text" name="phone" value="{{ shop.phone|default:'' }}" class="rms-input">
+        <label class="sms-label">Phone</label>
+        <input type="text" name="phone" value="{{ shop.phone|default:'' }}" class="sms-input">
       </div>
       <div class="form-group">
-        <label class="rms-label">Address</label>
-        <input type="text" name="address" value="{{ shop.address|default:'' }}" class="rms-input">
+        <label class="sms-label">Address</label>
+        <input type="text" name="address" value="{{ shop.address|default:'' }}" class="sms-input">
       </div>
       <div class="form-group">
-        <label class="rms-label">Island</label>
-        <select name="island" class="rms-input">
+        <label class="sms-label">Island</label>
+        <select name="island" class="sms-input">
           <option value="Upolu"  {% if shop.island == 'Upolu'  or not shop %}selected{% endif %}>Upolu</option>
           <option value="Savaii" {% if shop.island == 'Savaii' %}selected{% endif %}>Savaii</option>
         </select>
       </div>
       <div class="form-group">
-        <label class="rms-label">Region</label>
-        <select name="region" class="rms-input">
-          <option value="Region 1" {% if shop.region == 'Region 1' %}selected{% endif %}>Region 1</option>
-          <option value="Region 2" {% if shop.region == 'Region 2' %}selected{% endif %}>Region 2</option>
-          <option value="Region 3" {% if shop.region == 'Region 3' %}selected{% endif %}>Region 3</option>
-          <option value="Region 4" {% if shop.region == 'Region 4' %}selected{% endif %}>Region 4</option>
+        <label class="sms-label">Sales Territory</label>
+        <select name="territory" class="sms-input">
+          <option value="">-- Select Territory --</option>
+          <option value="EC1" {% if shop.territory == 'EC1' %}selected{% endif %}>EC1</option>
+          <option value="EC2" {% if shop.territory == 'EC2' %}selected{% endif %}>EC2</option>
+          <option value="EC3" {% if shop.territory == 'EC3' %}selected{% endif %}>EC3</option>
+          <option value="LFG" {% if shop.territory == 'LFG' %}selected{% endif %}>LFG</option>
+          <option value="VT1" {% if shop.territory == 'VT1' %}selected{% endif %}>VT1</option>
+          <option value="VT2" {% if shop.territory == 'VT2' %}selected{% endif %}>VT2</option>
+          <option value="VT3" {% if shop.territory == 'VT3' %}selected{% endif %}>VT3</option>
+          <option value="WC1" {% if shop.territory == 'WC1' %}selected{% endif %}>WC1</option>
+          <option value="WC2" {% if shop.territory == 'WC2' %}selected{% endif %}>WC2</option>
+          <option value="WC4" {% if shop.territory == 'WC4' %}selected{% endif %}>WC4</option>
         </select>
       </div>
-      <div style="display:flex;align-items:center;gap:10px;margin-top:6px">
-        <input type="checkbox" id="tip_top" name="tip_top" {% if shop.tip_top %}checked{% endif %} style="width:16px;height:16px;accent-color:var(--success)">
-        <label for="tip_top" style="font-weight:600;font-size:13px;color:var(--primary);cursor:pointer">Tip Top Partner</label>
+      <div style="display:flex;gap:16px;flex-direction:column;margin-top:16px">
+        <div style="display:flex;align-items:center;gap:10px">
+          <input type="checkbox" id="tip_top" name="tip_top" {% if shop.tip_top %}checked{% endif %} style="width:16px;height:16px;accent-color:var(--success)">
+          <label for="tip_top" style="font-weight:600;font-size:13px;color:var(--primary);cursor:pointer">Tip Top Partner</label>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <input type="checkbox" id="taula_fridge" name="taula_fridge" {% if shop.taula_fridge %}checked{% endif %} style="width:16px;height:16px;accent-color:var(--info)">
+          <label for="taula_fridge" style="font-weight:600;font-size:13px;color:var(--primary);cursor:pointer">Taula Fridge</label>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <input type="checkbox" id="talofa_voucher" name="talofa_voucher" {% if shop.talofa_voucher %}checked{% endif %} style="width:16px;height:16px;accent-color:var(--accent)">
+          <label for="talofa_voucher" style="font-weight:600;font-size:13px;color:var(--primary);cursor:pointer">Talofa Voucher</label>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <input type="checkbox" id="faakau_com" name="faakau_com" {% if shop.faakau_com %}checked{% endif %} style="width:16px;height:16px;accent-color:var(--primary)">
+          <label for="faakau_com" style="font-weight:600;font-size:13px;color:var(--primary);cursor:pointer">Faakau.com</label>
+        </div>
       </div>
 
       {% if shop %}
       <div style="margin-top:30px;padding-top:20px;border-top:1px solid var(--border)">
+        <div class="form-section-title">Sales Data</div>
+        <a href="{% url 'import_shop_sales' shop.id %}" class="btn-sms btn-accent-custom sm">📊 Import Sales CSV</a>
+        <div style="color:var(--muted);font-size:12px;margin-top:8px">Columns: products, quantity, total_sales, date — all optional. Duplicates are skipped.</div>
+      </div>
+
+      <div style="margin-top:24px;padding-top:20px;border-top:1px solid var(--border)">
         <button type="submit" name="delete_shop" value="1"
                 onclick="return confirm('Are you sure you want to delete {{ shop.name }}?')"
-                class="btn-rms btn-danger-custom sm">🗑 Delete Shop</button>
+                class="btn-sms btn-danger-custom sm">🗑 Delete Shop</button>
       </div>
       {% endif %}
     </div>
@@ -69,8 +96,8 @@
   </div>
 
   <div style="display:flex;gap:10px;justify-content:flex-end;padding-top:22px;border-top:1px solid var(--border);margin-top:20px">
-    <a href="{% url 'shop_list' %}" class="btn-rms btn-outline-custom">Cancel</a>
-    <button type="submit" class="btn-rms btn-primary-custom">{{ action }} Shop</button>
+    <a href="{% url 'shop_list' %}" class="btn-sms btn-outline-custom">Cancel</a>
+    <button type="submit" class="btn-sms btn-primary-custom">{{ action }} Shop</button>
   </div>
 </form>
 {% endblock %}

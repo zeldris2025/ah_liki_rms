@@ -1,0 +1,50 @@
+{% extends 'shops/base.html' %}
+
+{% block title %}Import Result{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-lg-8 mx-auto">
+            {% if success %}
+            <div class="alert alert-success alert-dismissible fade show" role="alert">
+                <h4 class="alert-heading">✓ Import Successful!</h4>
+                <p>{{ messages.success }}</p>
+                {% if messages.errors %}
+                <p class="mb-0"><small class="text-muted">Note: Some rows may have been skipped due to validation errors.</small></p>
+                {% endif %}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+            {% else %}
+            <div class="alert alert-warning alert-dismissible fade show" role="alert">
+                <h4 class="alert-heading">⚠ Import Completed with Issues</h4>
+                <p>{{ messages.success }}</p>
+                {% if messages.errors %}
+                <p><strong>Errors encountered:</strong></p>
+                <ul class="mb-0">
+                    {% for error in messages.errors %}
+                    <li>{{ error }}</li>
+                    {% endfor %}
+                </ul>
+                {% endif %}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+            {% endif %}
+
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">📊 Import Summary</h5>
+                    <p class="card-text">
+                        <strong>Total Records Processed:</strong> {{ messages.import_count }}<br>
+                        <strong>Model Type:</strong> {{ model_type }}
+                    </p>
+                </div>
+            </div>
+
+            <div class="mt-4">
+                <a href="{% url 'dashboard' %}" class="btn btn-primary">← Back to Dashboard</a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

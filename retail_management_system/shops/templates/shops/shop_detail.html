@@ -3,12 +3,17 @@
 <!-- Hero -->
 <div class="detail-hero" style="display:flex;justify-content:space-between;align-items:flex-start">
   <div>
-    <div style="color:rgba(255,255,255,.55);font-size:12px;margin-bottom:6px;letter-spacing:.06em;text-transform:uppercase">{{ shop.island }} · {{ shop.region }}</div>
+    <div style="color:rgba(255,255,255,.55);font-size:12px;margin-bottom:6px;letter-spacing:.06em;text-transform:uppercase">{{ shop.island }}</div>
     <div style="color:#fff;font-size:24px;font-weight:700;line-height:1.2">{{ shop.name }}</div>
     {% if shop.address %}<div style="color:rgba(255,255,255,.65);font-size:13px;margin-top:8px">📍 {{ shop.address }}</div>{% endif %}
   </div>
   <div style="display:flex;flex-direction:column;gap:8px;align-items:flex-end">
-    {% if shop.tip_top %}<span class="badge-custom badge-amber">✦ Tip Top</span>{% endif %}
+    <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end">
+      {% if shop.tip_top %}<span class="badge-custom badge-green">✦ Tip Top</span>{% endif %}
+      {% if shop.taula_fridge %}<span class="badge-custom badge-blue">🧊 Taula</span>{% endif %}
+      {% if shop.talofa_voucher %}<span class="badge-custom badge-accent">💳 Talofa</span>{% endif %}
+      {% if shop.faakau_com %}<span class="badge-custom badge-amber">🛒 Faakau.com</span>{% endif %}
+    </div>
     <span class="badge-custom {% if shop.island == 'Upolu' %}badge-blue{% else %}badge-amber{% endif %}">{{ shop.island }}</span>
   </div>
 </div>
@@ -30,13 +35,91 @@
     <div style="color:var(--primary);font-weight:600;font-size:14px">{{ shop.phone|default:"—" }}</div>
   </div>
   <div style="background:var(--surface);border-radius:10px;padding:12px 16px">
-    <div style="color:var(--muted);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;margin-bottom:5px">Region</div>
-    <div style="color:var(--primary);font-weight:600;font-size:14px">{{ shop.region }}</div>
+    <div style="color:var(--muted);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;margin-bottom:5px">Territory</div>
+    <div style="color:var(--primary);font-weight:600;font-size:14px">{{ shop.territory|default:"—" }}</div>
   </div>
   <div style="background:var(--surface);border-radius:10px;padding:12px 16px">
     <div style="color:var(--muted);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;margin-bottom:5px">Date Added</div>
     <div style="color:var(--primary);font-weight:600;font-size:14px">{{ shop.created|default:"—" }}</div>
   </div>
+</div>
+
+<!-- Sales Section -->
+<div style="border-top:1px solid var(--border);padding-top:24px;margin-bottom:28px">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+    <div style="display:flex;align-items:center;gap:10px">
+      <span style="font-weight:700;font-size:16px;color:var(--primary)">Sales</span>
+      {% if sales_count %}
+      <span style="background:var(--success);color:#fff;font-size:11px;font-weight:700;padding:2px 9px;border-radius:999px">{{ sales_count }}</span>
+      {% endif %}
+    </div>
+    <a href="{% url 'import_shop_sales' shop.id %}" class="btn-sms btn-accent-custom sm">📊 Import Sales CSV</a>
+  </div>
+
+  <!-- Sales Summary Cards -->
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-bottom:20px">
+    <div class="stat-card">
+      <div class="stat-label">Total Sales</div>
+      <div class="stat-value" style="color:var(--success)">WST {{ total_sales|floatformat:2 }}</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Total Quantity</div>
+      <div class="stat-value" style="color:var(--info)">{{ total_quantity }}</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Sales Records</div>
+      <div class="stat-value" style="color:var(--primary)">{{ sales_count }}</div>
+    </div>
+  </div>
+
+  <!-- Filter Buttons -->
+  <form method="GET" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:18px;padding:14px;background:var(--surface);border-radius:10px">
+    <label style="font-weight:600;font-size:13px;color:var(--primary);margin:0">Filter by:</label>
+    <select name="month" class="sms-input" style="width:auto;padding:7px 12px;font-size:13px">
+      <option value="">All Months</option>
+      {% for num, name in months %}
+      <option value="{{ num }}" {% if filter_month == num|stringformat:"s" %}selected{% endif %}>{{ name }}</option>
+      {% endfor %}
+    </select>
+    <select name="year" class="sms-input" style="width:auto;padding:7px 12px;font-size:13px">
+      <option value="">All Years</option>
+      {% for y in available_years %}
+      <option value="{{ y }}" {% if filter_year == y|stringformat:"s" %}selected{% endif %}>{{ y }}</option>
+      {% endfor %}
+    </select>
+    <button type="submit" class="btn-sms btn-primary-custom sm">Apply Filter</button>
+    {% if filter_month or filter_year %}
+    <a href="{% url 'shop_detail' shop.id %}" class="btn-sms btn-outline-custom sm">✕ Clear</a>
+    {% endif %}
+  </form>
+
+  <!-- Sales Table -->
+  {% if sales %}
+  <div class="sms-card">
+    <table class="sms-table">
+      <thead>
+        <tr><th>Date</th><th>Products</th><th>Quantity</th><th>Total Sales (WST)</th></tr>
+      </thead>
+      <tbody>
+        {% for sale in sales %}
+        <tr>
+          <td style="color:var(--muted)">{{ sale.date|default:"—" }}</td>
+          <td style="font-weight:600;color:var(--primary)">{{ sale.products|default:"—" }}</td>
+          <td>{{ sale.quantity|default:"—" }}</td>
+          <td style="font-weight:700;color:var(--success)">{% if sale.total_sales %}{{ sale.total_sales|floatformat:2 }}{% else %}—{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div style="text-align:center;padding:36px 20px;background:var(--surface);border-radius:12px;border:2px dashed var(--border)">
+    <div style="font-size:32px;margin-bottom:8px">📊</div>
+    <div style="font-weight:700;font-size:14px;color:var(--primary);margin-bottom:6px">No sales data</div>
+    <div style="color:var(--muted);font-size:13px;margin-bottom:16px">Import a CSV to add sales records for this shop.</div>
+    <a href="{% url 'import_shop_sales' shop.id %}" class="btn-sms btn-primary-custom sm">+ Import Sales</a>
+  </div>
+  {% endif %}
 </div>
 
 <!-- Photos -->
@@ -48,7 +131,7 @@
       <span style="background:var(--primary);color:#fff;font-size:11px;font-weight:700;padding:2px 9px;border-radius:999px">{{ cnt }}</span>
       {% endif %}{% endwith %}
     </div>
-    <a href="{% url 'edit_shop' shop.id %}" class="btn-rms btn-outline-custom sm">✏ Edit Shop &amp; Photos</a>
+    <a href="{% url 'edit_shop' shop.id %}" class="btn-sms btn-outline-custom sm">✏ Edit Shop &amp; Photos</a>
   </div>
 
   {% if not shop.photos.exists %}
@@ -56,7 +139,7 @@
     <div style="font-size:40px;margin-bottom:10px">📷</div>
     <div style="font-weight:700;font-size:15px;color:var(--primary);margin-bottom:6px">No photos yet</div>
     <div style="color:var(--muted);font-size:13px;margin-bottom:18px">Edit this shop to upload photos — business licenses, storefronts, coolers and more.</div>
-    <a href="{% url 'edit_shop' shop.id %}" class="btn-rms btn-primary-custom sm">+ Add Photos</a>
+    <a href="{% url 'edit_shop' shop.id %}" class="btn-sms btn-primary-custom sm">+ Add Photos</a>
   </div>
   {% else %}
     {% for label, group_photos in photo_groups.items %}
@@ -85,7 +168,7 @@
 </div>
 
 <div style="margin-top:20px">
-  <a href="{% url 'shop_list' %}" class="btn-rms btn-outline-custom">← Back to Shops</a>
+  <a href="{% url 'shop_list' %}" class="btn-sms btn-outline-custom">← Back to Shops</a>
 </div>
 {% endblock %}
 

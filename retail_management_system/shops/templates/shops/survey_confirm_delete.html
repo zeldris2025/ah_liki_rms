@@ -1,0 +1,49 @@
+{% extends 'shops/base.html' %}
+{% block content %}
+<div style="margin-bottom:26px">
+  <a href="{% url 'survey_list' %}" style="color:var(--accent);text-decoration:none;font-size:13px;font-weight:600;margin-bottom:8px;display:inline-block">← Back to Surveys</a>
+  <h1 class="page-title">Delete Survey</h1>
+  <p class="page-sub">Are you sure you want to delete this entire survey?</p>
+</div>
+
+<div class="sms-card" style="max-width:600px;padding:24px">
+  <div style="background:#FEE2E2;border:1px solid #FECACA;border-radius:8px;padding:14px;margin-bottom:20px">
+    <div style="display:flex;gap:12px">
+      <div style="font-size:24px">⚠️</div>
+      <div>
+        <p style="margin:0;font-size:13px;color:#991B1B">
+          <strong>This action cannot be undone.</strong> You are about to permanently delete this survey and all {{ survey.response_count }} associated responses.
+        </p>
+      </div>
+    </div>
+  </div>
+  
+  <div style="background:var(--surface);border-radius:8px;padding:14px;margin-bottom:20px">
+    <p style="margin:0 0 8px;font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase">Survey Details</p>
+    <table style="width:100%;font-size:13px">
+      <tr>
+        <td style="padding:6px 0;color:var(--muted)">Title:</td>
+        <td style="padding:6px 0;font-weight:600">{{ survey.title }}</td>
+      </tr>
+      <tr>
+        <td style="padding:6px 0;color:var(--muted)">Category:</td>
+        <td style="padding:6px 0;font-weight:600">{{ survey.get_category_display }}</td>
+      </tr>
+      <tr>
+        <td style="padding:6px 0;color:var(--muted)">Responses:</td>
+        <td style="padding:6px 0;font-weight:600">{{ survey.response_count }}</td>
+      </tr>
+      <tr>
+        <td style="padding:6px 0;color:var(--muted)">Created:</td>
+        <td style="padding:6px 0;font-weight:600">{{ survey.created_at|date:"M d, Y" }}</td>
+      </tr>
+    </table>
+  </div>
+  
+  <form method="POST" style="display:flex;gap:12px">
+    {% csrf_token %}
+    <button type="submit" class="btn-sms btn-danger-custom">🗑️ Delete Survey & All Responses</button>
+    <a href="{% url 'survey_list' %}" class="btn-sms btn-outline-custom">Cancel</a>
+  </form>
+</div>
+{% endblock %}

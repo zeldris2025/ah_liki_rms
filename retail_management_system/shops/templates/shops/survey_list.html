@@ -1,0 +1,91 @@
+{% extends 'shops/base.html' %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Surveys</h1>
+    <p class="page-sub">Manage staff surveys and market research data</p>
+  </div>
+  <div>
+    <a href="{% url 'add_survey' %}" class="btn-sms btn-primary-custom">+ Create Survey</a>
+  </div>
+</div>
+
+<!-- Filters -->
+<div class="sms-card" style="padding:16px;margin-bottom:20px">
+  <form method="GET" style="display:flex;gap:12px;align-items:flex-end">
+    <div style="flex:1;min-width:200px">
+      <label class="sms-label">Search</label>
+      <input type="text" name="search_query" value="{{ search_query }}" placeholder="Search by title, location, region..." class="sms-input" style="font-size:13px">
+    </div>
+    <div style="flex:0 0 200px">
+      <label class="sms-label">Category</label>
+      <select name="category" class="sms-input" style="font-size:13px">
+        <option value="">All Categories</option>
+        {% for value, label in categories %}
+        <option value="{{ value }}" {% if value == selected_category %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <button type="submit" class="btn-sms btn-accent-custom">Filter</button>
+    <a href="{% url 'survey_list' %}" class="btn-sms btn-outline-custom">Clear</a>
+  </form>
+</div>
+
+<!-- Surveys Table -->
+<div class="sms-card">
+  {% if page_obj %}
+    <table class="sms-table">
+      <thead>
+        <tr>
+          <th>Title</th>
+          <th>Category</th>
+          <th>Location</th>
+          <th>Region</th>
+          <th>Responses</th>
+          <th>Created</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for survey in page_obj %}
+        <tr>
+          <td style="font-weight:600">{{ survey.title }}</td>
+          <td><span class="badge-custom badge-purple">{{ survey.get_category_display }}</span></td>
+          <td>{{ survey.location|default:"—" }}</td>
+          <td>{{ survey.region|default:"—" }}</td>
+          <td><strong>{{ survey.response_count }}</strong></td>
+          <td style="color:var(--muted);font-size:12px">{{ survey.created_at|date:"M d, Y" }}</td>
+          <td style="white-space:nowrap">
+            <a href="{% url 'survey_detail' survey.id %}" class="btn-sms btn-outline-custom sm">View</a>
+            <a href="{% url 'survey_analysis' survey.id %}" class="btn-sms btn-accent-custom sm">Analyze</a>
+            <a href="{% url 'edit_survey' survey.id %}" class="btn-sms btn-outline-custom sm">Edit</a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    
+    <!-- Pagination -->
+    {% if page_obj.has_other_pages %}
+    <div style="padding:16px;border-top:1px solid var(--border);display:flex;justify-content:center;gap:6px;align-items:center">
+      {% if page_obj.has_previous %}
+        <a href="?page=1{% if search_query %}&search_query={{ search_query }}{% endif %}{% if selected_category %}&category={{ selected_category }}{% endif %}" class="btn-sms btn-outline-custom sm">« First</a>
+        <a href="?page={{ page_obj.previous_page_number }}{% if search_query %}&search_query={{ search_query }}{% endif %}{% if selected_category %}&category={{ selected_category }}{% endif %}" class="btn-sms btn-outline-custom sm">‹ Previous</a>
+      {% endif %}
+      
+      <span style="color:var(--muted);font-size:13px;margin:0 12px">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+      
+      {% if page_obj.has_next %}
+        <a href="?page={{ page_obj.next_page_number }}{% if search_query %}&search_query={{ search_query }}{% endif %}{% if selected_category %}&category={{ selected_category }}{% endif %}" class="btn-sms btn-outline-custom sm">Next ›</a>
+        <a href="?page={{ page_obj.paginator.num_pages }}{% if search_query %}&search_query={{ search_query }}{% endif %}{% if selected_category %}&category={{ selected_category }}{% endif %}" class="btn-sms btn-outline-custom sm">Last »</a>
+      {% endif %}
+    </div>
+    {% endif %}
+  {% else %}
+    <div style="padding:40px;text-align:center;color:var(--muted)">
+      <div style="font-size:28px;margin-bottom:12px">📋</div>
+      <p style="margin:0;font-size:14px">No surveys found. <a href="{% url 'add_survey' %}" style="color:var(--primary);font-weight:600">Create your first survey</a></p>
+    </div>
+  {% endif %}
+</div>
+{% endblock %}

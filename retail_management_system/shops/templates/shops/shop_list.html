@@ -2,54 +2,79 @@
 {% block content %}
 <div class="page-header">
   <div>
-    <h2 class="page-title">Retail Shops</h2>
+    <h2 class="page-title">Sales Shops</h2>
     <p class="page-sub">{{ total }} shop{{ total|pluralize }} found</p>
   </div>
   <div style="display:flex;gap:10px">
-    <a href="{% url 'reports' %}?type=shops" class="btn-rms btn-accent-custom">⬇ Export CSV</a>
-    <a href="{% url 'add_shop' %}" class="btn-rms btn-primary-custom">+ Add Shop</a>
+    <a href="{% url 'reports' %}?type=shops" class="btn-sms btn-accent-custom">⬇ Export CSV</a>
+    <a href="{% url 'add_shop' %}" class="btn-sms btn-primary-custom">+ Add Shop</a>
   </div>
 </div>
 
 <!-- Filters -->
-<form method="GET" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:18px;align-items:center">
-  <input type="text" name="q" value="{{ q }}" placeholder="Search name or owner…"
-         style="padding:8px 14px;border:1px solid var(--border);border-radius:8px;font-size:13px;flex:1 1 180px;min-width:140px">
-  <select name="island" style="padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px">
-    <option value="">All Islands</option>
-    <option {% if island == 'Upolu' %}selected{% endif %}>Upolu</option>
-    <option {% if island == 'Savaii' %}selected{% endif %}>Savaii</option>
-  </select>
-  <select name="region" style="padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px">
-    <option value="">All Regions</option>
-    <option {% if region == 'Region 1' %}selected{% endif %}>Region 1</option>
-    <option {% if region == 'Region 2' %}selected{% endif %}>Region 2</option>
-    <option {% if region == 'Region 3' %}selected{% endif %}>Region 3</option>
-    <option {% if region == 'Region 4' %}selected{% endif %}>Region 4</option>
-  </select>
-  <select name="tip_top" style="padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px">
-    <option value="">Tip Top: All</option>
-    <option value="yes" {% if tip_top == 'yes' %}selected{% endif %}>Yes</option>
-    <option value="no"  {% if tip_top == 'no'  %}selected{% endif %}>No</option>
-  </select>
-  <select name="photos" style="padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px">
-    <option value="">Photos: All</option>
-    <option value="yes" {% if photos == 'yes' %}selected{% endif %}>Has Photos</option>
-    <option value="no"  {% if photos == 'no'  %}selected{% endif %}>No Photos</option>
-  </select>
-  <button type="submit" class="btn-rms btn-primary-custom sm">Filter</button>
-  {% if q or island or region or tip_top or photos %}
-  <a href="{% url 'shop_list' %}" class="btn-rms btn-outline-custom sm">✕ Clear</a>
+<form method="GET" style="margin-bottom:18px">
+  <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:12px">
+    <input type="text" name="q" value="{{ q }}" placeholder="Search name or owner…"
+           style="padding:8px 14px;border:1px solid var(--border);border-radius:8px;font-size:13px;flex:1 1 180px;min-width:140px">
+    <select name="tip_top" style="padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px">
+      <option value="">Tip Top: All</option>
+      <option value="yes" {% if tip_top == 'yes' %}selected{% endif %}>Yes</option>
+      <option value="no"  {% if tip_top == 'no'  %}selected{% endif %}>No</option>
+    </select>
+    <select name="taula_fridge" style="padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px">
+      <option value="">Taula Fridge: All</option>
+      <option value="yes" {% if taula_fridge == 'yes' %}selected{% endif %}>Yes</option>
+      <option value="no"  {% if taula_fridge == 'no'  %}selected{% endif %}>No</option>
+    </select>
+    <select name="talofa_voucher" style="padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px">
+      <option value="">Talofa Voucher: All</option>
+      <option value="yes" {% if talofa_voucher == 'yes' %}selected{% endif %}>Yes</option>
+      <option value="no"  {% if talofa_voucher == 'no'  %}selected{% endif %}>No</option>
+    </select>
+    <select name="faakau_com" style="padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px">
+      <option value="">Faakau.com: All</option>
+      <option value="yes" {% if faakau_com == 'yes' %}selected{% endif %}>Yes</option>
+      <option value="no"  {% if faakau_com == 'no'  %}selected{% endif %}>No</option>
+    </select>
+    <select name="photos" style="padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px">
+      <option value="">Photos: All</option>
+      <option value="yes" {% if photos == 'yes' %}selected{% endif %}>Has Photos</option>
+      <option value="no"  {% if photos == 'no'  %}selected{% endif %}>No Photos</option>
+    </select>
+    <button type="submit" class="btn-sms btn-primary-custom sm">Filter</button>
+    {% if q or territories or tip_top or taula_fridge or talofa_voucher or faakau_com or photos %}
+    <a href="{% url 'shop_list' %}" class="btn-sms btn-outline-custom sm">✕ Clear</a>
+    {% endif %}
+  </div>
+
+  {% if tip_top or taula_fridge or talofa_voucher or faakau_com %}
+  <div style="font-size:12px;color:var(--muted);margin:-6px 0 12px">
+    Programme filters match <strong>any</strong> of the selected options (Tip Top, Taula Fridge, Talofa Voucher, Faakau.com).
+  </div>
   {% endif %}
+
+  <!-- Territory Checkboxes -->
+  <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;padding:10px 0;border-top:1px solid var(--border);border-bottom:1px solid var(--border)">
+    <label style="font-weight:600;font-size:13px;color:var(--primary);margin:0">Territories:</label>
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
+      {% for t in all_territories %}
+      <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--primary);cursor:pointer;margin:0">
+        <input type="checkbox" name="territory" value="{{ t }}" {% if t in territories %}checked{% endif %}
+               style="width:16px;height:16px;cursor:pointer">
+        {{ t }}
+      </label>
+      {% endfor %}
+    </div>
+  </div>
 </form>
 
 <!-- Table -->
-<div class="rms-card">
-  <table class="rms-table">
+<div class="sms-card">
+  <table class="sms-table">
     <thead>
       <tr>
         <th>Shop Name</th><th>Owner</th><th>Phone</th><th>Island</th>
-        <th>Region</th><th>Photos</th><th>Tip Top</th><th>Actions</th>
+        <th>Territory</th><th>Photos</th><th>Programs</th><th>Actions</th>
       </tr>
     </thead>
     <tbody>
@@ -69,19 +94,27 @@
         <td>{{ s.owner|default:"—" }}</td>
         <td style="color:var(--muted)">{{ s.phone|default:"—" }}</td>
         <td><span class="badge-custom {% if s.island == 'Upolu' %}badge-blue{% else %}badge-amber{% endif %}">{{ s.island }}</span></td>
-        <td style="color:var(--muted)">{{ s.region }}</td>
+        <td style="color:var(--muted)">{{ s.territory|default:"—" }}</td>
         <td>
           {% with cnt=s.photos.count %}
           {% if cnt %}<span style="display:inline-flex;align-items:center;gap:4px;color:var(--info);font-weight:700;font-size:12px;background:#DBEAFE;padding:2px 8px;border-radius:999px">📷 {{ cnt }}</span>
           {% else %}<span style="color:var(--muted);font-size:12px">—</span>{% endif %}
           {% endwith %}
         </td>
-        <td><span class="badge-custom {% if s.tip_top %}badge-green{% else %}badge-gray{% endif %}">{% if s.tip_top %}Yes{% else %}No{% endif %}</span></td>
+        <td>
+          <div style="display:flex;gap:6px;flex-wrap:wrap">
+            {% if s.tip_top %}<span class="badge-custom badge-green">Tip Top</span>{% endif %}
+            {% if s.taula_fridge %}<span class="badge-custom badge-blue">Taula</span>{% endif %}
+            {% if s.talofa_voucher %}<span class="badge-custom badge-amber">Talofa</span>{% endif %}
+            {% if s.faakau_com %}<span class="badge-custom badge-accent">Faakau.com</span>{% endif %}
+            {% if not s.tip_top and not s.taula_fridge and not s.talofa_voucher and not s.faakau_com %}<span style="color:var(--muted);font-size:12px">—</span>{% endif %}
+          </div>
+        </td>
         <td>
           <div style="display:flex;gap:6px">
-            <a href="{% url 'shop_detail' s.id %}" class="btn-rms btn-outline-custom sm">View</a>
-            <a href="{% url 'edit_shop' s.id %}"   class="btn-rms btn-outline-custom sm">Edit</a>
-            <a href="{% url 'delete_shop' s.id %}" class="btn-rms btn-danger-custom sm"
+            <a href="{% url 'shop_detail' s.id %}" class="btn-sms btn-outline-custom sm">View</a>
+            <a href="{% url 'edit_shop' s.id %}"   class="btn-sms btn-outline-custom sm">Edit</a>
+            <a href="{% url 'delete_shop' s.id %}" class="btn-sms btn-danger-custom sm"
                onclick="return confirm('Delete {{ s.name }}?')">Del</a>
           </div>
         </td>
@@ -95,11 +128,11 @@
 {% if page_obj.has_other_pages %}
 <div style="display:flex;justify-content:center;gap:6px;margin-top:20px">
   {% if page_obj.has_previous %}
-  <a href="?page={{ page_obj.previous_page_number }}&q={{ q }}&island={{ island }}&region={{ region }}&tip_top={{ tip_top }}&photos={{ photos }}" class="btn-rms btn-outline-custom sm">← Prev</a>
+  <a href="?page={{ page_obj.previous_page_number }}&q={{ q }}{% for t in territories %}&territory={{ t }}{% endfor %}&tip_top={{ tip_top }}&taula_fridge={{ taula_fridge }}&talofa_voucher={{ talofa_voucher }}&faakau_com={{ faakau_com }}&photos={{ photos }}" class="btn-sms btn-outline-custom sm">← Prev</a>
   {% endif %}
   <span style="padding:6px 16px;font-size:13px;color:var(--muted)">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
   {% if page_obj.has_next %}
-  <a href="?page={{ page_obj.next_page_number }}&q={{ q }}&island={{ island }}&region={{ region }}&tip_top={{ tip_top }}&photos={{ photos }}" class="btn-rms btn-outline-custom sm">Next →</a>
+  <a href="?page={{ page_obj.next_page_number }}&q={{ q }}{% for t in territories %}&territory={{ t }}{% endfor %}&tip_top={{ tip_top }}&taula_fridge={{ taula_fridge }}&talofa_voucher={{ talofa_voucher }}&faakau_com={{ faakau_com }}&photos={{ photos }}" class="btn-sms btn-outline-custom sm">Next →</a>
   {% endif %}
 </div>
 {% endif %}

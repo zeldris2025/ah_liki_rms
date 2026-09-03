@@ -1,0 +1,49 @@
+{% extends 'shops/base.html' %}
+{% block content %}
+<div style="margin-bottom:26px">
+  <a href="{% url 'survey_detail' survey.id %}" style="color:var(--accent);text-decoration:none;font-size:13px;font-weight:600;margin-bottom:8px;display:inline-block">← Back to Survey</a>
+  <h1 class="page-title">Delete Response</h1>
+  <p class="page-sub">Are you sure you want to delete this survey response?</p>
+</div>
+
+<div class="sms-card" style="max-width:600px;padding:24px">
+  <div style="background:#FEE2E2;border:1px solid #FECACA;border-radius:8px;padding:14px;margin-bottom:20px">
+    <div style="display:flex;gap:12px">
+      <div style="font-size:24px">⚠️</div>
+      <div>
+        <p style="margin:0;font-size:13px;color:#991B1B">
+          <strong>This action cannot be undone.</strong> You are about to permanently delete this survey response.
+        </p>
+      </div>
+    </div>
+  </div>
+  
+  <div style="background:var(--surface);border-radius:8px;padding:14px;margin-bottom:20px">
+    <p style="margin:0 0 8px;font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase">Response Details</p>
+    <table style="width:100%;font-size:13px">
+      <tr>
+        <td style="padding:6px 0;color:var(--muted)">Product:</td>
+        <td style="padding:6px 0;font-weight:600">{{ response.product|default:"—" }}</td>
+      </tr>
+      <tr>
+        <td style="padding:6px 0;color:var(--muted)">Customer:</td>
+        <td style="padding:6px 0;font-weight:600">{{ response.customer|default:"—" }}</td>
+      </tr>
+      <tr>
+        <td style="padding:6px 0;color:var(--muted)">Price:</td>
+        <td style="padding:6px 0;font-weight:600">{% if response.price %}WST {{ response.price }}{% else %}—{% endif %}</td>
+      </tr>
+      <tr>
+        <td style="padding:6px 0;color:var(--muted)">Recorded:</td>
+        <td style="padding:6px 0;font-weight:600">{{ response.recorded_at|date:"M d, Y H:i" }}</td>
+      </tr>
+    </table>
+  </div>
+  
+  <form method="POST" style="display:flex;gap:12px">
+    {% csrf_token %}
+    <button type="submit" class="btn-sms btn-danger-custom">🗑️ Delete Permanently</button>
+    <a href="{% url 'survey_detail' response.survey.id %}" class="btn-sms btn-outline-custom">Cancel</a>
+  </form>
+</div>
+{% endblock %}

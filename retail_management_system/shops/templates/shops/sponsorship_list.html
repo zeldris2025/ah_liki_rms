@@ -6,8 +6,8 @@
     <p class="page-sub">Track signage, coolers, events and other sponsorship deals</p>
   </div>
   <div style="display:flex;gap:10px">
-    <a href="{% url 'reports' %}?type=sponsorships" class="btn-rms btn-accent-custom">⬇ Export CSV</a>
-    <a href="{% url 'add_sponsorship' %}" class="btn-rms btn-primary-custom">+ Add Sponsorship</a>
+    <a href="{% url 'reports' %}?type=sponsorships" class="btn-sms btn-accent-custom">⬇ Export CSV</a>
+    <a href="{% url 'add_sponsorship' %}" class="btn-sms btn-primary-custom">+ Add Sponsorship</a>
   </div>
 </div>
 
@@ -36,12 +36,12 @@
     <option value="Expired" {% if selected_status == 'Expired' %}selected{% endif %}>Expired</option>
     <option value="Pending" {% if selected_status == 'Pending' %}selected{% endif %}>Pending</option>
   </select>
-  <button type="submit" class="btn-rms btn-primary-custom sm">Filter</button>
-  {% if selected_status %}<a href="{% url 'sponsorship_list' %}" class="btn-rms btn-outline-custom sm">✕ Clear</a>{% endif %}
+  <button type="submit" class="btn-sms btn-primary-custom sm">Filter</button>
+  {% if selected_status %}<a href="{% url 'sponsorship_list' %}" class="btn-sms btn-outline-custom sm">✕ Clear</a>{% endif %}
 </form>
 
-<div class="rms-card">
-  <table class="rms-table">
+<div class="sms-card">
+  <table class="sms-table">
     <thead>
       <tr>
         <th>Customer</th><th>Type</th><th>Value (WST)</th><th>Status</th>
@@ -75,8 +75,8 @@
         </td>
         <td>
           <div style="display:flex;gap:6px">
-            <a href="{% url 'edit_sponsorship' sp.id %}" class="btn-rms btn-outline-custom sm">Edit</a>
-            <a href="{% url 'delete_sponsorship' sp.id %}" class="btn-rms btn-danger-custom sm"
+            <a href="{% url 'edit_sponsorship' sp.id %}" class="btn-sms btn-outline-custom sm">Edit</a>
+            <a href="{% url 'delete_sponsorship' sp.id %}" class="btn-sms btn-danger-custom sm"
                onclick="return confirm('Delete this sponsorship?')">Del</a>
           </div>
         </td>
