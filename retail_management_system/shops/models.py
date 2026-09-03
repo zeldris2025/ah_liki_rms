@@ -19,6 +19,9 @@ class Shop(models.Model):
         ('WC1', 'WC1'),
         ('WC2', 'WC2'),
         ('WC4', 'WC4'),
+        ('TWN', 'TWN'),
+        ('TWN1', 'TWN1'),
+        ('TW1', 'TW1'),
     ]
 
     name    = models.CharField(max_length=255)

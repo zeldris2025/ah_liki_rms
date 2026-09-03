@@ -64,6 +64,12 @@
         {{ t }}
       </label>
       {% endfor %}
+      <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--primary);cursor:pointer;margin:0"
+             title="Shops whose territory is not one of the codes listed above, or has none recorded">
+        <input type="checkbox" name="territory" value="OTHER" {% if 'OTHER' in territories %}checked{% endif %}
+               style="width:16px;height:16px;cursor:pointer">
+        Others
+      </label>
     </div>
   </div>
 </form>

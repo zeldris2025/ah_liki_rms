@@ -98,6 +98,9 @@ def dashboard(request):
 # SHOPS
 # ══════════════════════════════════════════════════════════════════════════════
 
+SHOP_TERRITORIES = ['EC1', 'EC2', 'EC3', 'LFG', 'VT1', 'VT2', 'VT3', 'WC1', 'WC2', 'WC4']
+
+
 def shop_list(request):
     qs = Shop.objects.prefetch_related('photos').all()
 
@@ -112,7 +115,16 @@ def shop_list(request):
     if q:
         qs = qs.filter(Q(name__icontains=q) | Q(owner__icontains=q))
     if territories:
-        qs = qs.filter(territory__in=territories)
+        # "OTHER" catches everything the listed territory checkboxes miss:
+        # unlisted codes plus shops with no territory recorded.
+        named = [t for t in territories if t != 'OTHER']
+        territory_q = Q()
+        if named:
+            territory_q |= Q(territory__in=named)
+        if 'OTHER' in territories:
+            territory_q |= (~Q(territory__in=SHOP_TERRITORIES) |
+                            Q(territory__isnull=True) | Q(territory=''))
+        qs = qs.filter(territory_q)
     # Programme filters combine with OR: picking Tip Top = Yes and Taula Fridge = Yes
     # shows shops in either programme, not only those in both.
     programme = Q()
@@ -132,7 +144,7 @@ def shop_list(request):
     paginator = Paginator(qs, 12)
     page_obj  = paginator.get_page(request.GET.get('page'))
 
-    all_territories = ['EC1', 'EC2', 'EC3', 'LFG', 'VT1', 'VT2', 'VT3', 'WC1', 'WC2', 'WC4']
+    all_territories = list(SHOP_TERRITORIES)
 
     return render(request, 'shops/shop_list.html', {
         'page_obj': page_obj,
