@@ -16,6 +16,23 @@ import os
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
+def _load_env_file(path):
+    """Read KEY=value lines from a .env file (kept out of git) into os.environ.
+    Real environment variables win, so a server can still override them."""
+    if not os.path.exists(path):
+        return
+    with open(path, encoding='utf-8') as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith('#') or '=' not in line:
+                continue
+            key, value = line.split('=', 1)
+            os.environ.setdefault(key.strip(), value.strip().strip('"\''))
+
+
+_load_env_file(os.path.join(BASE_DIR, '.env'))
+
+
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/2.2/howto/deployment/checklist/
 
@@ -38,6 +55,8 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'shops',
+    'retail_atlas',
+    'fe_orders',
     'import_export',
 ]
 
@@ -47,6 +66,8 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'fe_orders.access.FEAccessMiddleware',
+    'shops.access.RoleAccessMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
@@ -64,6 +85,8 @@ TEMPLATES = [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
+                'fe_orders.access.fe_context',
+                'shops.access.access_context',
             ],
         },
     },
@@ -130,3 +153,26 @@ MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 LOGIN_URL = 'login'
 LOGIN_REDIRECT_URL = 'dashboard'
 
+
+# Daily FE sales files (one CSV per day, kept up to date as orders come in).
+# Re-create any day with: python manage.py export_sales --date YYYY-MM-DD
+SALES_EXPORT_DIR = os.environ.get('SALES_EXPORT_DIR', os.path.join(BASE_DIR, 'exports', 'orders'))
+
+# Telegram group notifications for FE orders (a bot made with @BotFather).
+# Leave blank to turn notifications off. Find the chat ID with: python manage.py telegram chats
+TELEGRAM = {
+    'BOT_TOKEN': os.environ.get('TELEGRAM_BOT_TOKEN', ''),
+    'CHAT_ID':   os.environ.get('TELEGRAM_ORDERS_CHAT_ID', ''),   # groups look like -1001234567890
+}
+
+# Microsoft 365 (Office 365) email notifications, sent through Microsoft Graph with an Azure app
+# registration (application permission Mail.Send). Leave blank to turn email off.
+# Send a test with: python manage.py office365 test --to you@yourcompany.com
+OFFICE365 = {
+    'TENANT_ID':     os.environ.get('OFFICE365_TENANT_ID', ''),
+    'CLIENT_ID':     os.environ.get('OFFICE365_CLIENT_ID', ''),
+    'CLIENT_SECRET': os.environ.get('OFFICE365_CLIENT_SECRET', ''),
+    'SENDER':        os.environ.get('OFFICE365_SENDER', ''),         # the mailbox emails come from, e.g. orders@ahliki.ws
+    'ORDER_EMAILS':  os.environ.get('OFFICE365_ORDER_EMAILS', ''),   # comma-separated, who gets new FE orders
+    'ISSUE_EMAILS':  os.environ.get('OFFICE365_ISSUE_EMAILS', ''),   # comma-separated, who gets new FE issues
+}

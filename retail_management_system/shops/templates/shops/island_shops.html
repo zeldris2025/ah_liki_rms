@@ -42,7 +42,7 @@
           {% if shop.faakau_com %}<span class="badge-custom badge-amber">Faakau.com</span>{% endif %}
         </div>
       </div>
-      <div style="color:var(--muted);font-size:12px;margin-bottom:2px">👤 {{ shop.owner|default:"—" }}</div>
+      <div style="color:var(--muted);font-size:12px;margin-bottom:2px">👤 {{ shop.contact_person|default:"—" }}</div>
       <div style="color:var(--muted);font-size:12px;margin-bottom:14px">📞 {{ shop.phone|default:"—" }}</div>
       <div style="display:flex;gap:8px">
         <a href="{% url 'shop_detail' shop.id %}" class="btn-sms btn-outline-custom sm" onclick="event.stopPropagation()">View</a>

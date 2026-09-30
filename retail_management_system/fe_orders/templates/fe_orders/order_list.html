@@ -1,0 +1,74 @@
+{% extends 'fe_orders/fe_base.html' %}
+{% block title %}Orders — Ah Liki FE{% endblock %}
+{% block extra_css %}{{ block.super }}
+<style>
+  .exp-quick { display:flex; gap:8px; flex-wrap:wrap; }
+  .exp-quick .btn { min-height:44px; padding:10px 18px; font-size:15px; }
+  .exp-more { margin-top:14px; border-top:1px solid var(--border); padding-top:10px; }
+  .exp-more summary { cursor:pointer; color:var(--muted); font-size:14px; font-weight:600; }
+</style>
+{% endblock %}
+{% block content %}
+<div class="head-row">
+  <div>
+    <h1 class="page-title">📋 {% if is_fe %}My Orders{% else %}FE Orders{% endif %}</h1>
+    <p class="page-sub" style="margin:0">Tap an order to see its products.</p>
+  </div>
+  <a class="btn btn-accent" href="{% url 'fe_place_order' %}">🛒 New Order</a>
+</div>
+
+{% if not is_fe and can_export %}
+<div class="card">
+  <div class="card-title">⬇ Download orders</div>
+  <p class="muted" style="font-size:13px;margin:0 0 12px">Every shop’s orders in one Excel file: <b>Orders</b> (one row each), <b>Order lines</b> (every product),
+    <b>By shop</b> and <b>By day</b> totals.</p>
+  <div class="exp-quick">
+    {% for key, label in export_periods %}<a class="btn {% if key == 'today' %}btn-primary{% else %}btn-light{% endif %}" href="{% url 'sales_export' %}?period={{ key }}" data-period="{{ key }}">{{ label }}</a>{% endfor %}
+  </div>
+  <details class="exp-more">
+    <summary>Custom dates, CSV and more options</summary>
+    <form method="get" action="{% url 'sales_export' %}" style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;margin-top:12px">
+      <div><label class="lbl" for="exp-from">From</label><input class="input" type="date" id="exp-from" name="from" value="{{ today|date:'Y-m-d' }}" max="{{ today|date:'Y-m-d' }}"></div>
+      <div><label class="lbl" for="exp-to">To</label><input class="input" type="date" id="exp-to" name="to" value="{{ today|date:'Y-m-d' }}" max="{{ today|date:'Y-m-d' }}"></div>
+      <div><label class="lbl" for="exp-format">File</label>
+        <select class="input" id="exp-format" name="format"><option value="xlsx">Excel (4 sheets)</option><option value="csv">CSV (product lines)</option></select></div>
+      <label style="display:flex;gap:8px;align-items:center;font-size:14px;min-height:48px"><input type="checkbox" name="skip_cancelled" value="1" id="exp-skip"> Leave out cancelled orders</label>
+      <button class="btn btn-primary" type="submit">Download</button>
+    </form>
+    <p class="muted" style="font-size:12px;margin:10px 0 0">Each day’s orders are also saved automatically to <code>{{ export_dir }}</code>.</p>
+  </details>
+</div>
+{% endif %}
+
+<div class="card">
+  <form method="get" style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px">
+    <input class="input" name="q" value="{{ q }}" placeholder="🔍 Search shop…" style="flex:1;min-width:200px">
+    {% if status %}<input type="hidden" name="status" value="{{ status }}">{% endif %}
+  </form>
+  <div class="pills" style="margin-bottom:16px">
+    <a class="pill {% if not status %}active{% endif %}" href="?q={{ q|urlencode }}">All</a>
+    {% for value, label in statuses %}
+    <a class="pill {% if status == value %}active{% endif %}" href="?status={{ value }}&q={{ q|urlencode }}">{{ label }}</a>
+    {% endfor %}
+  </div>
+
+  {% if orders %}
+  <table class="tbl">
+    <thead><tr><th>Order</th><th>Shop</th><th class="hide-sm">Items</th>{% if not is_fe %}<th class="hide-sm">Placed by</th>{% endif %}<th>Status</th></tr></thead>
+    <tbody>
+    {% for o in orders %}
+      <tr class="link" onclick="location.href='{% url 'fe_order_detail' o.pk %}'">
+        <td><b>{{ o.number }}</b><div class="muted" style="font-size:13px">{{ o.created_at|date:"d M, g:i a" }}</div></td>
+        <td><b style="color:var(--primary)">{{ o.shop.name }}</b><div class="muted" style="font-size:13px">{{ o.shop.territory|default:"" }}</div></td>
+        <td class="hide-sm">{{ o.item_count }} units{% if o.total %}<div class="muted" style="font-size:13px">WST {{ o.total|floatformat:2 }}</div>{% endif %}</td>
+        {% if not is_fe %}<td class="hide-sm">{{ o.placed_by.username }}</td>{% endif %}
+        <td><span class="status s-{{ o.status }}">{{ o.status }}</span></td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="empty">No orders{% if status %} marked {{ status }}{% endif %} yet.</div>
+  {% endif %}
+</div>
+{% endblock %}

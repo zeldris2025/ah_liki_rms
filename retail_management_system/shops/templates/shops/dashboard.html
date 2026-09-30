@@ -5,48 +5,144 @@
   <p style="color:var(--muted);margin:6px 0 0;font-size:14px">Overview across Upolu and Savaii</p>
 </div>
 
+<style>
+  .dash-link { text-decoration:none; color:inherit; transition:border-color .15s, box-shadow .15s; }
+  .dash-link:hover { border-color:var(--accent); box-shadow:0 4px 14px rgba(14,165,233,.12); }
+  .dash-alerts { display:flex; gap:10px; flex-wrap:wrap; margin:-10px 0 22px; }
+  .dash-alert { display:inline-flex; align-items:center; gap:8px; padding:9px 14px; border-radius:10px; font-size:13px; font-weight:600; text-decoration:none; }
+  .dash-alert.red   { background:#FEF2F2; border:1px solid #FECACA; color:#991B1B; }
+  .dash-alert.amber { background:#FFFBEB; border:1px solid #FDE68A; color:#92400E; }
+  .dash-alert:hover { filter:brightness(.97); }
+  .panel-head { display:flex; justify-content:space-between; align-items:baseline; margin-bottom:10px; }
+  .panel-head b { font-size:14px; color:var(--primary); }
+  .panel-head a { font-size:12px; font-weight:600; color:var(--accent); text-decoration:none; }
+  .dash-row { display:flex; justify-content:space-between; align-items:center; gap:12px; padding:10px 0; border-bottom:1px solid var(--border); text-decoration:none; color:inherit; }
+  .dash-row:last-child { border-bottom:none; }
+  .dash-row:hover .dash-title { color:var(--accent); }
+  .dash-title { font-weight:600; font-size:14px; color:var(--primary); }
+  .dash-meta { color:var(--muted); font-size:12px; margin-top:2px; }
+  .dash-empty { color:var(--muted); font-size:13px; padding:18px 0; text-align:center; }
+  .biz-key { display:flex; gap:6px; flex-wrap:wrap; align-items:center; margin-top:10px; }
+  .biz-key button { display:inline-flex; align-items:center; gap:6px; border:1px solid var(--border); background:var(--card); border-radius:999px;
+                    padding:4px 10px; font:inherit; font-size:12px; font-weight:600; color:var(--text-secondary); cursor:pointer; }
+  .biz-key button i { width:10px; height:10px; border-radius:3px; display:inline-block; }
+  .biz-key button[aria-pressed="false"] { opacity:.45; text-decoration:line-through; }
+  .biz-key .hint { color:var(--muted); font-size:11px; margin-left:4px; }
+  @media (max-width: 900px) { .dash-two { grid-template-columns:1fr !important; } }
+</style>
+
 <!-- Stat cards -->
 <div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:26px">
-  <div class="stat-card" style="flex:1;min-width:130px">
-    <div class="stat-label">Total Shops</div>
+  <a href="{% url 'shop_list' %}" class="stat-card dash-link" style="flex:1;min-width:150px">
+    <div class="stat-label">All Clients</div>
     <div class="stat-value" style="color:var(--primary)">{{ shops.count }}</div>
-    <div class="stat-sub">Upolu &amp; Savaii</div>
-  </div>
-  <div class="stat-card" style="flex:1;min-width:130px">
-    <div class="stat-label">Photos Uploaded</div>
-    <div class="stat-value" style="color:var(--info)">{{ total_photos }}</div>
-    <div class="stat-sub">across {{ shops_with_photos }} shops</div>
-  </div>
-  <div class="stat-card" style="flex:1;min-width:130px">
-    <div class="stat-label">Tip Top Partners</div>
-    <div class="stat-value" style="color:var(--success)">{{ tip_top_count }}</div>
-  </div>
-  <div class="stat-card" style="flex:1;min-width:130px">
-    <div class="stat-label">HORECCA Clients</div>
-    <div class="stat-value" style="color:#7C3AED">{{ businesses.count }}</div>
-  </div>
-  <div class="stat-card" style="flex:1;min-width:130px">
+    <div class="stat-sub">{{ tip_top_count }} Tip Top partner{{ tip_top_count|pluralize }}</div>
+  </a>
+{% if access.corporate_sales %}
+  <a href="{% url 'corporate_sales' %}" class="stat-card dash-link" style="flex:1;min-width:150px">
+    <div class="stat-label">Corporate Sales</div>
+    <div class="stat-value" style="color:#7C3AED">{{ corporate_clients }}</div>
+    <div class="stat-sub">{% if corp_reps|length == 1 %}your clients · {{ corp_reps.0.streams|join:", " }}{% else %}clients · Grace, Ruth, Judane &amp; Ivan{% endif %}</div>
+  </a>
+{% endif %}
+{% if access.fe_ordering %}
+  <a href="{% url 'fe_order_list' %}" class="stat-card dash-link" style="flex:1;min-width:150px">
+    <div class="stat-label">Pending FE Orders</div>
+    <div class="stat-value" style="color:{% if pending_orders %}#B45309{% else %}var(--primary){% endif %}">{{ pending_orders }}</div>
+    <div class="stat-sub">{{ orders_today }} placed today</div>
+  </a>
+{% endif %}
+{% if access.promotions %}
+  <a href="{% url 'promotion_list' %}" class="stat-card dash-link" style="flex:1;min-width:150px">
+    <div class="stat-label">Live Promotions</div>
+    <div class="stat-value" style="color:var(--success)">{{ live_promos|length }}</div>
+    <div class="stat-sub">{{ upcoming_promos|length }} upcoming</div>
+  </a>
+{% endif %}
+{% if access.sponsorships %}
+  <a href="{% url 'sponsorship_list' %}" class="stat-card dash-link" style="flex:1;min-width:150px">
     <div class="stat-label">Active Sponsorships</div>
     <div class="stat-value" style="color:var(--accent)">{{ active_spons.count }}</div>
     <div class="stat-sub">WST {{ active_val|floatformat:0 }}</div>
-  </div>
+  </a>
+{% endif %}
 </div>
 
-<!-- Charts -->
-<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:22px">
+{% if telegram_failed or out_of_stock %}
+<div class="dash-alerts">
+  {% if telegram_failed %}
+  <a href="{% url 'fe_order_list' %}" class="dash-alert red">⚠ {{ telegram_failed }} order{{ telegram_failed|pluralize }} didn’t reach Telegram — open {{ telegram_failed|pluralize:"it,them" }} to resend</a>
+  {% endif %}
+  {% if out_of_stock %}
+  <a href="{% url 'product_list' %}?availability=0" class="dash-alert amber">📦 {{ out_of_stock }} of {{ product_count }} product{{ product_count|pluralize }} out of stock</a>
+  {% endif %}
+</div>
+{% endif %}
+
+<!-- FE orders & promotions -->
+{% if access.fe_ordering or access.promotions %}
+<div class="dash-two" style="display:grid;grid-template-columns:{% if access.fe_ordering and access.promotions %}1fr 1fr{% else %}1fr{% endif %};gap:20px;margin-bottom:22px">
+  {% if access.fe_ordering %}
   <div class="sms-card" style="padding:20px">
-    <div style="font-weight:700;font-size:14px;color:var(--primary);margin-bottom:14px">Shops by Region</div>
+    <div class="panel-head"><b>Recent FE Orders</b><a href="{% url 'fe_order_list' %}">View all →</a></div>
+    {% for o in recent_orders %}
+    <a href="{% url 'fe_order_detail' o.pk %}" class="dash-row">
+      <div style="min-width:0">
+        <div class="dash-title">{{ o.shop.name }}</div>
+        <div class="dash-meta">{{ o.number }} · {{ o.item_count }} unit{{ o.item_count|pluralize }} · {{ o.placed_by.get_full_name|default:o.placed_by.username }} · {{ o.created_at|timesince }} ago</div>
+      </div>
+      <div style="display:flex;gap:6px;align-items:center;flex-shrink:0">
+        {% if 'Failed' in o.telegram_status %}<span title="{{ o.telegram_status }}" style="color:var(--danger);font-size:14px">⚠</span>{% endif %}
+        <span class="badge-custom {% if o.status == 'Pending' %}badge-amber{% elif o.status == 'Confirmed' %}badge-blue{% elif o.status == 'Delivered' %}badge-green{% else %}badge-gray{% endif %}">{{ o.status }}</span>
+      </div>
+    </a>
+    {% empty %}
+    <div class="dash-empty">No FE orders yet.</div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {% if access.promotions %}
+  <div class="sms-card" style="padding:20px">
+    <div class="panel-head"><b>Promotions</b><a href="{% url 'promotion_list' %}">View all →</a></div>
+    {% for p in dashboard_promos %}
+    <a href="{% url 'edit_promotion' p.pk %}" class="dash-row">
+      <div style="min-width:0">
+        <div class="dash-title">{{ p.name }}{% if p.prize_list %} <span style="font-weight:400;color:#92400E;font-size:12px">🏆 {{ p.prize_list|length }}</span>{% endif %}</div>
+        <div class="dash-meta">{{ p.company }} · {% if p.status == 'Upcoming' %}starts {{ p.start_date|date:"j M" }}{% elif p.end_date %}until {{ p.end_date|date:"j M" }}{% else %}ongoing{% endif %}</div>
+      </div>
+      <span class="badge-custom {% if p.status == 'Active' %}badge-green{% else %}badge-blue{% endif %}" style="flex-shrink:0">{{ p.status }}</span>
+    </a>
+    {% empty %}
+    <div class="dash-empty">No live or upcoming promotions. <a href="{% url 'add_promotion' %}">Add one</a></div>
+    {% endfor %}
+  </div>
+  {% endif %}
+</div>
+{% endif %}
+
+<!-- Charts -->
+<div class="dash-two" style="display:grid;grid-template-columns:{% if access.corporate_sales %}1fr 1fr{% else %}1fr{% endif %};gap:20px;margin-bottom:22px">
+  <div class="sms-card" style="padding:20px">
+    <div style="font-weight:700;font-size:14px;color:var(--primary);margin-bottom:14px">Clients by Territory</div>
     <canvas id="regionChart" height="150"></canvas>
   </div>
+  {% if access.corporate_sales %}
   <div class="sms-card" style="padding:20px">
-    <div style="font-weight:700;font-size:14px;color:var(--primary);margin-bottom:14px">HORECCA by Type</div>
-    <canvas id="bizChart" height="150"></canvas>
+    <div class="panel-head"><b>Corporate Sales by Type · {{ sales_year }}</b><a href="{% url 'corporate_sales' %}">Corporate Sales →</a></div>
+    <div id="bizWrap" style="position:relative;height:260px"><canvas id="bizChart" role="img" aria-label="This year's sales for each corporate customer type"></canvas></div>
+    <div class="biz-key" role="group" aria-label="Show or hide each rep's customer types">
+      {% for r in corp_reps %}<button type="button" data-rep="{{ r.key }}" aria-pressed="true" title="Click to hide or show {{ r.name }}’s types">
+        <i style="background:{{ r.color }}"></i>{{ r.name }}</button>{% endfor %}
+      <span class="hint">Click a name to hide its bars and rescale</span>
+    </div>
   </div>
+  {% endif %}
 </div>
 
 <!-- Recent shops -->
 <div class="sms-card" style="padding:20px">
-  <div style="font-weight:700;font-size:14px;color:var(--primary);margin-bottom:14px">Recent Shops</div>
+  <div class="panel-head"><b>Recently Added Clients</b><span style="color:var(--muted);font-size:12px">{{ total_photos }} photos across {{ shops_with_photos }} clients</span></div>
   {% for s in recent_shops %}
   <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border)">
     <div style="display:flex;align-items:center;gap:12px">
@@ -82,11 +178,64 @@ new Chart(document.getElementById('regionChart'), {
     datasets:[{data: rData.map(d=>d.value), backgroundColor:'#0D2D5A', borderRadius:4}]
   }, options:{plugins:{legend:{display:false}}, scales:{y:{beginAtZero:true}}}
 });
-new Chart(document.getElementById('bizChart'), {
-  type:'bar', data:{
-    labels: bData.map(d=>d.label),
-    datasets:[{data: bData.map(d=>d.value), backgroundColor:'#7C3AED', borderRadius:4}]
-  }, options:{plugins:{legend:{display:false}}, scales:{y:{beginAtZero:true}}}
-});
+{% if access.corporate_sales %}
+// Corporate sales by customer type, coloured by rep; click a bar to open that rep's clients of that type
+function shortMoney(v) {
+  var a = Math.abs(v);
+  if (a >= 1e6) return (v / 1e6).toFixed(a >= 1e7 ? 0 : 1) + 'M';
+  if (a >= 1e3) return (v / 1e3).toFixed(a >= 1e4 ? 0 : 1).replace(/\.0$/, '') + 'k';
+  return String(Math.round(v));
+}
+var bizWrap = document.getElementById('bizWrap');
+if (!bData.length) {
+  bizWrap.innerHTML = '<div style="padding:40px 10px;text-align:center;color:var(--muted);font-size:13px">No corporate clients yet. Clients join when their Customer Type matches a sales rep.</div>';
+} else {
+  var hiddenReps = new Set(), shown = bData.slice();
+  // Write each bar's value just past its end, so small types are readable next to big ones
+  var barValues = { id: 'barValues', afterDatasetsDraw: function (chart) {
+    var ctx = chart.ctx; ctx.save();
+    ctx.font = '600 11px "Segoe UI", system-ui, sans-serif'; ctx.fillStyle = '#475569'; ctx.textBaseline = 'middle';
+    chart.getDatasetMeta(0).data.forEach(function (bar, i) { ctx.fillText(shortMoney(shown[i].value), bar.x + 6, bar.y); });
+    ctx.restore();
+  } };
+  var bizChart = new Chart(document.getElementById('bizChart'), {
+    type: 'bar', plugins: [barValues],
+    data: { labels: [], datasets: [{ data: [], backgroundColor: [], borderRadius: 4, maxBarThickness: 22, minBarLength: 2 }] },
+    options: {
+      indexAxis: 'y', responsive: true, maintainAspectRatio: false, layout: { padding: { right: 8 } },
+      plugins: { legend: { display: false },
+        tooltip: { backgroundColor: '#0F172A', padding: 10, callbacks: {
+          title: items => shown[items[0].dataIndex].label,
+          label: c => { var d = shown[c.dataIndex]; return [' WST ' + d.value.toLocaleString(undefined, { maximumFractionDigits: 0 }),
+                                                             ' ' + d.clients + ' client' + (d.clients === 1 ? '' : 's') + ' · ' + d.rep]; } } } },
+      scales: { x: { beginAtZero: true, grace: '14%', grid: { color: '#EEF2F7' }, border: { display: false }, ticks: { callback: shortMoney, maxTicksLimit: 5 } },
+                y: { grid: { display: false }, ticks: { font: { size: 11 }, callback: function (v) { var s = this.getLabelForValue(v); return s.length > 28 ? s.slice(0, 27) + '…' : s; } } } },
+      onClick: (e, els) => {
+        if (!els.length) return;
+        var d = shown[els[0].index];
+        location.href = '{% url "corporate_sales" %}' + d.key + '/?type=' + encodeURIComponent(d.label);
+      },
+      onHover: (e, els) => { e.native.target.style.cursor = els.length ? 'pointer' : 'default'; }
+    }
+  });
+  function drawBiz() {
+    shown = bData.filter(d => !hiddenReps.has(d.key));
+    bizWrap.style.height = Math.max(160, shown.length * 34 + 40) + 'px';
+    bizChart.data.labels = shown.map(d => d.label);
+    bizChart.data.datasets[0].data = shown.map(d => d.value);
+    bizChart.data.datasets[0].backgroundColor = shown.map(d => d.color);
+    bizChart.update();
+  }
+  document.querySelectorAll('.biz-key button').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var k = b.getAttribute('data-rep');
+      if (hiddenReps.has(k)) hiddenReps.delete(k); else hiddenReps.add(k);
+      b.setAttribute('aria-pressed', hiddenReps.has(k) ? 'false' : 'true');
+      drawBiz();
+    });
+  });
+  drawBiz();
+}
+{% endif %}
 </script>
 {% endblock %}

@@ -1,0 +1,55 @@
+{% extends 'shops/base.html' %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <h2 class="page-title">⬆ Upload Products</h2>
+    <p class="page-sub">Add or update the whole catalogue from a CSV file (Excel → Save As → CSV UTF-8).</p>
+  </div>
+  <a href="{% url 'product_list' %}" class="btn-sms btn-outline-custom">← Products</a>
+</div>
+{% for m in messages %}<div class="alert alert-{% if m.tags == 'error' %}danger{% else %}{{ m.tags }}{% endif %}">{{ m }}</div>{% endfor %}
+
+{% if result %}
+<div class="sms-card" style="padding:20px;margin-bottom:18px">
+  <div style="display:flex;gap:14px;flex-wrap:wrap">
+    <div class="stat-card" style="flex:1"><div class="stat-label">Created</div><div class="stat-value" style="color:var(--success)">{{ result.created }}</div></div>
+    <div class="stat-card" style="flex:1"><div class="stat-label">Updated</div><div class="stat-value" style="color:var(--info)">{{ result.updated }}</div></div>
+    <div class="stat-card" style="flex:1"><div class="stat-label">Unchanged</div><div class="stat-value" style="color:var(--muted)">{{ result.unchanged }}</div></div>
+    <div class="stat-card" style="flex:1"><div class="stat-label">Errors</div><div class="stat-value" style="color:var(--danger)">{{ result.errors|length }}</div></div>
+  </div>
+  {% if result.errors %}<ul style="margin:14px 0 0;color:var(--danger);font-size:13px">{% for e in result.errors %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}
+  <a href="{% url 'product_list' %}" class="btn-sms btn-primary-custom" style="margin-top:14px">View products →</a>
+</div>
+{% endif %}
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:18px">
+  <form method="post" enctype="multipart/form-data" class="sms-card" style="padding:22px">
+    {% csrf_token %}
+    <div class="form-section-title">Upload file</div>
+    <input type="file" name="csv_file" accept=".csv" required class="sms-input" style="margin-bottom:14px">
+    <button class="btn-sms btn-primary-custom">Upload Products</button>
+    <p style="color:var(--muted);font-size:13px;margin:14px 0 0">
+      Rows are matched by Product No, then by name. New products are added; existing ones are updated where the CSV has a value,
+      so you can re-upload the same sheet with new prices or stock and nothing is lost.
+    </p>
+  </form>
+  <div class="sms-card" style="padding:22px">
+    <div class="form-section-title">CSV columns</div>
+    <table class="sms-table">
+      <tr><td><code>Product No</code></td><td>Product code, e.g. 10045. Used first to match existing products</td></tr>
+      <tr><td><code>Product Name</code></td><td>Required for new products. Unique</td></tr>
+      <tr><td><code>Product Category</code></td><td>Required for new products — becomes the filter button (Soda, Water, Snacks…)</td></tr>
+      <tr><td><code>Unit of Measure Code</code></td><td>e.g. CTN, CASE, EA</td></tr>
+      <tr><td><code>Cost</code></td><td>WST, e.g. 22.00. Office only — FE staff never see it</td></tr>
+      <tr><td><code>Unit Price</code></td><td>WST, e.g. 28.50. Used for FE order totals</td></tr>
+      <tr><td><code>Unit Price Including VAT</code></td><td>WST, e.g. 32.78</td></tr>
+      <tr><td><code>Available</code></td><td>Optional. TRUE / FALSE (blank = available for new products)</td></tr>
+      <tr><td><code>Quick Link</code></td><td>Optional. Big shortcut button on the Place Order screen, e.g. Tip Top, Meat, Dairy. NONE removes it</td></tr>
+    </table>
+    <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap">
+      <a href="{% url 'product_template' %}" class="btn-sms btn-outline-custom sm">⬇ Download template</a>
+      <a href="{% url 'product_export' %}" class="btn-sms btn-outline-custom sm">⬇ Export current products</a>
+    </div>
+  </div>
+</div>
+{% endblock %}

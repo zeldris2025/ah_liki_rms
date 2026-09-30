@@ -1,139 +1,25 @@
-{% extends 'shops/base.html' %}
-
-{% block title %}Import Shops{% endblock %}
-
-{% block content %}
-<div class="container mt-4">
-    <div class="row">
-        <div class="col-lg-8 mx-auto">
-            <h2 class="mb-4">📥 Import Shops from CSV</h2>
-
-            {% if error %}
-            <div class="alert alert-danger alert-dismissible fade show" role="alert">
-                <strong>Error:</strong> {{ error }}
-                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-            </div>
-            {% endif %}
-
-            <div class="card mb-4">
-                <div class="card-body">
-                    <h5 class="card-title mb-3">Upload CSV File</h5>
-                    <form method="post" enctype="multipart/form-data">
-                        {% csrf_token %}
-                        <div class="mb-3">
-                            <label for="csv_file" class="form-label">Select CSV File</label>
-                            <input type="file" class="form-control" id="csv_file" name="csv_file" 
-                                   accept=".csv" required>
-                            <small class="text-muted">
-                                Columns: name (required), owner, phone, address, island, territory,
-                                tip_top, taula_fridge, talofa_voucher, faakau_com.
-                                New shop names are created; an existing name is compared field by field and
-                                updated only where the CSV differs. Identical rows are skipped.
-                            </small>
-                        </div>
-                        <div class="d-grid gap-2">
-                            <button type="submit" class="btn btn-primary">Import Shops</button>
-                        </div>
-                    </form>
-                </div>
-            </div>
-
-            <div class="card">
-                <div class="card-body">
-                    <h5 class="card-title mb-3">📋 CSV Format Guide</h5>
-                    <div class="table-responsive">
-                        <table class="table table-sm table-bordered">
-                            <thead class="table-light">
-                                <tr>
-                                    <th>Column</th>
-                                    <th>Type</th>
-                                    <th>Required</th>
-                                    <th>Example</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <tr>
-                                    <td><code>name</code></td>
-                                    <td>Text</td>
-                                    <td>✓ Yes</td>
-                                    <td>My Shop</td>
-                                </tr>
-                                <tr>
-                                    <td><code>owner</code></td>
-                                    <td>Text</td>
-                                    <td>No</td>
-                                    <td>John Doe</td>
-                                </tr>
-                                <tr>
-                                    <td><code>phone</code></td>
-                                    <td>Text</td>
-                                    <td>No</td>
-                                    <td>+685-1234567</td>
-                                </tr>
-                                <tr>
-                                    <td><code>address</code></td>
-                                    <td>Text</td>
-                                    <td>No</td>
-                                    <td>123 Main Street</td>
-                                </tr>
-                                <tr>
-                                    <td><code>island</code></td>
-                                    <td>Choice</td>
-                                    <td>No</td>
-                                    <td>Upolu, Savaii</td>
-                                </tr>
-                                <tr>
-                                    <td><code>territory</code></td>
-                                    <td>Choice</td>
-                                    <td>No</td>
-                                    <td>EC1, EC2, EC3, LFG, VT1, VT2, VT3, WC1, WC2, WC4</td>
-                                </tr>
-                                <tr>
-                                    <td><code>tip_top</code></td>
-                                    <td>Boolean</td>
-                                    <td>No</td>
-                                    <td>TRUE, FALSE</td>
-                                </tr>
-                                <tr>
-                                    <td><code>taula_fridge</code></td>
-                                    <td>Boolean</td>
-                                    <td>No</td>
-                                    <td>TRUE, FALSE</td>
-                                </tr>
-                                <tr>
-                                    <td><code>talofa_voucher</code></td>
-                                    <td>Boolean</td>
-                                    <td>No</td>
-                                    <td>TRUE, FALSE</td>
-                                </tr>
-                                <tr>
-                                    <td><code>faakau_com</code></td>
-                                    <td>Boolean</td>
-                                    <td>No</td>
-                                    <td>TRUE, FALSE</td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-                    <div class="alert alert-info mt-3 mb-0">
-                        <strong>Matching by name:</strong> a row whose <code>name</code> matches an existing shop
-                        (case-insensitive) never creates a duplicate. Each field is compared against the shop
-                        on record — only the fields that differ are updated, and a row where everything already
-                        matches is skipped. Blank cells and columns left out of your file are ignored, so they
-                        never wipe existing values.
-                    </div>
-                    <p class="mt-3 mb-0">
-                        <a href="{% url 'download_shop_template' %}" class="btn btn-sm btn-outline-primary">
-                            📥 Download CSV Template
-                        </a>
-                    </p>
-                </div>
-            </div>
-
-            <div class="mt-4">
-                <a href="{% url 'shop_list' %}" class="btn btn-secondary">← Back to Shops</a>
-            </div>
-        </div>
-    </div>
-</div>
+{% extends 'shops/_upload_page.html' %}
+{% block upload_title %}⬆ Import Clients{% endblock %}
+{% block upload_sub %}Add or update clients from a CSV file (Excel → Save As → CSV UTF-8). Safe to upload the same file every day.{% endblock %}
+{% block back_url %}{% url 'shop_list' %}{% endblock %}
+{% block back_label %}← All Clients{% endblock %}
+{% block upload_rules %}
+  <b>How rows are matched</b><br>
+  • Every row needs a <b>Customer Code</b>. Rows without one are skipped and listed.<br>
+  • A code that’s already in the system <b>updates that client</b>, including its <b>name</b>. Renamed clients are listed after the upload.<br>
+  • Clients added before codes existed are matched by name once and given their code, so no duplicates.<br>
+  • A new code creates a new client (it needs a Name).<br>
+  • Blank cells never wipe existing details.
 {% endblock %}
+{% block column_rows %}
+  <tr><td><code>Customer Code</code></td><td><b>Required.</b> The client’s code from the office system. This is what rows are matched on</td></tr>
+  <tr><td><code>Name</code></td><td>Required for new clients. For existing codes, a different name <b>renames</b> the client</td></tr>
+  <tr><td><code>Customer Type</code></td><td>e.g. Retail, Wholesale, Hotel</td></tr>
+  <tr><td><code>Contact Person</code></td><td>e.g. Sione Tavita</td></tr>
+  <tr><td><code>Address</code></td><td>e.g. Lalovaea</td></tr>
+  <tr><td><code>Island</code></td><td>Upolu or Savaii</td></tr>
+  <tr><td><code>Phone Number</code></td><td>e.g. 7771234</td></tr>
+  <tr><td><code>Territory Code</code></td><td>e.g. EC1, TWN</td></tr>
+  <tr><td><code>Email</code></td><td>e.g. store@example.com</td></tr>
+{% endblock %}
+{% block template_url %}{% url 'download_shop_template' %}{% endblock %}

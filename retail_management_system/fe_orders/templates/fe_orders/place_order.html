@@ -1,0 +1,364 @@
+{% extends 'fe_orders/fe_base.html' %}
+{% block title %}Place Order — Ah Liki FE{% endblock %}
+{% block extra_css %}
+<style>
+  .step { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: 50%;
+          background: var(--primary); color: #fff; font-size: 15px; font-weight: 800; margin-right: 8px; }
+  .card-title.big { font-size: 18px; letter-spacing: 0; text-transform: none; color: var(--primary); display: flex; align-items: center; }
+
+  /* shop picker */
+  .picker { position: relative; }
+  .shop-results { position: absolute; left: 0; right: 0; top: calc(100% + 6px); background: #fff; border: 2px solid var(--border);
+                  border-radius: 14px; box-shadow: 0 12px 30px rgba(15,23,42,.18); max-height: 380px; overflow-y: auto; z-index: 20; display: none; }
+  .shop-opt { padding: 14px 16px; border-bottom: 1px solid var(--border); cursor: pointer; }
+  .shop-opt:last-child { border-bottom: none; }
+  .shop-opt:active, .shop-opt.hl { background: #F0F9FF; }
+  .shop-opt b { display: block; font-size: 17px; color: var(--primary); }
+  .shop-opt span { font-size: 14px; color: var(--muted); }
+  .chosen { display: none; align-items: center; gap: 14px; background: #F0F9FF; border: 2px solid var(--accent); border-radius: 14px; padding: 14px 16px; margin-bottom: 14px; }
+  .chosen .name { font-size: 19px; font-weight: 700; color: var(--primary); }
+  .chosen .meta { font-size: 14px; color: var(--muted); }
+  .chosen .btn { margin-left: auto; min-height: 44px; padding: 10px 16px; font-size: 15px; }
+
+  /* products */
+  .prod-tools { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-bottom: 14px; }
+  .prod-tools .input { flex: 1; min-width: 220px; }
+  .quick { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; margin-bottom: 16px; }
+  .quick-btn { display: flex; align-items: center; gap: 12px; min-height: 72px; padding: 12px 16px; border: 2px solid var(--border);
+               border-radius: 16px; background: #fff; color: var(--primary); cursor: pointer; text-align: left; font: inherit; }
+  .quick-btn .ico { font-size: 32px; line-height: 1; }
+  .quick-btn b { display: block; font-size: 18px; }
+  .quick-btn small { display: block; font-size: 13px; color: var(--muted); }
+  .quick-btn:hover { border-color: var(--accent); }
+  .quick-btn.active { background: var(--primary); border-color: var(--primary); color: #fff; }
+  .quick-btn.active small { color: #CBD5E1; }
+  .quick-btn.none { opacity: .5; }
+  .prod-tbl td.name { font-weight: 600; color: var(--primary); }
+  .prod-tbl td.name small { display: block; font-weight: 400; color: var(--muted); font-size: 13px; }
+  .prod-tbl tr.out td { opacity: .5; }
+  .prod-tbl tr.in-cart td { background: #F0FDF4; }
+  .price { white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .stepper { display: inline-flex; align-items: center; gap: 6px; }
+  .stepper button { width: 52px; height: 52px; border-radius: 12px; border: 2px solid var(--border); background: #fff; font-size: 26px; font-weight: 700; color: var(--primary); cursor: pointer; }
+  .stepper button.plus { background: var(--primary); color: #fff; border-color: var(--primary); }
+  .stepper input { width: 70px; height: 52px; text-align: center; font-size: 20px; font-weight: 700; border: 2px solid var(--border); border-radius: 12px; color: var(--primary); }
+  .oos { font-size: 13px; font-weight: 700; background: #FEE2E2; color: #991B1B; border-radius: 999px; padding: 5px 12px; white-space: nowrap; }
+
+  /* sticky order bar */
+  .order-bar { position: fixed; left: 0; right: 0; bottom: 0; background: #fff; border-top: 2px solid var(--border);
+               box-shadow: 0 -8px 24px rgba(15,23,42,.1); padding: 14px 20px; z-index: 40; }
+  .order-bar .inner { max-width: 1100px; margin: 0 auto; display: flex; align-items: center; gap: 16px; }
+  .order-bar .sum { flex: 1; }
+  .order-bar .sum b { font-size: 20px; color: var(--primary); }
+  .order-bar .sum div { font-size: 14px; color: var(--muted); }
+  .order-bar .btn { min-width: 220px; font-size: 19px; min-height: 60px; }
+
+  /* review modal */
+  .modal { position: fixed; inset: 0; background: rgba(15,23,42,.55); display: none; align-items: center; justify-content: center; z-index: 100; padding: 16px; }
+  .modal.open { display: flex; }
+  .modal-box { background: #fff; border-radius: 20px; width: min(620px, 100%); max-height: 90vh; overflow-y: auto; padding: 24px; }
+  .modal-box h2 { margin: 0 0 4px; color: var(--primary); }
+  .review-line { display: flex; justify-content: space-between; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--border); font-size: 16px; }
+  .modal-actions { display: flex; gap: 12px; margin-top: 20px; }
+  .modal-actions .btn { flex: 1; }
+  @media (max-width: 640px) {
+    .order-bar .btn { min-width: 0; padding: 14px 16px; }
+    .prod-tbl .hide-sm { display: none; }
+    .stepper button { width: 46px; height: 46px; }
+    .stepper input { width: 56px; height: 46px; }
+  }
+</style>
+{% endblock %}
+{% block content %}
+<h1 class="page-title">🛒 Place Order</h1>
+<p class="page-sub">Choose the shop, then add products.</p>
+
+<form method="post" id="order-form">
+  {% csrf_token %}
+  <input type="hidden" name="shop_id" id="shop-id">
+  <input type="hidden" name="items" id="items">
+
+  <!-- 1. Shop -->
+  <div class="card">
+    <div class="card-title big"><span class="step">1</span>Shop</div>
+    <div class="chosen" id="chosen">
+      <span style="font-size:30px">🏪</span>
+      <div><div class="name" id="chosen-name"></div><div class="meta" id="chosen-meta"></div></div>
+      <button type="button" class="btn btn-light" id="change-shop">Change</button>
+    </div>
+    <div class="picker" id="picker">
+      <input class="input" id="shop-search" placeholder="Type the shop name…" autocomplete="off">
+      <div class="shop-results" id="shop-results"></div>
+    </div>
+    <div class="grid2" style="margin-top:14px">
+      <div><label class="lbl" for="address">Address</label><input class="input" name="address" id="address" placeholder="Fills in when you pick a shop"></div>
+      <div><label class="lbl" for="phone">Phone number</label><input class="input" name="phone" id="phone" type="tel" placeholder="Fills in when you pick a shop"></div>
+    </div>
+  </div>
+
+  <!-- 2. Products -->
+  <div class="card">
+    <div class="card-title big"><span class="step">2</span>Add products</div>
+    <div class="quick" id="quick"></div>
+    <div class="prod-tools">
+      <input class="input" id="prod-search" placeholder="🔍 Search products…" autocomplete="off">
+    </div>
+    <table class="tbl prod-tbl">
+      <thead><tr><th>Product</th><th class="hide-sm">Price</th><th style="text-align:right">Quantity</th></tr></thead>
+      <tbody id="prod-rows"></tbody>
+    </table>
+    <div class="empty" id="prod-empty" style="display:none"></div>
+  </div>
+
+  <!-- 3. Notes -->
+  <div class="card">
+    <div class="card-title big"><span class="step">3</span>Notes <span class="muted" style="font-weight:400;font-size:15px;margin-left:6px">(optional)</span></div>
+    <textarea class="input" name="notes" id="notes" rows="3" placeholder="Delivery time, special requests…"></textarea>
+  </div>
+</form>
+
+<div class="order-bar">
+  <div class="inner">
+    <div class="sum"><b id="sum-main">No products yet</b><div id="sum-sub">Pick a shop and add products</div></div>
+    <button type="button" class="btn btn-success" id="review-btn" disabled>Review Order →</button>
+  </div>
+</div>
+
+<div class="modal" id="modal">
+  <div class="modal-box">
+    <h2>Confirm order</h2>
+    <p class="muted" id="rv-shop" style="margin:0 0 14px"></p>
+    <div id="rv-lines"></div>
+    <div class="review-line" style="border:none;font-weight:800;font-size:18px"><span>Total</span><span id="rv-total"></span></div>
+    <div class="modal-actions">
+      <button type="button" class="btn btn-light" id="rv-back">← Edit</button>
+      <button type="button" class="btn btn-success" id="rv-submit">✓ Place Order</button>
+    </div>
+  </div>
+</div>
+
+{{ order_data|json_script:"order-data" }}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  var D = JSON.parse(document.getElementById('order-data').textContent);
+  var DRAFT_KEY = 'feOrderDraft';
+  var byId = {};
+  D.products.forEach(function (p) { byId[p.id] = p; });
+  var shopsById = {};
+  D.shops.forEach(function (s) { shopsById[s.id] = s; });
+
+  var cart = {};          // product id -> qty
+  var shop = null;
+  var picked = null;      // index of the selected quick link, or null for all products
+
+  // ── Quick links (Tip Top, Meat, Dairy…) ───────────────────────────────
+  function squash(s) { return String(s || '').toLowerCase().replace(/\s+/g, ''); }
+  var links = (D.quick_links || []).slice();
+  var known = {};
+  links.forEach(function (q) { known[squash(q.label)] = true; });
+  D.products.forEach(function (p) {
+    var tag = squash(p.quick_link);
+    if (tag && !known[tag]) { known[tag] = true; links.push({ label: p.quick_link, icon: '⭐', keywords: [] }); }
+  });
+  var quick = links.map(function (q) {
+    var label = squash(q.label), kws = q.keywords.map(squash);
+    var ids = {};
+    D.products.forEach(function (p) {
+      var hay = squash(p.category) + '|' + squash(p.name);
+      if (squash(p.quick_link) === label || kws.some(function (k) { return hay.indexOf(k) !== -1; })) ids[p.id] = true;
+    });
+    return { label: q.label, icon: q.icon, ids: ids, count: Object.keys(ids).length };
+  });
+
+  function $(id) { return document.getElementById(id); }
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+  function money(n) { return 'WST ' + n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
+
+  // ── Draft (survives a reload or dropped connection) ───────────────────
+  function saveDraft() {
+    try {
+      localStorage.setItem(DRAFT_KEY, JSON.stringify({
+        shop: shop && shop.id, cart: cart, address: $('address').value, phone: $('phone').value, notes: $('notes').value,
+      }));
+    } catch (e) {}
+  }
+  function loadDraft() {
+    try { return JSON.parse(localStorage.getItem(DRAFT_KEY) || 'null'); } catch (e) { return null; }
+  }
+
+  // ── Shop picker ───────────────────────────────────────────────────────
+  var shopHits = [], shopHl = 0;
+  function searchShops() {
+    var q = $('shop-search').value.trim().toLowerCase();
+    var box = $('shop-results');
+    if (!q) { box.style.display = 'none'; return; }
+    shopHits = D.shops.filter(function (s) { return (s.name + ' ' + s.address).toLowerCase().indexOf(q) !== -1; });
+    shopHits.sort(function (a, b) {
+      return (a.name.toLowerCase().indexOf(q) === 0 ? 0 : 1) - (b.name.toLowerCase().indexOf(q) === 0 ? 0 : 1);
+    });
+    shopHits = shopHits.slice(0, 15);
+    shopHl = 0;
+    box.innerHTML = shopHits.length ? shopHits.map(function (s, i) {
+      return '<div class="shop-opt' + (i === 0 ? ' hl' : '') + '" data-i="' + i + '"><b>' + esc(s.name) + '</b><span>' +
+        esc([s.address, s.territory, s.island].filter(Boolean).join(' · ')) + '</span></div>';
+    }).join('') : '<div class="empty" style="padding:18px">No shop called “' + esc($('shop-search').value) + '”</div>';
+    box.style.display = 'block';
+  }
+  function pickShop(s, keepFields) {
+    shop = s;
+    $('shop-id').value = s.id;
+    if (!keepFields) { $('address').value = s.address; $('phone').value = s.phone; }
+    $('chosen-name').textContent = s.name;
+    $('chosen-meta').textContent = [s.territory, s.island].filter(Boolean).join(' · ');
+    $('chosen').style.display = 'flex';
+    $('picker').style.display = 'none';
+    $('shop-results').style.display = 'none';
+    $('shop-search').value = '';
+    update();
+  }
+  $('shop-search').addEventListener('input', searchShops);
+  $('shop-search').addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') { e.preventDefault(); if (shopHits[shopHl]) pickShop(shopHits[shopHl]); }
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      shopHl = (shopHl + (e.key === 'ArrowDown' ? 1 : -1) + shopHits.length) % Math.max(shopHits.length, 1);
+      document.querySelectorAll('.shop-opt').forEach(function (o, i) { o.classList.toggle('hl', i === shopHl); });
+    }
+  });
+  $('shop-results').addEventListener('click', function (e) {
+    var o = e.target.closest('.shop-opt');
+    if (o) pickShop(shopHits[+o.getAttribute('data-i')]);
+  });
+  $('change-shop').addEventListener('click', function () {
+    shop = null; $('shop-id').value = '';
+    $('chosen').style.display = 'none'; $('picker').style.display = '';
+    $('address').value = ''; $('phone').value = '';
+    $('shop-search').focus();
+    update();
+  });
+
+  // ── Products ──────────────────────────────────────────────────────────
+  function renderQuick() {
+    $('quick').innerHTML = quick.map(function (q, i) {
+      return '<button type="button" class="quick-btn' + (picked === i ? ' active' : '') + (q.count ? '' : ' none') +
+        '" data-i="' + i + '"><span class="ico">' + esc(q.icon) + '</span><span><b>' + esc(q.label) + '</b><small>' +
+        q.count + ' product' + (q.count === 1 ? '' : 's') + '</small></span></button>';
+    }).join('');
+  }
+  $('quick').addEventListener('click', function (e) {
+    var b = e.target.closest('[data-i]');
+    if (!b) return;
+    var i = +b.getAttribute('data-i');
+    picked = picked === i ? null : i;   // tapping the selected one again shows all products
+    renderQuick(); renderProducts();
+  });
+
+  function renderProducts() {
+    var q = $('prod-search').value.trim().toLowerCase();
+    var list = D.products.filter(function (p) {
+      if (picked !== null && !quick[picked].ids[p.id]) return false;
+      return !q || (p.name + ' ' + p.category).toLowerCase().indexOf(q) !== -1;
+    });
+    $('prod-rows').innerHTML = list.map(function (p) {
+      var qty = cart[p.id] || 0;
+      var ctl = p.available
+        ? '<div class="stepper" data-id="' + p.id + '"><button type="button" data-d="-1">−</button>' +
+          '<input type="number" inputmode="numeric" min="0" value="' + (qty || '') + '" placeholder="0">' +
+          '<button type="button" class="plus" data-d="1">+</button></div>'
+        : '<span class="oos">Out of stock</span>';
+      return '<tr class="' + (p.available ? '' : 'out') + (qty ? ' in-cart' : '') + '">' +
+        '<td class="name">' + esc(p.name) + (p.unit ? '<small>' + esc(p.unit) + '</small>' : '') + '</td>' +
+        '<td class="price hide-sm">' + (p.price != null ? money(p.price) : '<span class="muted">—</span>') + '</td>' +
+        '<td style="text-align:right">' + ctl + '</td></tr>';
+    }).join('');
+    var empty = $('prod-empty');
+    if (!D.products.length) { empty.textContent = 'No products yet — the office needs to add them on the Products page.'; }
+    else { empty.textContent = 'No products match.'; }
+    empty.style.display = list.length ? 'none' : 'block';
+  }
+
+  function setQty(id, qty) {
+    qty = Math.max(0, Math.min(9999, Math.floor(qty) || 0));
+    if (qty) cart[id] = qty; else delete cart[id];
+    update();
+  }
+  $('prod-rows').addEventListener('click', function (e) {
+    var b = e.target.closest('button[data-d]');
+    if (!b) return;
+    var id = +b.closest('.stepper').getAttribute('data-id');
+    setQty(id, (cart[id] || 0) + (+b.getAttribute('data-d')));
+    var row = b.closest('tr'), input = row.querySelector('input');
+    input.value = cart[id] || '';
+    row.classList.toggle('in-cart', !!cart[id]);
+  });
+  $('prod-rows').addEventListener('change', function (e) {
+    if (e.target.tagName !== 'INPUT') return;
+    var id = +e.target.closest('.stepper').getAttribute('data-id');
+    setQty(id, +e.target.value);
+    e.target.value = cart[id] || '';
+    e.target.closest('tr').classList.toggle('in-cart', !!cart[id]);
+  });
+  $('prod-search').addEventListener('input', renderProducts);
+
+  // ── Totals & submit ───────────────────────────────────────────────────
+  function totals() {
+    var lines = 0, units = 0, total = 0, unpriced = 0;
+    Object.keys(cart).forEach(function (id) {
+      var p = byId[id], q = cart[id];
+      lines++; units += q;
+      if (p.price != null) total += p.price * q; else unpriced++;
+    });
+    return { lines: lines, units: units, total: total, unpriced: unpriced };
+  }
+  function update() {
+    var t = totals();
+    $('sum-main').textContent = t.lines ? t.lines + ' product' + (t.lines > 1 ? 's' : '') + ' · ' + t.units + ' units' : 'No products yet';
+    $('sum-sub').textContent = !shop ? 'Pick a shop first' : t.lines ? money(t.total) + (t.unpriced ? ' + ' + t.unpriced + ' unpriced' : '') : 'Add products below';
+    $('review-btn').disabled = !(shop && t.lines);
+    saveDraft();
+  }
+  ['address', 'phone', 'notes'].forEach(function (id) { $(id).addEventListener('input', saveDraft); });
+
+  $('review-btn').addEventListener('click', function () {
+    var t = totals();
+    $('rv-shop').textContent = shop.name + ($('address').value ? ' · ' + $('address').value : '') + ($('phone').value ? ' · ' + $('phone').value : '');
+    $('rv-lines').innerHTML = Object.keys(cart).map(function (id) {
+      var p = byId[id];
+      return '<div class="review-line"><span><b>' + cart[id] + ' ×</b> ' + esc(p.name) + '</span><span>' +
+        (p.price != null ? money(p.price * cart[id]) : '<span class="muted">—</span>') + '</span></div>';
+    }).join('');
+    $('rv-total').textContent = money(t.total) + (t.unpriced ? ' + unpriced items' : '');
+    $('modal').classList.add('open');
+  });
+  $('rv-back').addEventListener('click', function () { $('modal').classList.remove('open'); });
+  $('rv-submit').addEventListener('click', function () {
+    this.disabled = true; this.textContent = 'Sending…';
+    $('items').value = JSON.stringify(Object.keys(cart).map(function (id) { return { product: +id, qty: cart[id] }; }));
+    $('order-form').submit();
+  });
+
+  // ── Start: restore draft, or preselect a shop from the atlas ─────────
+  var draft = loadDraft();
+  if (draft) {
+    Object.keys(draft.cart || {}).forEach(function (id) {
+      if (byId[id] && byId[id].available) cart[id] = draft.cart[id];
+    });
+    $('notes').value = draft.notes || '';
+  }
+  var pre = D.preselect && shopsById[D.preselect];
+  if (pre) pickShop(pre);
+  else if (draft && shopsById[draft.shop]) {
+    pickShop(shopsById[draft.shop], true);
+    $('address').value = draft.address || ''; $('phone').value = draft.phone || '';
+  }
+  renderQuick(); renderProducts(); update();
+})();
+</script>
+{% endblock %}

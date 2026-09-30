@@ -1,7 +1,7 @@
 {% extends 'shops/base.html' %}
 {% block content %}
 <div class="page-header">
-  <div><h2 class="page-title">{{ action }} HORECCA Client{% if biz %} — {{ biz.name }}{% endif %}</h2></div>
+  <div><h2 class="page-title">{{ action }} Corporate Client{% if biz %} — {{ biz.name }}{% endif %}</h2></div>
   <a href="{% url 'business_list' %}" class="btn-sms btn-outline-custom">← Back</a>
 </div>
 {% if error %}<div style="background:#FEE2E2;color:#991B1B;padding:12px 16px;border-radius:10px;margin-bottom:16px;font-size:14px">{{ error }}</div>{% endif %}

@@ -1,0 +1,5 @@
+{% comment %}Compact figures on a quick-link card: this month, its target (same month last year) and % reached.{% endcomment %}
+<div class="mid"><span class="t">{% if l.month_sales is not None %}{{ l.month_sales|floatformat:"0g" }}{% else %}—{% endif %}</span>
+  {% if l.target %}<span class="tgt" title="{% if l.manual_target %}Target set by hand{% else %}Same month last year{% endif %}">of {% if l.manual_target %}🎯{% endif %}{{ l.target_short }}</span>{% endif %}
+  {% if l.pct is not None %}<span class="pct s-{{ l.status }}">{{ l.pct }}%</span>{% else %}<span class="tgt" style="margin-left:auto">no target</span>{% endif %}</div>
+{% if l.pct is not None %}<div class="tbar s-{{ l.status }}"><span style="width:{% if l.pct > 100 %}100{% else %}{{ l.pct }}{% endif %}%"></span></div>{% endif %}

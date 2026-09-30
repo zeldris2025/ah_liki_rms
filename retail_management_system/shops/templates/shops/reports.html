@@ -1,135 +1,185 @@
 {% extends 'shops/base.html' %}
 {% block content %}
+<style>
+  .rep-section { color:var(--muted); font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.1em; margin:26px 0 12px; }
+  .rep-section:first-of-type { margin-top:0; }
+  .rep-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(300px, 1fr)); gap:18px; }
+  .rep-card { padding:22px; display:flex; flex-direction:column; }
+  .rep-card form { display:flex; flex-direction:column; flex:1; }
+  .rep-head { display:flex; align-items:center; gap:12px; margin-bottom:14px; }
+  .rep-icon { width:44px; height:44px; border-radius:12px; display:flex; align-items:center; justify-content:center; font-size:22px; flex-shrink:0; }
+  .rep-title { font-weight:700; color:var(--primary); font-size:15px; }
+  .rep-meta { color:var(--muted); font-size:12px; }
+  .rep-desc { color:var(--text-secondary); font-size:13px; margin:0 0 14px; line-height:1.5; }
+  .rep-row { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .rep-card .form-group { margin-bottom:12px; }
+  .rep-go { width:100%; justify-content:center; margin-top:auto; }
+  .rep-layouts { display:grid; gap:6px; margin-bottom:14px; }
+  .rep-layouts label { display:flex; gap:8px; align-items:flex-start; font-size:13px; color:var(--primary); cursor:pointer;
+                       border:1px solid var(--border); border-radius:8px; padding:8px 10px; }
+  .rep-layouts label:has(input:checked) { border-color:var(--accent); background:#F0F9FF; }
+  .rep-layouts small { display:block; color:var(--muted); font-size:11px; }
+</style>
+
 <div class="page-header">
   <div>
     <h2 class="page-title">Reports &amp; Downloads</h2>
-    <p class="page-sub">Export filtered data to CSV</p>
+    <p class="page-sub">Download filtered data as CSV files that open in Excel</p>
   </div>
 </div>
 
-<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:22px">
+<!-- ── Clients & sales ─────────────────────────────────────────────── -->
+<div class="rep-section">Clients &amp; Sales</div>
+<div class="rep-grid">
 
-  <!-- Shops -->
-  <div class="sms-card" style="padding:24px">
-    <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
-      <div style="width:44px;height:44px;background:#EFF6FF;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:22px">🏪</div>
-      <div>
-        <div style="font-weight:700;color:var(--primary);font-size:15px">Sales Shops</div>
-        <div style="color:var(--muted);font-size:12px">{{ shops.count }} shops total</div>
-      </div>
-    </div>
+  <div class="sms-card rep-card">
+    <div class="rep-head"><div class="rep-icon" style="background:#EFF6FF">🏪</div>
+      <div><div class="rep-title">All Clients</div><div class="rep-meta">{{ client_count }} clients</div></div></div>
+    <p class="rep-desc">Customer code, name, type, contact, address, island, phone, territory and email.</p>
     <form method="GET" action="{% url 'download_report' %}">
       <input type="hidden" name="type" value="shops">
-      <div class="form-group">
-        <label class="sms-label">Island</label>
-        <select name="island" class="sms-input">
-          <option value="">All Islands</option>
-          <option value="Upolu">Upolu</option>
-          <option value="Savaii">Savaii</option>
-        </select>
+      <div class="form-group"><label class="sms-label">Customer Type</label>
+        <select name="customer_type" class="sms-input">
+          <option value="">All types</option>
+          {% for t in customer_types %}<option value="{{ t }}">{{ t }}</option>{% endfor %}
+          <option value="__none__">No type set</option>
+        </select></div>
+      <div class="rep-row">
+        <div class="form-group"><label class="sms-label">Island</label>
+          <select name="island" class="sms-input"><option value="">All</option><option>Upolu</option><option>Savaii</option></select></div>
+        <div class="form-group"><label class="sms-label">Territory</label>
+          <select name="territory" class="sms-input"><option value="">All</option>{% for t in territories %}<option>{{ t }}</option>{% endfor %}</select></div>
       </div>
-      <div class="form-group">
-        <label class="sms-label">Region</label>
-        <select name="region" class="sms-input">
-          <option value="">All Regions</option>
-          <option value="Region 1">Region 1</option>
-          <option value="Region 2">Region 2</option>
-          <option value="Region 3">Region 3</option>
-          <option value="Region 4">Region 4</option>
-        </select>
-      </div>
-      <button type="submit" class="btn-sms btn-primary-custom" style="width:100%;justify-content:center">
-        ⬇ Download Shops CSV
-      </button>
+      <button type="submit" class="btn-sms btn-primary-custom rep-go">⬇ Download Clients</button>
     </form>
   </div>
 
-  <!-- HORECCA -->
-  <div class="sms-card" style="padding:24px">
-    <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
-      <div style="width:44px;height:44px;background:#EDE9FE;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:22px">🏨</div>
-      <div>
-        <div style="font-weight:700;color:var(--primary);font-size:15px">HORECCA Clients</div>
-        <div style="color:var(--muted);font-size:12px">{{ businesses.count }} clients total</div>
-      </div>
-    </div>
+  <div class="sms-card rep-card">
+    <div class="rep-head"><div class="rep-icon" style="background:#DCFCE7">💰</div>
+      <div><div class="rep-title">Monthly Sales</div>
+        <div class="rep-meta">{{ sales_rows }} records{% if latest_month %} · latest {{ latest_month|date:"M Y" }}{% endif %}</div></div></div>
     <form method="GET" action="{% url 'download_report' %}">
-      <input type="hidden" name="type" value="horecca">
-      <div class="form-group">
-        <label class="sms-label">Island</label>
-        <select name="island" class="sms-input">
-          <option value="">All Islands</option>
-          <option value="Upolu">Upolu</option>
-          <option value="Savaii">Savaii</option>
-        </select>
+      <input type="hidden" name="type" value="monthly_sales">
+      <div class="rep-row">
+        <div class="form-group"><label class="sms-label">Year</label>
+          <select name="year" class="sms-input">{% for y in sales_years %}<option>{{ y }}</option>{% endfor %}</select></div>
+        <div class="form-group"><label class="sms-label">Month</label>
+          <select name="month" class="sms-input"><option value="">Whole year</option>{% for n, l in month_choices %}<option value="{{ n }}">{{ l }}</option>{% endfor %}</select></div>
       </div>
-      <div class="form-group">
-        <label class="sms-label">Business Type</label>
-        <select name="type" class="sms-input">
-          <option value="">All Types</option>
-          <option value="HOTEL">Hotel</option>
-          <option value="CAFE">Café</option>
-          <option value="RESTAURANT">Restaurant</option>
-          <option value="OTHER">Other</option>
-        </select>
+      <div class="rep-row">
+        <div class="form-group"><label class="sms-label">Clients</label>
+          <select name="person" class="sms-input">
+            <option value="">All clients</option>
+            <option value="corporate">All corporate</option>
+            {% for m in managers %}<option value="{{ m.key }}">{{ m.name }}’s clients</option>{% endfor %}
+          </select></div>
+        <div class="form-group"><label class="sms-label">Customer Type</label>
+          <select name="customer_type" class="sms-input"><option value="">All</option>{% for t in customer_types %}<option value="{{ t }}">{{ t }}</option>{% endfor %}</select></div>
       </div>
-      <button type="submit" class="btn-sms btn-primary-custom" style="width:100%;justify-content:center">
-        ⬇ Download HORECCA CSV
-      </button>
+      <div class="rep-layouts">
+        <label><input type="radio" name="layout" value="rows" checked><span>One row per client per month<small>Code, name, month, sales</small></span></label>
+        <label><input type="radio" name="layout" value="clients"><span>Total per client<small>Each client’s total for the period, highest first</small></span></label>
+        <label><input type="radio" name="layout" value="pivot"><span>Months as columns<small>One row per client, Jan–Dec across</small></span></label>
+      </div>
+      <button type="submit" class="btn-sms btn-primary-custom rep-go">⬇ Download Monthly Sales</button>
     </form>
   </div>
 
-  <!-- Sponsorships -->
-  <div class="sms-card" style="padding:24px">
-    <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
-      <div style="width:44px;height:44px;background:#FEF3C7;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:22px">🤝</div>
-      <div>
-        <div style="font-weight:700;color:var(--primary);font-size:15px">Sponsorships</div>
-        <div style="color:var(--muted);font-size:12px">{{ sponsorships.count }} total</div>
-      </div>
-    </div>
+  <div class="sms-card rep-card">
+    <div class="rep-head"><div class="rep-icon" style="background:#EDE9FE">🎯</div>
+      <div><div class="rep-title">Corporate Sales vs Target</div><div class="rep-meta">Grace, Ruth, Judane &amp; Ivan</div></div></div>
+    <p class="rep-desc">Each month’s actual sales, target, variance and % of target, with a yearly total per person.</p>
     <form method="GET" action="{% url 'download_report' %}">
-      <input type="hidden" name="type" value="sponsorships">
-      <div class="form-group">
-        <label class="sms-label">Status</label>
-        <select name="status" class="sms-input">
-          <option value="">All Statuses</option>
-          <option value="Active">Active</option>
-          <option value="Expired">Expired</option>
-          <option value="Pending">Pending</option>
-        </select>
+      <input type="hidden" name="type" value="corporate">
+      <div class="rep-row">
+        <div class="form-group"><label class="sms-label">Year</label>
+          <select name="year" class="sms-input">{% for y in sales_years %}<option>{{ y }}</option>{% endfor %}</select></div>
+        <div class="form-group"><label class="sms-label">Person</label>
+          <select name="person" class="sms-input"><option value="">Everyone</option>{% for m in managers %}<option value="{{ m.key }}">{{ m.name }}</option>{% endfor %}</select></div>
       </div>
-      <div class="form-group" style="visibility:hidden">
-        <label class="sms-label">&nbsp;</label>
-        <select class="sms-input"><option></option></select>
-      </div>
-      <button type="submit" class="btn-sms btn-primary-custom" style="width:100%;justify-content:center">
-        ⬇ Download Sponsorships CSV
-      </button>
+      <button type="submit" class="btn-sms btn-primary-custom rep-go">⬇ Download Corporate Report</button>
     </form>
   </div>
-
 </div>
 
-<!-- Summary table -->
-<div class="sms-card" style="margin-top:28px;padding:24px">
-  <div style="font-weight:700;color:var(--primary);font-size:15px;margin-bottom:16px">Sponsorship Summary by Status</div>
-  <table class="sms-table">
-    <thead>
-      <tr><th>Status</th><th>Count</th><th>Total Value (WST)</th></tr>
-    </thead>
-    <tbody>
-      {% regroup sponsorships by status as status_groups %}
-      {% for group in status_groups %}
-      <tr>
-        <td><span class="badge-custom {% if group.grouper == 'Active' %}badge-green{% elif group.grouper == 'Expired' %}badge-red{% else %}badge-amber{% endif %}">{{ group.grouper }}</span></td>
-        <td>{{ group.list|length }}</td>
-        <td style="font-weight:700;color:var(--success)">—</td>
-      </tr>
-      {% empty %}
-      <tr><td colspan="3" style="color:var(--muted);text-align:center;padding:24px">No sponsorships yet.</td></tr>
-      {% endfor %}
-    </tbody>
-  </table>
+<!-- ── FE orders & products ────────────────────────────────────────── -->
+<div class="rep-section">FE Orders &amp; Products</div>
+<div class="rep-grid">
+  <div class="sms-card rep-card">
+    <div class="rep-head"><div class="rep-icon" style="background:#FEF3C7">🛒</div>
+      <div><div class="rep-title">FE Order Sales</div><div class="rep-meta">{{ order_count }} orders</div></div></div>
+    <p class="rep-desc">One row per product line: date, order no, status, shop, product, quantity and price.</p>
+    <form method="GET" action="{% url 'sales_export' %}">
+      <div class="rep-row">
+        <div class="form-group"><label class="sms-label">From</label><input type="date" name="from" value="{{ today|date:'Y-m-d' }}" class="sms-input"></div>
+        <div class="form-group"><label class="sms-label">To</label><input type="date" name="to" value="{{ today|date:'Y-m-d' }}" class="sms-input"></div>
+      </div>
+      <button type="submit" class="btn-sms btn-primary-custom rep-go">⬇ Download Order Sales</button>
+    </form>
+  </div>
+
+  <div class="sms-card rep-card">
+    <div class="rep-head"><div class="rep-icon" style="background:#E0F2FE">📦</div>
+      <div><div class="rep-title">Product Catalogue</div><div class="rep-meta">{{ product_count }} products</div></div></div>
+    <p class="rep-desc">Product no, name, category, unit, cost, unit price, price incl. VAT, stock and quick link. Can be edited and uploaded back.</p>
+    <a href="{% url 'product_export' %}" class="btn-sms btn-primary-custom rep-go">⬇ Download Products</a>
+  </div>
+</div>
+
+<!-- ── Marketing ───────────────────────────────────────────────────── -->
+<div class="rep-section">Marketing</div>
+<div class="rep-grid">
+  <div class="sms-card rep-card">
+    <div class="rep-head"><div class="rep-icon" style="background:#FCE7F3">🏷️</div>
+      <div><div class="rep-title">Promotions</div><div class="rep-meta">{{ promotion_count }} promotions</div></div></div>
+    <p class="rep-desc">Name, company, details, prizes, dates and status.</p>
+    <form method="GET" action="{% url 'download_report' %}">
+      <input type="hidden" name="type" value="promotions">
+      <div class="rep-row">
+        <div class="form-group"><label class="sms-label">Company</label>
+          <select name="company" class="sms-input"><option value="">All</option>{% for v, l in company_choices %}<option value="{{ v }}">{{ l }}</option>{% endfor %}</select></div>
+        <div class="form-group"><label class="sms-label">Status</label>
+          <select name="status" class="sms-input"><option value="">All</option>{% for v, l in promotion_statuses %}<option value="{{ v }}">{{ l }}</option>{% endfor %}</select></div>
+      </div>
+      <button type="submit" class="btn-sms btn-primary-custom rep-go">⬇ Download Promotions</button>
+    </form>
+  </div>
+
+  <div class="sms-card rep-card">
+    <div class="rep-head"><div class="rep-icon" style="background:#FEF3C7">🤝</div>
+      <div><div class="rep-title">Sponsorships</div><div class="rep-meta">{{ sponsorship_count }} sponsorships</div></div></div>
+    <form method="GET" action="{% url 'download_report' %}">
+      <input type="hidden" name="type" value="sponsorships">
+      <div class="form-group"><label class="sms-label">Status</label>
+        <select name="status" class="sms-input"><option value="">All</option><option>Active</option><option>Pending</option><option>Expired</option></select></div>
+      <table class="sms-table" style="margin-bottom:14px">
+        <thead><tr><th>Status</th><th style="text-align:right">Count</th><th style="text-align:right">Value (WST)</th></tr></thead>
+        <tbody>
+          {% for g in sponsorship_summary %}
+          <tr><td><span class="badge-custom {% if g.status == 'Active' %}badge-green{% elif g.status == 'Expired' %}badge-red{% else %}badge-amber{% endif %}">{{ g.status }}</span></td>
+              <td style="text-align:right">{{ g.n }}</td><td style="text-align:right;font-weight:600">{{ g.total|floatformat:"0g" }}</td></tr>
+          {% empty %}
+          <tr><td colspan="3" style="color:var(--muted);text-align:center">No sponsorships yet.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      <button type="submit" class="btn-sms btn-primary-custom rep-go">⬇ Download Sponsorships</button>
+    </form>
+  </div>
+
+  <div class="sms-card rep-card">
+    <div class="rep-head"><div class="rep-icon" style="background:#F1F5F9">🏨</div>
+      <div><div class="rep-title">HORECA Businesses (old list)</div><div class="rep-meta">{{ businesses }} businesses</div></div></div>
+    <form method="GET" action="{% url 'download_report' %}">
+      <input type="hidden" name="type" value="horecca">
+      <div class="rep-row">
+        <div class="form-group"><label class="sms-label">Island</label>
+          <select name="island" class="sms-input"><option value="">All</option><option>Upolu</option><option>Savaii</option></select></div>
+        <div class="form-group"><label class="sms-label">Business Type</label>
+          <select name="business_type" class="sms-input"><option value="">All</option>{% for v, l in business_types %}<option value="{{ v }}">{{ l }}</option>{% endfor %}</select></div>
+      </div>
+      <button type="submit" class="btn-sms btn-outline-custom rep-go">⬇ Download HORECA List</button>
+    </form>
+  </div>
 </div>
 {% endblock %}

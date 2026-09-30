@@ -1,0 +1,20 @@
+{% extends 'shops/_upload_page.html' %}
+{% block upload_title %}⬆ Import Customer Product Sales{% endblock %}
+{% block upload_sub %}Upload what each client bought, per product per month. Powers the Top 10 products chart on Corporate Sales. Safe to upload the same file every day.{% endblock %}
+{% block back_url %}{% url 'corporate_sales' %}{% endblock %}
+{% block back_label %}← Corporate Sales{% endblock %}
+{% block upload_rules %}
+  <b>How rows are matched</b><br>
+  • One total per client per product per month, matched on <b>Customer Code + Product Code + Date</b>.<br>
+  • Uploading a month again <b>replaces</b> its total, so it’s never counted twice. A changed product name is updated too.<br>
+  • The client must already exist (upload it in Import Clients first). Rows with an unknown Customer Code, a missing product, a date that isn’t a month, or a sales figure that isn’t a number are skipped and listed.
+{% endblock %}
+{% block column_rows %}
+  <tr><td><code>Customer Code</code></td><td>Required. Must match a client, e.g. C10023</td></tr>
+  <tr><td><code>Customer Name</code></td><td>Optional. Only there to make the file easier to read</td></tr>
+  <tr><td><code>Product Code</code></td><td>Required. e.g. AL10002999</td></tr>
+  <tr><td><code>Product Name</code></td><td>Required. e.g. Tip Top Banana Split 16L</td></tr>
+  <tr><td><code>Date (YY-MM)</code></td><td>Required. e.g. 26-09 for September 2026 (2026-09 and Sep-26 also work)</td></tr>
+  <tr><td><code>Sales</code></td><td>Required. What the client bought of that product that month, in WST, e.g. 1250.50</td></tr>
+{% endblock %}
+{% block template_url %}{% url 'download_customer_product_sales_template' %}{% endblock %}

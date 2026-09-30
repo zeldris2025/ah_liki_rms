@@ -1,0 +1,71 @@
+{% extends 'shops/base.html' %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <h2 class="page-title">📦 Products</h2>
+    <p class="page-sub">{{ total }} product{{ total|pluralize }} in the FE order catalogue · prices in WST{% if out_of_stock %} · <b style="color:var(--danger)">{{ out_of_stock }} out of stock</b>{% endif %}</p>
+  </div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap">
+    {% if can_export %}<a href="{% url 'product_export' %}" class="btn-sms btn-outline-custom">⬇ Export CSV</a>{% endif %}
+    {% if access.bulk_import %}<a href="{% url 'product_import' %}" class="btn-sms btn-outline-custom">⬆ Upload CSV</a>{% endif %}
+    <a href="{% url 'product_add' %}" class="btn-sms btn-primary-custom">＋ Add Product</a>
+  </div>
+</div>
+
+{% for m in messages %}<div class="alert alert-{% if m.tags == 'error' %}danger{% else %}{{ m.tags }}{% endif %}">{{ m }}</div>{% endfor %}
+
+<form method="get" class="sms-card" style="padding:14px 16px;margin-bottom:16px;display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+  <input class="sms-input" name="q" value="{{ q }}" placeholder="Search name, category or Product No…" style="flex:1;min-width:200px">
+  <select class="sms-input" name="category" style="width:auto" onchange="this.form.submit()">
+    <option value="">All categories</option>
+    {% for c in categories %}<option value="{{ c }}" {% if c == category %}selected{% endif %}>{{ c }}</option>{% endfor %}
+  </select>
+  <select class="sms-input" name="availability" style="width:auto" onchange="this.form.submit()">
+    <option value="">Any stock</option>
+    <option value="1" {% if availability == '1' %}selected{% endif %}>Available</option>
+    <option value="0" {% if availability == '0' %}selected{% endif %}>Out of stock</option>
+  </select>
+  <button class="btn-sms btn-primary-custom sm">Filter</button>
+</form>
+
+<div class="sms-card">
+  {% if products %}
+  <table class="sms-table">
+    <thead><tr><th>No.</th><th>Product</th><th>Category</th><th>UoM</th><th style="text-align:right">Cost</th><th style="text-align:right">Unit Price</th><th style="text-align:right">Incl. VAT</th><th>Availability</th><th></th></tr></thead>
+    <tbody>
+    {% for p in products %}
+      <tr>
+        <td style="color:var(--muted);white-space:nowrap">{{ p.product_no|default:"—" }}</td>
+        <td style="font-weight:600;color:var(--primary)">{{ p.name }}</td>
+        <td><span class="badge-custom badge-gray">{{ p.category }}</span>{% if p.quick_link %} <span class="badge-custom badge-accent" title="Quick link button">★ {{ p.quick_link }}</span>{% endif %}</td>
+        <td style="color:var(--muted)">{{ p.unit|default:"—" }}</td>
+        <td style="text-align:right;color:var(--muted)">{% if p.cost is not None %}{{ p.cost|floatformat:2 }}{% else %}—{% endif %}</td>
+        <td style="text-align:right">{% if p.unit_price is not None %}{{ p.unit_price|floatformat:2 }}{% else %}<span style="color:var(--muted)">—</span>{% endif %}</td>
+        <td style="text-align:right">{% if p.unit_price_incl_vat is not None %}{{ p.unit_price_incl_vat|floatformat:2 }}{% else %}<span style="color:var(--muted)">—</span>{% endif %}</td>
+        <td>
+          <form method="post" action="{% url 'product_toggle' p.pk %}" style="margin:0">
+            {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
+            <button class="badge-custom {% if p.available %}badge-green{% else %}badge-red{% endif %}" style="border:none;cursor:pointer" title="Click to switch">
+              {% if p.available %}● Available{% else %}● Out of stock{% endif %}
+            </button>
+          </form>
+        </td>
+        <td style="text-align:right;white-space:nowrap">
+          <a href="{% url 'product_edit' p.pk %}" class="btn-sms btn-outline-custom sm">Edit</a>
+          {% if not p.times_ordered %}
+          <form method="post" action="{% url 'product_delete' p.pk %}" style="display:inline" onsubmit="return confirm('Delete {{ p.name|escapejs }}?')">
+            {% csrf_token %}<button class="btn-sms btn-outline-custom sm" style="color:var(--danger)">Delete</button>
+          </form>
+          {% endif %}
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div style="padding:48px;text-align:center;color:var(--muted)">
+    {% if total %}No products match those filters.{% else %}No products yet. {% if access.bulk_import %}<a href="{% url 'product_import' %}">Upload a CSV</a> or {% endif %}<a href="{% url 'product_add' %}">add one</a>.{% endif %}
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

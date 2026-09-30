@@ -1,0 +1,43 @@
+{% extends 'fe_orders/fe_base.html' %}
+{% block extra_css %}
+<style>
+  .tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+  .tile { display: flex; flex-direction: column; justify-content: space-between; min-height: 210px; padding: 26px; border-radius: 22px;
+          color: #fff; text-decoration: none; box-shadow: 0 10px 28px rgba(15,23,42,.14); transition: transform .08s; position: relative; }
+  .tile:active { transform: scale(.98); }
+  .tile .icon { font-size: 54px; line-height: 1; }
+  .tile .label { font-size: 28px; font-weight: 800; margin-top: 18px; }
+  .tile .hint { font-size: 15px; opacity: .85; margin-top: 4px; }
+  .tile .count { position: absolute; top: 22px; right: 22px; background: rgba(255,255,255,.95); color: var(--primary);
+                 font-weight: 800; font-size: 16px; border-radius: 999px; padding: 6px 14px; }
+  .t-order  { background: linear-gradient(135deg, #0EA5E9, #0369A1); }
+  .t-atlas  { background: linear-gradient(135deg, #16A34A, #166534); }
+  .t-orders { background: linear-gradient(135deg, #1E293B, #0F172A); }
+  .t-issues { background: linear-gradient(135deg, #F59E0B, #B45309); }
+  @media (max-width: 640px) { .tiles { grid-template-columns: 1fr; } .tile { min-height: 150px; } }
+</style>
+{% endblock %}
+{% block content %}
+<h1 class="page-title">Talofa, {{ user.first_name|default:user.username }} 👋</h1>
+<p class="page-sub">What would you like to do?</p>
+<div class="tiles">
+  <a class="tile t-order" href="{% url 'fe_place_order' %}">
+    <span class="icon">🛒</span>
+    <div><div class="label">Place Order</div><div class="hint">Pick a shop, add products, send it in</div></div>
+  </a>
+  <a class="tile t-atlas" href="{% url 'atlas' %}">
+    <span class="icon">🗺️</span>
+    <div><div class="label">Ah Liki Atlas</div><div class="hint">Find shops on the map by territory</div></div>
+  </a>
+  <a class="tile t-orders" href="{% url 'fe_order_list' %}">
+    {% if pending_orders %}<span class="count">{{ pending_orders }} pending</span>{% endif %}
+    <span class="icon">📋</span>
+    <div><div class="label">View Orders</div><div class="hint">{% if is_fe %}Your orders and their status{% else %}All FE orders{% endif %}</div></div>
+  </a>
+  <a class="tile t-issues" href="{% url 'fe_issue_list' %}">
+    {% if open_issues %}<span class="count">{{ open_issues }} open</span>{% endif %}
+    <span class="icon">⚠️</span>
+    <div><div class="label">Issues</div><div class="hint">Report a fridge, stock or shop problem</div></div>
+  </a>
+</div>
+{% endblock %}

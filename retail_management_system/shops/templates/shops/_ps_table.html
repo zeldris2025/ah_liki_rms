@@ -1,0 +1,43 @@
+{% comment %}The product sales table body. Rendered inside the page, and on its own (?partial=table) for live search.{% endcomment %}
+<div id="ps-table-body" data-count="{{ row_count }}" data-total="{{ table_total|default_if_none:'' }}">
+  {% if page_obj %}
+  <table class="sms-table">
+    <thead><tr>
+      <th style="width:34px"></th>
+      <th><a href="?{{ base_query }}&sort=code#ps-table">Product Code{% if f.sort == 'code' %} ▴{% endif %}</a></th>
+      <th><a href="?{{ base_query }}&sort=name#ps-table">Product Name{% if f.sort == 'name' %} ▴{% endif %}</a></th>
+      <th><a href="?{{ base_query }}{% if not f.sort %}&sort=oldest{% endif %}#ps-table">Date (YY-MM){% if not f.sort %} ▾{% elif f.sort == 'oldest' %} ▴{% endif %}</a></th>
+      <th class="num"><a href="?{{ base_query }}&sort=sales#ps-table">Total Sales{% if f.sort == 'sales' %} ▾{% endif %}</a></th>
+    </tr></thead>
+    <tbody>
+      {% for r in page_obj %}
+      <tr>
+        <td>
+          <form method="post" action="{% url 'product_sales_pin' %}" style="margin:0">{% csrf_token %}
+            <input type="hidden" name="code" value="{{ r.product_code }}"><input type="hidden" name="next" value="{{ page_url }}#ps-table">
+            <button type="submit" class="star {% if r.product_code in pinned %}on{% endif %}"
+                    title="{% if r.product_code in pinned %}Remove from{% else %}Add to{% endif %} quick links"
+                    aria-label="{% if r.product_code in pinned %}Unpin{% else %}Pin{% endif %} {{ r.product_name }}">{% if r.product_code in pinned %}★{% else %}☆{% endif %}</button>
+          </form>
+        </td>
+        <td style="color:var(--muted);white-space:nowrap"><a href="?{{ keep_query }}{% if keep_query %}&{% endif %}product={{ r.product_code|urlencode }}" style="color:inherit">{{ r.product_code }}</a></td>
+        <td style="font-weight:600;color:var(--primary)">{{ r.product_name }}</td>
+        <td style="white-space:nowrap">{{ r.month|date:"y-m" }}</td>
+        <td class="num" style="font-weight:600">{{ r.total_sales|floatformat:"2g" }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% if page_obj.has_other_pages %}
+  <div class="ps-pager" style="display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border-top:1px solid var(--border);font-size:13px;color:var(--muted)">
+    <span>Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+    <span style="display:flex;gap:8px">
+      {% if page_obj.has_previous %}<a class="btn-sms btn-outline-custom sm" href="?{{ base_query }}{% if f.sort %}&sort={{ f.sort }}{% endif %}&page={{ page_obj.previous_page_number }}#ps-table">← Prev</a>{% endif %}
+      {% if page_obj.has_next %}<a class="btn-sms btn-outline-custom sm" href="?{{ base_query }}{% if f.sort %}&sort={{ f.sort }}{% endif %}&page={{ page_obj.next_page_number }}#ps-table">Next →</a>{% endif %}
+    </span>
+  </div>
+  {% endif %}
+  {% else %}
+  <div style="padding:40px;text-align:center;color:var(--muted)">{% if f.tq %}No products in the table match “{{ f.tq }}”.{% else %}No product sales match these filters.{% endif %}</div>
+  {% endif %}
+</div>

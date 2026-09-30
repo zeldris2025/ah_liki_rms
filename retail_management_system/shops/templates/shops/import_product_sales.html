@@ -1,0 +1,18 @@
+{% extends 'shops/_upload_page.html' %}
+{% block upload_title %}⬆ Import Product Sales{% endblock %}
+{% block upload_sub %}Upload each product’s total sales per month. Safe to upload the same file every day.{% endblock %}
+{% block back_url %}{% url 'product_sales' %}{% endblock %}
+{% block back_label %}← Product Sales{% endblock %}
+{% block upload_rules %}
+  <b>How rows are matched</b><br>
+  • One total per product per month, matched on <b>Product Code + Date</b>.<br>
+  • Uploading a month again <b>replaces</b> its total, so it’s never counted twice. A changed product name is updated too.<br>
+  • Rows with a missing code, a date that isn’t a month, or a sales figure that isn’t a number are skipped and listed.
+{% endblock %}
+{% block column_rows %}
+  <tr><td><code>Product Code</code></td><td>Required. e.g. AL10002999</td></tr>
+  <tr><td><code>Product Name</code></td><td>Required. e.g. Tip Top Banana Split 16L</td></tr>
+  <tr><td><code>Date (YY-MM)</code></td><td>Required. e.g. 26-09 for September 2026 (2026-09 and Sep-26 also work)</td></tr>
+  <tr><td><code>Total Sales</code></td><td>Required. The month’s total in WST, e.g. 45210.50</td></tr>
+{% endblock %}
+{% block template_url %}{% url 'download_product_sales_template' %}{% endblock %}

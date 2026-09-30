@@ -1,0 +1,156 @@
+{% extends 'shops/base.html' %}
+{% block content %}
+<style>
+  .mgr-head { display:flex; align-items:center; gap:14px; }
+  .mgr-avatar { width:48px; height:48px; border-radius:50%; background:{{ m.color }}; color:#fff; font-weight:700; font-size:20px;
+                display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+  .mgr-filters { display:grid; grid-template-columns:2fr repeat({% if combined %}6{% else %}5{% endif %}, minmax(0, 1fr)) auto; gap:10px; align-items:end; }
+  .mgr-filters label { display:block; color:var(--muted); font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; margin-bottom:4px; }
+  .mgr-tabs { display:flex; gap:4px; border-bottom:1px solid var(--border); padding:0 16px; }
+  .mgr-tabs a { padding:12px 16px; font-size:14px; font-weight:600; color:var(--muted); text-decoration:none; border-bottom:3px solid transparent; margin-bottom:-1px; }
+  .mgr-tabs a.on { color:var(--primary); border-bottom-color:{{ m.color }}; }
+  .num { text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
+  @media (max-width: 1100px) { .mgr-filters { grid-template-columns:repeat(2, minmax(0, 1fr)); } .mgr-filters .wide { grid-column:1 / -1; } }
+</style>
+
+<div class="page-header">
+  <div class="mgr-head">
+    <div class="mgr-avatar">{% if combined %}🏢{% else %}{{ m.name|slice:":1" }}{% endif %}</div>
+    <div>
+      <h2 class="page-title">{% if combined %}{{ m.name }}{% else %}{{ m.name }}’s Clients{% endif %}</h2>
+      <p class="page-sub">{{ m.streams|join:" · " }}</p>
+    </div>
+  </div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap">
+    {% if can_export %}<a href="?{{ query }}{% if query %}&{% endif %}export=1" class="btn-sms btn-outline-custom">⬇ Export CSV</a>{% endif %}
+    <a href="{% url 'corporate_sales' %}?year={{ year }}" class="btn-sms btn-outline-custom">← Corporate Sales</a>
+  </div>
+</div>
+
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-bottom:16px">
+  <div class="stat-card">
+    <div class="stat-label">Sales · {{ period_label }}</div>
+    <div class="stat-value" style="color:var(--success)">{{ total|floatformat:"0g" }}</div>
+    <div class="stat-sub">WST</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Target · {{ period_label }}</div>
+    <div class="stat-value" style="color:var(--primary)">{% if target %}{{ target|floatformat:"0g" }}{% else %}—{% endif %}</div>
+    <div class="stat-sub">{% if pct is not None %}<b style="color:{% if pct >= 100 %}var(--success){% else %}#B45309{% endif %}">{{ pct }}% reached</b>{% else %}no target set{% endif %}{% if f.q or f.type or f.territory %} · for all clients{% endif %}</div>
+    {% if target_note %}<div class="stat-sub" style="font-size:11px">{{ target_note }}{% if not own_rep %} · <a href="{% url 'corporate_targets' %}?year={{ year }}" style="color:var(--accent)">set the rest</a>{% endif %}</div>{% endif %}
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Clients</div>
+    <div class="stat-value" style="color:var(--primary)">{{ client_total }}</div>
+    <div class="stat-sub">{{ with_sales }} with sales in {{ period_label }}</div>
+  </div>
+</div>
+
+<!-- Search & filters -->
+<form method="get" class="sms-card" style="padding:14px 16px;margin-bottom:16px">
+  {% if f.view %}<input type="hidden" name="view" value="{{ f.view }}">{% endif %}
+  <div class="mgr-filters">
+    <div class="wide"><label for="q">Search</label>
+      <input class="sms-input" id="q" name="q" value="{{ f.q }}" placeholder="Name, customer code or contact…"></div>
+    {% if combined %}
+    <div><label for="person">Looked after by</label>
+      <select class="sms-input" id="person" name="person" onchange="this.form.submit()">
+        <option value="">Everyone</option>
+        {% for p in managers %}<option value="{{ p.key }}" {% if f.person == p.key %}selected{% endif %}>{{ p.name }}</option>{% endfor %}
+      </select></div>
+    {% endif %}
+    <div><label for="type">Customer Type</label>
+      <select class="sms-input" id="type" name="type" onchange="this.form.submit()">
+        <option value="">All types</option>
+        {% for t in types %}<option value="{{ t }}" {% if f.type == t %}selected{% endif %}>{{ t }}</option>{% endfor %}
+      </select></div>
+    <div><label for="territory">Territory</label>
+      <select class="sms-input" id="territory" name="territory" onchange="this.form.submit()">
+        <option value="">All</option>
+        {% for t in territories %}<option value="{{ t }}" {% if f.territory == t %}selected{% endif %}>{{ t }}</option>{% endfor %}
+      </select></div>
+    <div><label for="year">Year</label>
+      <select class="sms-input" id="year" name="year" onchange="this.form.submit()">
+        {% for y in years %}<option value="{{ y }}" {% if y == year %}selected{% endif %}>{{ y }}</option>{% endfor %}
+      </select></div>
+    <div><label for="month">Month</label>
+      <select class="sms-input" id="month" name="month" onchange="this.form.submit()">
+        <option value="">Whole year</option>
+        {% for n, label in month_choices %}<option value="{{ n }}" {% if month == n %}selected{% endif %}>{{ label }}</option>{% endfor %}
+      </select></div>
+    <div><label for="sales">Sales</label>
+      <select class="sms-input" id="sales" name="sales" onchange="this.form.submit()">
+        <option value="">Any</option>
+        <option value="with" {% if f.sales == 'with' %}selected{% endif %}>With sales</option>
+        <option value="without" {% if f.sales == 'without' %}selected{% endif %}>No sales</option>
+      </select></div>
+    <div style="display:flex;gap:6px">
+      <button class="btn-sms btn-primary-custom">Search</button>
+      {% if f.q or f.type or f.territory or f.month or f.sales or f.person %}<a href="?year={{ year }}{% if f.view %}&view={{ f.view }}{% endif %}" class="btn-sms btn-outline-custom">Clear</a>{% endif %}
+    </div>
+  </div>
+</form>
+
+<div class="sms-card">
+  <div class="mgr-tabs">
+    <a href="?{{ base_query }}&view=clients{% if f.sort %}&sort={{ f.sort }}{% endif %}" class="{% if f.view != 'sales' %}on{% endif %}">Clients</a>
+    <a href="?{{ base_query }}&view=sales{% if f.sort %}&sort={{ f.sort }}{% endif %}" class="{% if f.view == 'sales' %}on{% endif %}">Each Sale</a>
+  </div>
+
+  {% if page_obj %}
+  {% if f.view == 'sales' %}
+  <table class="sms-table">
+    <thead><tr><th>Month</th><th>Customer Code</th><th>Customer Name</th><th>Customer Type</th>{% if combined %}<th>Looked After By</th>{% endif %}<th class="num">Sales (WST)</th></tr></thead>
+    <tbody>
+      {% for r in page_obj %}
+      <tr>
+        <td style="white-space:nowrap">{{ r.month|date:"M Y" }}</td>
+        <td style="color:var(--muted)">{{ r.shop.customer_code }}</td>
+        <td><a href="{% url 'shop_detail' r.shop.id %}" style="font-weight:600;color:var(--primary);text-decoration:none">{{ r.shop.name }}</a></td>
+        <td><span class="badge-custom badge-gray">{{ r.shop.customer_type }}</span></td>
+        {% if combined %}<td><b style="color:{{ r.owner.color }}">{{ r.owner.name }}</b></td>{% endif %}
+        <td class="num" style="font-weight:600">{{ r.sales|floatformat:"2g" }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <table class="sms-table">
+    <thead><tr>
+      <th><a href="?{{ base_query }}&sort=code" style="color:inherit;text-decoration:none">Code{% if f.sort == 'code' %} ▾{% endif %}</a></th>
+      <th><a href="?{{ base_query }}&sort=name" style="color:inherit;text-decoration:none">Name{% if f.sort == 'name' %} ▾{% endif %}</a></th>
+      <th>Customer Type</th>{% if combined %}<th>Looked After By</th>{% endif %}<th>Contact</th><th>Phone</th><th>Territory</th>
+      <th class="num"><a href="?{{ base_query }}" style="color:inherit;text-decoration:none">Sales · {{ period_label }}{% if not f.sort %} ▾{% endif %}</a></th>
+    </tr></thead>
+    <tbody>
+      {% for c in page_obj %}
+      <tr>
+        <td style="color:var(--muted);white-space:nowrap">{{ c.customer_code|default:"—" }}</td>
+        <td><a href="{% url 'shop_detail' c.id %}" style="font-weight:600;color:var(--primary);text-decoration:none">{{ c.name }}</a></td>
+        <td><span class="badge-custom badge-gray">{{ c.customer_type }}</span></td>
+        {% if combined %}<td><b style="color:{{ c.owner.color }}">{{ c.owner.name }}</b></td>{% endif %}
+        <td>{{ c.contact_person|default:"—" }}</td>
+        <td style="color:var(--muted);white-space:nowrap">{% if c.phone and c.phone != 'n/a' %}{{ c.phone }}{% else %}—{% endif %}</td>
+        <td style="color:var(--muted)">{{ c.territory|default:"—" }}</td>
+        <td class="num" style="font-weight:600">{% if c.period_sales is not None %}{{ c.period_sales|floatformat:"2g" }}{% else %}<span style="color:var(--muted);font-weight:400">—</span>{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+  {% if page_obj.has_other_pages %}
+  <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border-top:1px solid var(--border);font-size:13px;color:var(--muted)">
+    <span>Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }} · {{ page_obj.paginator.count }} {% if f.view == 'sales' %}sales{% else %}clients{% endif %}</span>
+    <span style="display:flex;gap:8px">
+      {% if page_obj.has_previous %}<a class="btn-sms btn-outline-custom sm" href="?{{ query }}&page={{ page_obj.previous_page_number }}">← Prev</a>{% endif %}
+      {% if page_obj.has_next %}<a class="btn-sms btn-outline-custom sm" href="?{{ query }}&page={{ page_obj.next_page_number }}">Next →</a>{% endif %}
+    </span>
+  </div>
+  {% endif %}
+  {% else %}
+  <div style="padding:48px;text-align:center;color:var(--muted)">
+    {% if f.view == 'sales' %}No sales recorded for these clients in {{ period_label }}.{% else %}No clients match.{% endif %}
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

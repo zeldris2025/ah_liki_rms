@@ -1,0 +1,18 @@
+{% extends 'shops/_upload_page.html' %}
+{% block upload_title %}⬆ Import Monthly Sales{% endblock %}
+{% block upload_sub %}Upload each client’s total sales per month. Safe to upload the same file every day.{% endblock %}
+{% block back_url %}{% url 'monthly_sales' %}{% endblock %}
+{% block back_label %}← Monthly Sales{% endblock %}
+{% block upload_rules %}
+  <b>How rows are matched</b><br>
+  • Each row is linked to a client by <b>Customer Code</b>. The Customer Name is just for reading the file.<br>
+  • One total per client per month: uploading a month again <b>replaces</b> its total, so it’s never counted twice.<br>
+  • Codes that aren’t in the system yet are skipped and listed. Upload them in Import Clients first.
+{% endblock %}
+{% block column_rows %}
+  <tr><td><code>Customer Code</code></td><td>Required. Must already exist in Clients</td></tr>
+  <tr><td><code>Customer Name</code></td><td>Optional, for reference. Rename clients in Import Clients</td></tr>
+  <tr><td><code>Month</code></td><td>Required. e.g. 2026-09, Sep-26 or September 2026</td></tr>
+  <tr><td><code>Sales</code></td><td>Required. Month total in WST, e.g. 12500.00 (commas and $ are fine)</td></tr>
+{% endblock %}
+{% block template_url %}{% url 'download_sales_template' %}{% endblock %}

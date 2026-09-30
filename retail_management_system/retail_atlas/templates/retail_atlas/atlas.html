@@ -1,0 +1,533 @@
+{% load static %}<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ah Liki Atlas</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
+  <style>
+    :root {
+      --primary:  #0F172A;
+      --primary2: #1E293B;
+      --accent:   #0EA5E9;
+      --surface:  #F8FAFC;
+      --card:     #FFFFFF;
+      --muted:    #6B7280;
+      --border:   #E2E8F0;
+      --danger:   #DC2626;
+      --panel-w:  290px;
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; }
+    body { font-family: 'Segoe UI', system-ui, sans-serif; color: #1F2937; background: var(--surface); overflow: hidden; }
+    #map { position: fixed; inset: 0; background: #AAD3DF; }
+    #map.placing { cursor: crosshair; }
+
+    /* ── Territory panel ── */
+    .panel {
+      position: fixed; top: 0; left: 0; bottom: 0; width: var(--panel-w); z-index: 1000;
+      background: var(--primary); color: #fff; display: flex; flex-direction: column;
+      box-shadow: 4px 0 24px rgba(15,23,42,.25);
+    }
+    .panel-head { padding: 18px 18px 14px; border-bottom: 1px solid rgba(255,255,255,.1); }
+    .back { color: rgba(255,255,255,.65); font-size: 12px; text-decoration: none; display: inline-flex; gap: 6px; align-items: center; }
+    .back:hover { color: #fff; }
+    .panel-label { color: var(--accent); font-size: 10px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; margin: 14px 0 3px; }
+    .panel-title { font-size: 17px; font-weight: 700; line-height: 1.25; }
+    .panel-stat { color: rgba(255,255,255,.6); font-size: 12px; margin-top: 6px; }
+    .panel-body { flex: 1; overflow-y: auto; padding: 12px 10px 16px; }
+    .section-label { color: rgba(255,255,255,.4); font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .1em; padding: 10px 8px 6px; }
+    .island-btns { display: flex; gap: 6px; padding: 0 4px 6px; }
+    .island-btns button { flex: 1; background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.12); color: #fff; border-radius: 8px; padding: 7px 0; font-size: 12px; font-weight: 600; cursor: pointer; }
+    .island-btns button:hover { background: rgba(255,255,255,.16); }
+    .terr {
+      display: flex; align-items: center; gap: 10px; width: 100%; padding: 9px 10px; margin-bottom: 2px;
+      background: transparent; border: none; border-radius: 9px; color: #fff; font-size: 13px; cursor: pointer; text-align: left;
+    }
+    .terr:hover { background: rgba(255,255,255,.1); }
+    .terr.active { background: rgba(255,255,255,.18); font-weight: 700; }
+    .terr .dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; border: 2px solid rgba(255,255,255,.85); }
+    .terr .name { flex: 1; }
+    .terr .count { color: rgba(255,255,255,.55); font-size: 11px; font-variant-numeric: tabular-nums; }
+    .terr.active .count { color: rgba(255,255,255,.85); }
+    .unmapped { margin-top: 10px; border-top: 1px solid rgba(255,255,255,.1); padding-top: 4px; }
+    .unmapped summary { cursor: pointer; list-style: none; display: flex; justify-content: space-between; align-items: center; }
+    .unmapped summary::-webkit-details-marker { display: none; }
+    .unmapped summary::after { content: '▸'; color: rgba(255,255,255,.4); margin-right: 8px; }
+    .unmapped[open] summary::after { content: '▾'; }
+    .unmapped-hint { color: rgba(255,255,255,.45); font-size: 11px; padding: 0 8px 8px; line-height: 1.4; }
+    .um-row { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 8px; font-size: 12px; }
+    .um-row:hover { background: rgba(255,255,255,.07); }
+    .um-row .um-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .um-row button { background: var(--accent); color: #fff; border: none; border-radius: 6px; font-size: 11px; font-weight: 600; padding: 3px 8px; cursor: pointer; flex-shrink: 0; }
+
+    /* ── Search ── */
+    .search {
+      position: fixed; top: 16px; z-index: 1000; width: min(460px, calc(100vw - var(--panel-w) - 120px));
+      left: calc(var(--panel-w) + (100vw - var(--panel-w)) / 2); transform: translateX(-50%);
+    }
+    .search-box { display: flex; align-items: center; background: var(--card); border-radius: 12px; box-shadow: 0 6px 24px rgba(15,23,42,.18); border: 1px solid var(--border); padding: 0 14px; }
+    .search-box input { flex: 1; border: none; outline: none; font-size: 14px; padding: 13px 10px; background: transparent; color: var(--primary); min-width: 0; }
+    .search-box .scope { font-size: 11px; font-weight: 700; color: #fff; border-radius: 999px; padding: 2px 9px; white-space: nowrap; }
+    .search-box .clear { border: none; background: none; color: var(--muted); font-size: 18px; cursor: pointer; padding: 0 2px 0 8px; display: none; }
+    .results { margin-top: 6px; background: var(--card); border-radius: 12px; box-shadow: 0 8px 28px rgba(15,23,42,.2); border: 1px solid var(--border); overflow: hidden; display: none; max-height: 60vh; overflow-y: auto; }
+    .result { display: flex; align-items: center; gap: 10px; padding: 10px 14px; cursor: pointer; border-bottom: 1px solid var(--border); }
+    .result:last-child { border-bottom: none; }
+    .result:hover, .result.hl { background: #F0F9FF; }
+    .result .dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+    .result .r-main { flex: 1; min-width: 0; }
+    .result .r-name { font-size: 13px; font-weight: 600; color: var(--primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .result .r-sub { font-size: 11px; color: var(--muted); }
+    .result .r-tag { font-size: 10px; font-weight: 700; color: #92400E; background: #FEF3C7; border-radius: 999px; padding: 2px 8px; white-space: nowrap; }
+    .no-results { padding: 14px; color: var(--muted); font-size: 13px; text-align: center; }
+
+    /* ── Placement banner / toast ── */
+    .banner {
+      position: fixed; bottom: 26px; z-index: 1000; left: calc(var(--panel-w) + (100vw - var(--panel-w)) / 2); transform: translateX(-50%);
+      background: var(--primary); color: #fff; border-radius: 12px; padding: 12px 16px; font-size: 13px;
+      box-shadow: 0 8px 28px rgba(15,23,42,.35); display: none; align-items: center; gap: 14px; max-width: calc(100vw - var(--panel-w) - 32px);
+    }
+    .banner button { background: rgba(255,255,255,.15); color: #fff; border: none; border-radius: 7px; padding: 5px 12px; font-size: 12px; cursor: pointer; }
+    .banner.error { background: var(--danger); }
+
+    /* ── Markers & popups ── */
+    .pin { width: 14px; height: 14px; border-radius: 50%; border: 2px solid #fff; box-shadow: 0 1px 4px rgba(0,0,0,.45); }
+    .pin.manual { border-color: #0F172A; }
+    .cluster { display: flex; align-items: center; justify-content: center; border-radius: 50%; color: #fff; font-weight: 700; font-size: 12px; border: 3px solid rgba(255,255,255,.85); box-shadow: 0 2px 8px rgba(0,0,0,.35); }
+    .leaflet-popup-content-wrapper { border-radius: 12px; }
+    .leaflet-popup-content { margin: 14px 16px; min-width: 220px; }
+    .pp-name { font-weight: 700; font-size: 14px; color: var(--primary); margin-bottom: 2px; }
+    .pp-sub { color: var(--muted); font-size: 12px; margin-bottom: 8px; }
+    .pp-row { font-size: 12px; color: #374151; margin-bottom: 2px; }
+    .pp-badges { display: flex; flex-wrap: wrap; gap: 4px; margin: 8px 0; }
+    .badge { font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 999px; }
+    .b-green { background: #DCFCE7; color: #166534; } .b-blue { background: #DBEAFE; color: #1E40AF; }
+    .b-accent { background: #CFFAFE; color: #0C4A6E; } .b-amber { background: #FEF3C7; color: #92400E; }
+    .pp-actions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border); }
+    .pp-actions a, .pp-actions button { font-size: 12px; font-weight: 600; border-radius: 7px; padding: 5px 10px; cursor: pointer; text-decoration: none; border: 1px solid var(--border); background: #fff; color: var(--primary); }
+    .pp-actions a.primary { background: var(--primary); color: #fff; border-color: var(--primary); }
+    .pp-note { font-size: 11px; color: var(--muted); margin-top: 6px; }
+    .cl-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 8px; }
+    .cl-head b { font-size: 14px; color: var(--primary); }
+    .cl-head button { font-size: 12px; font-weight: 600; border-radius: 7px; padding: 4px 10px; cursor: pointer; border: 1px solid var(--border); background: #fff; color: var(--primary); white-space: nowrap; }
+    .cl-list { max-height: 260px; overflow-y: auto; margin: 0 -6px; }
+    .cl-item { display: flex; align-items: center; gap: 8px; padding: 7px 6px; border-radius: 7px; cursor: pointer; font-size: 13px; }
+    .cl-item:hover { background: #F0F9FF; }
+    .cl-item .dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+    .cl-item .nm { flex: 1; min-width: 0; font-weight: 600; color: var(--primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .cl-item .vl { color: var(--muted); font-size: 11px; white-space: nowrap; }
+    .leaflet-control-layers, .leaflet-bar { border-radius: 10px !important; }
+
+    .panel-toggle { display: none; }
+    @media (max-width: 760px) {
+      :root { --panel-w: 0px; }
+      .panel { width: 280px; transform: translateX(-100%); transition: transform .2s; }
+      .panel.open { transform: none; }
+      .panel-toggle { display: block; position: fixed; top: 16px; left: 16px; z-index: 1001; background: var(--primary); color: #fff; border: none; border-radius: 10px; padding: 11px 13px; font-size: 13px; font-weight: 600; box-shadow: 0 6px 20px rgba(15,23,42,.3); }
+      .search { top: 70px; width: calc(100vw - 32px); left: 50%; }
+      .banner { left: 50%; max-width: calc(100vw - 32px); }
+    }
+  </style>
+</head>
+<body>
+
+<div id="map"></div>
+
+<button class="panel-toggle" id="panel-toggle">☰ Territories</button>
+
+<aside class="panel" id="panel">
+  <div class="panel-head">
+    {% if is_fe %}<a class="back" href="{% url 'fe_home' %}">← Back to FE home</a>{% else %}<a class="back" href="{% url 'dashboard' %}">← Back to dashboard</a>{% endif %}
+    <div class="panel-label">Retail &amp; Supermarkets</div>
+    <div class="panel-title">Ah Liki Atlas</div>
+    <div class="panel-stat" id="panel-stat"></div>
+  </div>
+  <div class="panel-body">
+    <div class="section-label">Jump to island</div>
+    <div class="island-btns">
+      <button data-island="both">Samoa</button>
+      <button data-island="upolu">Upolu</button>
+      <button data-island="savaii">Savaii</button>
+    </div>
+    <div class="section-label">Sales Territories</div>
+    <div id="territories"></div>
+    <details class="unmapped" id="unmapped">
+      <summary><span class="section-label" id="unmapped-label"></span></summary>
+      <div class="unmapped-hint">These shops have no recognisable village in their address. Click <b>Place</b>, then click the map to pin them.</div>
+      <div id="unmapped-list"></div>
+    </details>
+  </div>
+</aside>
+
+<div class="search">
+  <div class="search-box">
+    <span style="font-size:15px">🔍</span>
+    <input id="search" type="text" placeholder="Search clients by name, village or contact…" autocomplete="off">
+    <span class="scope" id="search-scope" style="display:none"></span>
+    <button class="clear" id="search-clear" title="Clear">×</button>
+  </div>
+  <div class="results" id="results"></div>
+</div>
+
+<div class="banner" id="banner"><span id="banner-text"></span><button id="banner-btn">Cancel</button></div>
+
+{{ atlas_data|json_script:"atlas-data" }}
+<script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+<script>
+(function () {
+  var DATA = JSON.parse(document.getElementById('atlas-data').textContent);
+  var CSRF = '{{ csrf_token }}';
+  var ALL = '__all__';
+  var PALETTE = ['#2563EB', '#DC2626', '#16A34A', '#D97706', '#7C3AED', '#DB2777', '#0891B2',
+                 '#65A30D', '#EA580C', '#4F46E5', '#0D9488', '#B45309', '#9333EA'];
+  var UNASSIGNED_COLOR = '#64748B';
+
+  var colorOf = {};
+  DATA.territories.forEach(function (t, i) {
+    colorOf[t] = t === 'Unassigned' ? UNASSIGNED_COLOR : PALETTE[i % PALETTE.length];
+  });
+
+  var state = { territory: ALL, placing: null };
+  var shopsById = {};
+  DATA.shops.forEach(function (s) { shopsById[s.id] = s; });
+
+  // ── Map ────────────────────────────────────────────────────────────────
+  var b = DATA.bounds;
+  var samoa = L.latLngBounds([b.south, b.west], [b.north, b.east]);
+  var map = L.map('map', {
+    zoomControl: false, minZoom: 8, maxBounds: samoa.pad(0.6), maxBoundsViscosity: 0.8,
+  });
+  L.control.zoom({ position: 'topright' }).addTo(map);
+
+  // OSM's tile usage policy requires a Referer; Django's default
+  // Referrer-Policy (same-origin) strips it, so send just our origin.
+  var streets = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19, referrerPolicy: 'strict-origin-when-cross-origin',
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+  }).addTo(map);
+  var satellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+    maxZoom: 19, attribution: 'Imagery &copy; Esri',
+  });
+  L.control.layers({ 'Streets': streets, 'Satellite': satellite }, null, { position: 'topright' }).addTo(map);
+
+  function panelPadding() {
+    var w = document.getElementById('panel').getBoundingClientRect().width;
+    var open = window.innerWidth > 760;
+    return { paddingTopLeft: [(open ? w : 0) + 30, 80], paddingBottomRight: [60, 30] };
+  }
+  function fitSamoa() { map.fitBounds([[-14.08, -172.80], [-13.43, -171.40]], panelPadding()); }
+
+  // ── Markers ────────────────────────────────────────────────────────────
+  var cluster = L.markerClusterGroup({
+    // Clicking a cluster lists its shops (see 'clusterclick') instead of zooming.
+    showCoverageOnHover: false, maxClusterRadius: 45, zoomToBoundsOnClick: false, spiderfyOnMaxZoom: false,
+    iconCreateFunction: function (c) {
+      var n = c.getChildCount();
+      var size = n < 10 ? 32 : n < 50 ? 38 : n < 200 ? 44 : 52;
+      var color = state.territory === ALL ? '#0F172A' : colorOf[state.territory];
+      return L.divIcon({
+        html: '<div class="cluster" style="width:' + size + 'px;height:' + size + 'px;background:' + color + '">' + n + '</div>',
+        className: '', iconSize: [size, size],
+      });
+    },
+  }).addTo(map);
+
+  var markers = {};
+
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+
+  function iconFor(s) {
+    return L.divIcon({
+      html: '<div class="pin' + (s.manual ? ' manual' : '') + '" style="background:' + colorOf[s.territory] + '"></div>',
+      className: '', iconSize: [14, 14], iconAnchor: [7, 7], popupAnchor: [0, -8],
+    });
+  }
+
+  function popupHtml(s) {
+    var badges = '';
+    if (s.tip_top) badges += '<span class="badge b-green">Tip Top</span>';
+    if (s.taula)   badges += '<span class="badge b-blue">Taula Fridge</span>';
+    if (s.talofa)  badges += '<span class="badge b-accent">Talofa Voucher</span>';
+    if (s.faakau)  badges += '<span class="badge b-amber">Faakau.com</span>';
+    return '<div class="pp-name">' + esc(s.name) + '</div>' +
+      '<div class="pp-sub"><span style="color:' + colorOf[s.territory] + ';font-weight:700">' + esc(s.territory) + '</span> · ' + esc(s.island) +
+      (s.address ? ' · ' + esc(s.address) : '') + '</div>' +
+      (s.owner ? '<div class="pp-row">👤 ' + esc(s.owner) + '</div>' : '') +
+      (s.phone ? '<div class="pp-row">📞 ' + esc(s.phone) + '</div>' : '') +
+      (badges ? '<div class="pp-badges">' + badges + '</div>' : '') +
+      '<div class="pp-actions">' +
+        '<a class="primary" href="' + DATA.order_url + '?shop=' + s.id + '">🛒 Place order</a>' +
+        (DATA.is_fe ? '' : '<a href="' + s.url + '">Open shop →</a>') +
+        '<button data-act="move" data-id="' + s.id + '">📍 Move pin</button>' +
+        (s.manual ? '<button data-act="reset" data-id="' + s.id + '">↺ Use village</button>' : '') +
+      '</div>' +
+      '<div class="pp-note">' + (s.manual ? 'Pinned by hand' : 'Approximate — placed at village centre') + '</div>';
+  }
+
+  function buildMarker(s) {
+    if (s.lat == null) { delete markers[s.id]; return; }
+    var m = L.marker([s.lat, s.lng], { icon: iconFor(s), title: s.name });
+    m.bindPopup(function () { return popupHtml(shopsById[m.shopId]); });
+    m.shopId = s.id;
+    markers[s.id] = m;
+  }
+  DATA.shops.forEach(buildMarker);
+
+  function inTerritory(s) { return state.territory === ALL || s.territory === state.territory; }
+
+  function render(fit) {
+    cluster.clearLayers();
+    var visible = DATA.shops.filter(function (s) { return inTerritory(s) && markers[s.id]; });
+    cluster.addLayers(visible.map(function (s) { return markers[s.id]; }));
+    renderPanel();
+    if (fit) {
+      if (state.territory === ALL || !visible.length) fitSamoa();
+      else map.fitBounds(L.latLngBounds(visible.map(function (s) { return [s.lat, s.lng]; })), Object.assign({ maxZoom: 14 }, panelPadding()));
+    }
+  }
+
+  // ── Territory panel ────────────────────────────────────────────────────
+  function renderPanel() {
+    var counts = {}, mapped = {}, total = 0, totalMapped = 0;
+    DATA.shops.forEach(function (s) {
+      counts[s.territory] = (counts[s.territory] || 0) + 1;
+      if (s.lat != null) { mapped[s.territory] = (mapped[s.territory] || 0) + 1; totalMapped++; }
+      total++;
+    });
+    document.getElementById('panel-stat').textContent = totalMapped + ' of ' + total + ' shops on the map';
+
+    var html = terrButton(ALL, 'All shops', '#0F172A', totalMapped, total);
+    DATA.territories.forEach(function (t) {
+      html += terrButton(t, t, colorOf[t], mapped[t] || 0, counts[t] || 0);
+    });
+    document.getElementById('territories').innerHTML = html;
+
+    var um = DATA.shops.filter(function (s) { return s.lat == null && inTerritory(s); });
+    document.getElementById('unmapped-label').textContent = 'Not on map (' + um.length + ')';
+    document.getElementById('unmapped').style.display = um.length ? '' : 'none';
+    document.getElementById('unmapped-list').innerHTML = um.map(function (s) {
+      return '<div class="um-row"><span class="um-name" title="' + esc(s.name) + '">' + esc(s.name) + '</span>' +
+             '<button data-place="' + s.id + '">Place</button></div>';
+    }).join('');
+
+    var scope = document.getElementById('search-scope');
+    if (state.territory === ALL) { scope.style.display = 'none'; }
+    else { scope.style.display = ''; scope.textContent = state.territory; scope.style.background = colorOf[state.territory]; }
+  }
+
+  function terrButton(key, label, color, mappedCount, count) {
+    return '<button class="terr' + (state.territory === key ? ' active' : '') + '" data-terr="' + esc(key) + '">' +
+      '<span class="dot" style="background:' + color + '"></span><span class="name">' + esc(label) + '</span>' +
+      '<span class="count" title="' + mappedCount + ' mapped of ' + count + '">' + mappedCount + (mappedCount !== count ? ' / ' + count : '') + '</span></button>';
+  }
+
+  document.getElementById('territories').addEventListener('click', function (e) {
+    var btn = e.target.closest('[data-terr]');
+    if (!btn) return;
+    var t = btn.getAttribute('data-terr');
+    state.territory = (t === state.territory) ? ALL : t;   // click again to show everything
+    map.closePopup();
+    render(true);
+    runSearch();
+    if (window.innerWidth <= 760) document.getElementById('panel').classList.remove('open');
+  });
+
+  document.getElementById('unmapped-list').addEventListener('click', function (e) {
+    var btn = e.target.closest('[data-place]');
+    if (btn) startPlacing(+btn.getAttribute('data-place'));
+  });
+
+  document.querySelector('.island-btns').addEventListener('click', function (e) {
+    var btn = e.target.closest('[data-island]');
+    if (!btn) return;
+    var which = btn.getAttribute('data-island');
+    if (which === 'both') fitSamoa();
+    else if (which === 'upolu') map.fitBounds([[-14.07, -172.08], [-13.80, -171.40]], panelPadding());
+    else map.fitBounds([[-13.83, -172.80], [-13.43, -172.15]], panelPadding());
+  });
+
+  document.getElementById('panel-toggle').addEventListener('click', function () {
+    document.getElementById('panel').classList.toggle('open');
+  });
+
+  // ── Search ─────────────────────────────────────────────────────────────
+  var input = document.getElementById('search');
+  var resultsEl = document.getElementById('results');
+  var clearBtn = document.getElementById('search-clear');
+  var hits = [], hl = 0;
+
+  function runSearch() {
+    var q = input.value.trim().toLowerCase();
+    clearBtn.style.display = q ? 'block' : 'none';
+    if (!q) { resultsEl.style.display = 'none'; hits = []; return; }
+    hits = DATA.shops.filter(function (s) {
+      return inTerritory(s) && (s.name + ' ' + s.address + ' ' + s.owner).toLowerCase().indexOf(q) !== -1;
+    });
+    hits.sort(function (a, b) {   // names that start with the query first
+      return (a.name.toLowerCase().indexOf(q) === 0 ? 0 : 1) - (b.name.toLowerCase().indexOf(q) === 0 ? 0 : 1);
+    });
+    var total = hits.length;
+    hits = hits.slice(0, 12);
+    hl = 0;
+    if (!hits.length) {
+      resultsEl.innerHTML = '<div class="no-results">No shops match “' + esc(input.value.trim()) + '”' +
+        (state.territory !== ALL ? ' in ' + esc(state.territory) : '') + '</div>';
+    } else {
+      resultsEl.innerHTML = hits.map(function (s, i) {
+        return '<div class="result' + (i === hl ? ' hl' : '') + '" data-i="' + i + '">' +
+          '<span class="dot" style="background:' + colorOf[s.territory] + '"></span>' +
+          '<div class="r-main"><div class="r-name">' + esc(s.name) + '</div>' +
+          '<div class="r-sub">' + esc(s.territory) + ' · ' + esc(s.address || s.island) + '</div></div>' +
+          (s.lat == null ? '<span class="r-tag">Not on map</span>' : '') + '</div>';
+      }).join('') + (total > hits.length ? '<div class="no-results">+' + (total - hits.length) + ' more — keep typing to narrow down</div>' : '');
+    }
+    resultsEl.style.display = 'block';
+  }
+
+  function choose(s) {
+    resultsEl.style.display = 'none';
+    input.blur();
+    if (s.lat == null) { startPlacing(s.id); return; }
+    cluster.zoomToShowLayer(markers[s.id], function () {
+      map.setView([s.lat, s.lng], Math.max(map.getZoom(), 15));
+      markers[s.id].openPopup();
+    });
+  }
+
+  input.addEventListener('input', runSearch);
+  input.addEventListener('focus', function () { if (input.value.trim()) runSearch(); });
+  input.addEventListener('keydown', function (e) {
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (!hits.length) return;
+      hl = (hl + (e.key === 'ArrowDown' ? 1 : -1) + hits.length) % hits.length;
+      resultsEl.querySelectorAll('.result').forEach(function (r, i) { r.classList.toggle('hl', i === hl); });
+    } else if (e.key === 'Enter' && hits[hl]) {
+      choose(hits[hl]);
+    } else if (e.key === 'Escape') {
+      resultsEl.style.display = 'none';
+    }
+  });
+  resultsEl.addEventListener('mousedown', function (e) {
+    var r = e.target.closest('.result');
+    if (r) { e.preventDefault(); choose(hits[+r.getAttribute('data-i')]); }
+  });
+  input.addEventListener('blur', function () { setTimeout(function () { resultsEl.style.display = 'none'; }, 120); });
+  clearBtn.addEventListener('click', function () { input.value = ''; runSearch(); input.focus(); });
+
+  // ── Pin placement ──────────────────────────────────────────────────────
+  var banner = document.getElementById('banner');
+  var bannerText = document.getElementById('banner-text');
+  var bannerBtn = document.getElementById('banner-btn');
+  var toastTimer;
+
+  function showBanner(html, isError, btnLabel) {
+    clearTimeout(toastTimer);
+    bannerText.innerHTML = html;
+    banner.classList.toggle('error', !!isError);
+    bannerBtn.textContent = btnLabel || 'Cancel';
+    banner.style.display = 'flex';
+  }
+  function toast(html, isError) {
+    showBanner(html, isError, 'OK');
+    toastTimer = setTimeout(function () { banner.style.display = 'none'; }, 3500);
+  }
+  function stopPlacing() {
+    state.placing = null;
+    document.getElementById('map').classList.remove('placing');
+    banner.style.display = 'none';
+  }
+  function startPlacing(id) {
+    var s = shopsById[id];
+    map.closePopup();
+    state.placing = id;
+    document.getElementById('map').classList.add('placing');
+    showBanner('📍 Click the map where <b>' + esc(s.name) + '</b> is located');
+    if (window.innerWidth <= 760) document.getElementById('panel').classList.remove('open');
+  }
+  bannerBtn.addEventListener('click', stopPlacing);
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && state.placing) stopPlacing(); });
+
+  function saveLocation(id, body) {
+    var s = shopsById[id];
+    return fetch(s.pin_url, {
+      method: 'POST', credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+      body: JSON.stringify(body),
+    }).then(function (r) {
+      return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || 'Save failed'); return j; });
+    }).then(function (updated) {
+      Object.assign(s, updated);
+      buildMarker(s);
+      render(false);
+      return s;
+    });
+  }
+
+  map.on('click', function (e) {
+    if (!state.placing) return;
+    var id = state.placing;
+    stopPlacing();
+    saveLocation(id, { lat: e.latlng.lat, lng: e.latlng.lng }).then(function (s) {
+      toast('✓ <b>' + esc(s.name) + '</b> pinned');
+      if (inTerritory(s)) cluster.zoomToShowLayer(markers[s.id], function () { markers[s.id].openPopup(); });
+    }).catch(function (err) { toast(esc(err.message), true); });
+  });
+
+  // ── Cluster click: list the shops inside ─────────────────────────────
+  var openCluster = null;
+  cluster.on('clusterclick', function (e) {
+    openCluster = e.layer;
+    var shops = e.layer.getAllChildMarkers().map(function (m) { return shopsById[m.shopId]; });
+    shops.sort(function (a, b) { return a.name.localeCompare(b.name); });
+    var canZoom = map.getZoom() < map.getMaxZoom() && !e.layer.getBounds().getNorthEast().equals(e.layer.getBounds().getSouthWest());
+    var html = '<div class="cl-head"><b>' + shops.length + ' shops here</b>' +
+      (canZoom ? '<button data-zoom="1">🔍 Zoom in</button>' : '') + '</div>' +
+      '<div class="cl-list">' + shops.map(function (s) {
+        return '<div class="cl-item" data-goto="' + s.id + '" title="' + esc(s.name) + '">' +
+          '<span class="dot" style="background:' + colorOf[s.territory] + '"></span>' +
+          '<span class="nm">' + esc(s.name) + '</span><span class="vl">' + esc(s.address || s.territory) + '</span></div>';
+      }).join('') + '</div>';
+    L.popup({ maxWidth: 320, minWidth: 260 }).setLatLng(e.layer.getLatLng()).setContent(html).openOn(map);
+  });
+
+  function goToShop(id) {
+    var m = markers[id];
+    map.closePopup();
+    cluster.zoomToShowLayer(m, function () { m.openPopup(); });
+  }
+
+  map.on('popupopen', function (e) {
+    var el = e.popup.getElement();
+    el.querySelectorAll('[data-goto]').forEach(function (row) {
+      row.addEventListener('click', function () { goToShop(+row.getAttribute('data-goto')); });
+    });
+    el.querySelectorAll('[data-zoom]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        map.closePopup();
+        if (openCluster) openCluster.zoomToBounds({ padding: [40, 40] });
+      });
+    });
+    e.popup.getElement().querySelectorAll('[data-act]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var id = +btn.getAttribute('data-id');
+        if (btn.getAttribute('data-act') === 'move') { startPlacing(id); return; }
+        saveLocation(id, { reset: true }).then(function (s) {
+          map.closePopup();
+          toast(s.lat == null ? '<b>' + esc(s.name) + '</b> moved to “Not on map”' : '✓ <b>' + esc(s.name) + '</b> reset to its village');
+        }).catch(function (err) { toast(esc(err.message), true); });
+      });
+    });
+  });
+
+  render(true);
+})();
+</script>
+</body>
+</html>

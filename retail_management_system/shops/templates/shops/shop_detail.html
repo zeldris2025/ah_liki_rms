@@ -19,108 +19,87 @@
 </div>
 
 <!-- Info cards -->
-<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;margin-bottom:28px">
-  {% for label,val in owner_phone_rows %}
+<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:12px;margin-bottom:28px">
   <div style="background:var(--surface);border-radius:10px;padding:12px 16px">
-    <div style="color:var(--muted);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;margin-bottom:5px">{{ label }}</div>
-    <div style="color:var(--primary);font-weight:600;font-size:14px">{{ val }}</div>
-  </div>
-  {% endfor %}
-  <div style="background:var(--surface);border-radius:10px;padding:12px 16px">
-    <div style="color:var(--muted);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;margin-bottom:5px">Owner</div>
-    <div style="color:var(--primary);font-weight:600;font-size:14px">{{ shop.owner|default:"—" }}</div>
+    <div style="color:var(--muted);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;margin-bottom:5px">Customer Code</div>
+    <div style="color:var(--primary);font-weight:600;font-size:14px;overflow-wrap:anywhere">{{ shop.customer_code|default:"—" }}</div>
   </div>
   <div style="background:var(--surface);border-radius:10px;padding:12px 16px">
-    <div style="color:var(--muted);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;margin-bottom:5px">Phone</div>
-    <div style="color:var(--primary);font-weight:600;font-size:14px">{{ shop.phone|default:"—" }}</div>
+    <div style="color:var(--muted);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;margin-bottom:5px">Customer Type</div>
+    <div style="color:var(--primary);font-weight:600;font-size:14px;overflow-wrap:anywhere">{{ shop.customer_type|default:"—" }}</div>
   </div>
   <div style="background:var(--surface);border-radius:10px;padding:12px 16px">
-    <div style="color:var(--muted);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;margin-bottom:5px">Territory</div>
-    <div style="color:var(--primary);font-weight:600;font-size:14px">{{ shop.territory|default:"—" }}</div>
+    <div style="color:var(--muted);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;margin-bottom:5px">Contact Person</div>
+    <div style="color:var(--primary);font-weight:600;font-size:14px;overflow-wrap:anywhere">{{ shop.contact_person|default:"—" }}</div>
+  </div>
+  <div style="background:var(--surface);border-radius:10px;padding:12px 16px">
+    <div style="color:var(--muted);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;margin-bottom:5px">Phone Number</div>
+    <div style="color:var(--primary);font-weight:600;font-size:14px;overflow-wrap:anywhere">{% if shop.phone and shop.phone != "n/a" %}<a href="tel:{{ shop.phone }}" style="color:inherit">{{ shop.phone }}</a>{% else %}—{% endif %}</div>
+  </div>
+  <div style="background:var(--surface);border-radius:10px;padding:12px 16px">
+    <div style="color:var(--muted);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;margin-bottom:5px">Email</div>
+    <div style="color:var(--primary);font-weight:600;font-size:14px;overflow-wrap:anywhere">{% if shop.email %}<a href="mailto:{{ shop.email }}" style="color:inherit">{{ shop.email }}</a>{% else %}—{% endif %}</div>
+  </div>
+  <div style="background:var(--surface);border-radius:10px;padding:12px 16px">
+    <div style="color:var(--muted);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;margin-bottom:5px">Territory Code</div>
+    <div style="color:var(--primary);font-weight:600;font-size:14px;overflow-wrap:anywhere">{{ shop.territory|default:"—" }}</div>
   </div>
   <div style="background:var(--surface);border-radius:10px;padding:12px 16px">
     <div style="color:var(--muted);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;margin-bottom:5px">Date Added</div>
-    <div style="color:var(--primary);font-weight:600;font-size:14px">{{ shop.created|default:"—" }}</div>
+    <div style="color:var(--primary);font-weight:600;font-size:14px;overflow-wrap:anywhere">{{ shop.created|default:"—" }}</div>
   </div>
 </div>
 
-<!-- Sales Section -->
+<!-- Monthly sales -->
+{% if see_sales %}
 <div style="border-top:1px solid var(--border);padding-top:24px;margin-bottom:28px">
-  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
-    <div style="display:flex;align-items:center;gap:10px">
-      <span style="font-weight:700;font-size:16px;color:var(--primary)">Sales</span>
-      {% if sales_count %}
-      <span style="background:var(--success);color:#fff;font-size:11px;font-weight:700;padding:2px 9px;border-radius:999px">{{ sales_count }}</span>
-      {% endif %}
-    </div>
-    <a href="{% url 'import_shop_sales' shop.id %}" class="btn-sms btn-accent-custom sm">📊 Import Sales CSV</a>
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;gap:12px;flex-wrap:wrap">
+    <span style="font-weight:700;font-size:16px;color:var(--primary)">Monthly Sales</span>
+    {% if access.bulk_import %}<a href="{% url 'import_monthly_sales' %}" class="btn-sms btn-accent-custom sm">⬆ Upload Monthly Sales</a>{% endif %}
   </div>
 
-  <!-- Sales Summary Cards -->
+  {% if sales %}
   <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-bottom:20px">
     <div class="stat-card">
-      <div class="stat-label">Total Sales</div>
-      <div class="stat-value" style="color:var(--success)">WST {{ total_sales|floatformat:2 }}</div>
+      <div class="stat-label">{{ this_year }} So Far</div>
+      <div class="stat-value" style="color:var(--success)">WST {{ year_total|floatformat:"2g" }}</div>
     </div>
     <div class="stat-card">
-      <div class="stat-label">Total Quantity</div>
-      <div class="stat-value" style="color:var(--info)">{{ total_quantity }}</div>
+      <div class="stat-label">Last 12 Months Recorded</div>
+      <div class="stat-value" style="color:var(--info)">WST {{ last_12_total|floatformat:"2g" }}</div>
     </div>
     <div class="stat-card">
-      <div class="stat-label">Sales Records</div>
-      <div class="stat-value" style="color:var(--primary)">{{ sales_count }}</div>
+      <div class="stat-label">Latest Month</div>
+      <div class="stat-value" style="color:var(--primary)">{{ sales.0.month|date:"M Y" }}</div>
+      <div class="stat-sub">WST {{ sales.0.sales|floatformat:"2g" }}</div>
     </div>
   </div>
-
-  <!-- Filter Buttons -->
-  <form method="GET" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:18px;padding:14px;background:var(--surface);border-radius:10px">
-    <label style="font-weight:600;font-size:13px;color:var(--primary);margin:0">Filter by:</label>
-    <select name="month" class="sms-input" style="width:auto;padding:7px 12px;font-size:13px">
-      <option value="">All Months</option>
-      {% for num, name in months %}
-      <option value="{{ num }}" {% if filter_month == num|stringformat:"s" %}selected{% endif %}>{{ name }}</option>
-      {% endfor %}
-    </select>
-    <select name="year" class="sms-input" style="width:auto;padding:7px 12px;font-size:13px">
-      <option value="">All Years</option>
-      {% for y in available_years %}
-      <option value="{{ y }}" {% if filter_year == y|stringformat:"s" %}selected{% endif %}>{{ y }}</option>
-      {% endfor %}
-    </select>
-    <button type="submit" class="btn-sms btn-primary-custom sm">Apply Filter</button>
-    {% if filter_month or filter_year %}
-    <a href="{% url 'shop_detail' shop.id %}" class="btn-sms btn-outline-custom sm">✕ Clear</a>
-    {% endif %}
-  </form>
-
-  <!-- Sales Table -->
-  {% if sales %}
-  <div class="sms-card">
-    <table class="sms-table">
-      <thead>
-        <tr><th>Date</th><th>Products</th><th>Quantity</th><th>Total Sales (WST)</th></tr>
-      </thead>
-      <tbody>
-        {% for sale in sales %}
-        <tr>
-          <td style="color:var(--muted)">{{ sale.date|default:"—" }}</td>
-          <td style="font-weight:600;color:var(--primary)">{{ sale.products|default:"—" }}</td>
-          <td>{{ sale.quantity|default:"—" }}</td>
-          <td style="font-weight:700;color:var(--success)">{% if sale.total_sales %}{{ sale.total_sales|floatformat:2 }}{% else %}—{% endif %}</td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
+  <div style="display:grid;grid-template-columns:3fr 2fr;gap:20px" class="sales-split">
+    <div class="sms-card" style="padding:18px"><canvas id="salesChart" height="130"></canvas></div>
+    <div class="sms-card" style="max-height:320px;overflow-y:auto">
+      <table class="sms-table">
+        <thead><tr><th>Month</th><th style="text-align:right">Sales (WST)</th></tr></thead>
+        <tbody>
+          {% for r in sales %}
+          <tr><td>{{ r.month|date:"F Y" }}</td><td style="text-align:right;font-weight:600;font-variant-numeric:tabular-nums">{{ r.sales|floatformat:"2g" }}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
   </div>
+  <style>@media (max-width: 900px) { .sales-split { grid-template-columns:1fr !important; } }</style>
   {% else %}
   <div style="text-align:center;padding:36px 20px;background:var(--surface);border-radius:12px;border:2px dashed var(--border)">
     <div style="font-size:32px;margin-bottom:8px">📊</div>
-    <div style="font-weight:700;font-size:14px;color:var(--primary);margin-bottom:6px">No sales data</div>
-    <div style="color:var(--muted);font-size:13px;margin-bottom:16px">Import a CSV to add sales records for this shop.</div>
-    <a href="{% url 'import_shop_sales' shop.id %}" class="btn-sms btn-primary-custom sm">+ Import Sales</a>
+    <div style="font-weight:700;font-size:14px;color:var(--primary);margin-bottom:6px">No sales recorded yet</div>
+    <div style="color:var(--muted);font-size:13px">
+      {% if shop.customer_code %}Monthly totals appear here after they’re uploaded for code {{ shop.customer_code }}.
+      {% else %}This client needs a Customer Code before sales can be uploaded for it.{% endif %}
+    </div>
   </div>
   {% endif %}
 </div>
+{% endif %}
 
 <!-- Photos -->
 <div style="border-top:1px solid var(--border);padding-top:24px">
@@ -131,14 +110,14 @@
       <span style="background:var(--primary);color:#fff;font-size:11px;font-weight:700;padding:2px 9px;border-radius:999px">{{ cnt }}</span>
       {% endif %}{% endwith %}
     </div>
-    <a href="{% url 'edit_shop' shop.id %}" class="btn-sms btn-outline-custom sm">✏ Edit Shop &amp; Photos</a>
+    <a href="{% url 'edit_shop' shop.id %}" class="btn-sms btn-outline-custom sm">✏ Edit Client &amp; Photos</a>
   </div>
 
   {% if not shop.photos.exists %}
   <div style="text-align:center;padding:44px 20px;background:var(--surface);border-radius:14px;border:2px dashed var(--border)">
     <div style="font-size:40px;margin-bottom:10px">📷</div>
     <div style="font-weight:700;font-size:15px;color:var(--primary);margin-bottom:6px">No photos yet</div>
-    <div style="color:var(--muted);font-size:13px;margin-bottom:18px">Edit this shop to upload photos — business licenses, storefronts, coolers and more.</div>
+    <div style="color:var(--muted);font-size:13px;margin-bottom:18px">Edit this client to upload photos — business licenses, storefronts, coolers and more.</div>
     <a href="{% url 'edit_shop' shop.id %}" class="btn-sms btn-primary-custom sm">+ Add Photos</a>
   </div>
   {% else %}
@@ -168,11 +147,27 @@
 </div>
 
 <div style="margin-top:20px">
-  <a href="{% url 'shop_list' %}" class="btn-sms btn-outline-custom">← Back to Shops</a>
+  <a href="{% url 'shop_list' %}" class="btn-sms btn-outline-custom">← Back to Clients</a>
 </div>
 {% endblock %}
 
 {% block extra_js %}
+{% if sales %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+(function () {
+  var data = {{ chart_data|safe }};
+  new Chart(document.getElementById('salesChart'), {
+    type: 'bar',
+    data: { labels: data.map(function (d) { return d.label; }),
+            datasets: [{ data: data.map(function (d) { return d.value; }), backgroundColor: '#0EA5E9', borderRadius: 4 }] },
+    options: { plugins: { legend: { display: false },
+                          tooltip: { callbacks: { label: function (c) { return 'WST ' + c.parsed.y.toLocaleString(undefined, {minimumFractionDigits: 2}); } } } },
+               scales: { y: { beginAtZero: true } } }
+  });
+})();
+</script>
+{% endif %}
 <script>
 var shopPhotos = [
   {% for p in shop.photos.all %}{"url":"{{ p.image.url }}","note":"{{ p.note|escapejs }}"}{% if not forloop.last %},{% endif %}{% endfor %}

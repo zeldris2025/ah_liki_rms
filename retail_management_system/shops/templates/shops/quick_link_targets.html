@@ -1,0 +1,77 @@
+{% extends 'shops/base.html' %}
+{% block content %}
+<style>
+  .qt-table { min-width:1380px; }   /* room for 7-digit targets */
+  .qt-table td { padding:5px 3px; }
+  .qt-table input { padding:6px 6px; text-align:right; font-size:12.5px; min-width:0; }
+  .qt-table input::placeholder { color:#CBD5E1; }
+  .qt-table input:not(:placeholder-shown) { border-color:#7C3AED; background:#FAF5FF; font-weight:600; }
+  .qt-kind { font-size:10px; font-weight:700; padding:1px 6px; border-radius:999px; }
+  .qt-kind.group { background:#EDE9FE; color:#5B21B6; } .qt-kind.product { background:#E0F2FE; color:#075985; }
+</style>
+
+<div class="page-header">
+  <div>
+    <h2 class="page-title">🎯 Quick-link targets — {{ year }}</h2>
+    <p class="page-sub">Set monthly targets by hand. A blank box uses the <b>same month in {{ year|add:"-1" }}</b>, shown faintly inside it.</p>
+  </div>
+  <div style="display:flex;gap:8px;align-items:center">
+    <form method="get"><select name="year" class="sms-input" style="width:auto" onchange="this.form.submit()" aria-label="Year">
+      {% for y in years %}<option {% if y == year %}selected{% endif %}>{{ y }}</option>{% endfor %}
+      {% if year not in years %}<option selected>{{ year }}</option>{% endif %}
+    </select></form>
+    <a href="{% url 'product_sales' %}?year={{ year }}" class="btn-sms btn-outline-custom">← Product Sales</a>
+  </div>
+</div>
+
+{% if errors %}<div class="alert alert-danger">Nothing was saved. Please fix:{% for e in errors %}<div>• {{ e }}</div>{% endfor %}</div>{% endif %}
+
+{% if rows %}
+<form method="post" class="sms-card" style="padding:16px;overflow-x:auto">
+  {% csrf_token %}
+  <table class="sms-table qt-table">
+    <thead><tr><th style="width:220px">Quick link</th>{% for m in months %}<th style="text-align:center">{{ m }}</th>{% endfor %}<th></th></tr></thead>
+    <tbody>
+      {% for r in rows %}
+      <tr>
+        <td><div style="font-weight:600;color:var(--primary);font-size:13px;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="{{ r.label }}">{{ r.label }}</div>
+            <span class="qt-kind {{ r.kind }}">{% if r.kind == 'group' %}🗂 Group{% else %}📦 {{ r.sub }}{% endif %}</span></td>
+        {% for c in r.cells %}
+        <td><input class="sms-input" name="{{ c.name }}" value="{{ c.value }}" inputmode="decimal"
+                   placeholder="{% if c.auto is not None %}{{ c.auto|floatformat:'0' }}{% else %}–{% endif %}"
+                   aria-label="{{ r.label }} target, {{ c.label }} {{ year }}"
+                   title="{% if c.auto is not None %}{{ c.label }} {{ year|add:'-1' }}: {{ c.auto|floatformat:'0g' }}{% else %}No {{ c.label }} {{ year|add:'-1' }} sales{% endif %}"></td>
+        {% endfor %}
+        <td style="white-space:nowrap">
+          <button type="button" class="btn-sms btn-outline-custom sm qt-fill" title="Copy January’s target to every month">Fill</button>
+          <button type="button" class="btn-sms btn-outline-custom sm qt-clear" title="Clear this row (use last year again)">Clear</button>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:14px;flex-wrap:wrap">
+    <span style="color:var(--muted);font-size:12px">Purple boxes are your targets. <b>Fill</b> copies January across the year; <b>Clear</b> goes back to last year’s figures.</span>
+    <button class="btn-sms btn-primary-custom">Save Targets</button>
+  </div>
+</form>
+{% else %}
+<div class="sms-card" style="padding:40px;text-align:center;color:var(--muted)">
+  No quick links yet. Create a group or pin products on the <a href="{% url 'product_sales' %}">Product Sales</a> page first.
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.querySelectorAll('.qt-fill').forEach(function (b) {
+  b.addEventListener('click', function () {
+    var inputs = b.closest('tr').querySelectorAll('input');
+    inputs.forEach(function (i) { i.value = inputs[0].value; });
+  });
+});
+document.querySelectorAll('.qt-clear').forEach(function (b) {
+  b.addEventListener('click', function () { b.closest('tr').querySelectorAll('input').forEach(function (i) { i.value = ''; }); });
+});
+</script>
+{% endblock %}

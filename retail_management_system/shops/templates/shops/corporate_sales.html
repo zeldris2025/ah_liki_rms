@@ -1,0 +1,437 @@
+{% extends 'shops/base.html' %}
+{% block content %}
+<style>
+  /* ── Person tabs ── */
+  .cs-tabs { display:flex; gap:6px; justify-content:center; flex-wrap:wrap; margin:4px 0 18px; }
+  .cs-tab { display:inline-flex; align-items:center; gap:8px; padding:7px 16px 7px 8px; border-radius:999px; border:1px solid var(--border);
+            background:var(--card); color:var(--text-secondary); font:inherit; font-size:13px; font-weight:600; cursor:pointer; transition:all .15s; }
+  .cs-tab .dot { width:24px; height:24px; border-radius:50%; background:var(--c); color:#fff; font-size:12px; font-weight:700;
+                 display:flex; align-items:center; justify-content:center; }
+  .cs-tab:hover { border-color:var(--c); color:var(--primary); }
+  .cs-tab[aria-selected="true"] { background:var(--primary); border-color:var(--primary); color:#fff; box-shadow:0 4px 12px rgba(15,23,42,.15); }
+
+  /* ── Slider ── */
+  .cs-stage { position:relative; max-width:1180px; margin:0 auto; }
+  .cs-track { display:flex; overflow-x:auto; scroll-snap-type:x mandatory; scroll-behavior:smooth; scrollbar-width:none;
+              overscroll-behavior-x:contain; border-radius:18px; }
+  .cs-track::-webkit-scrollbar { display:none; }
+  .cs-track.dragging { cursor:grabbing; user-select:none; }
+  .cs-slide { flex:0 0 100%; scroll-snap-align:center; scroll-snap-stop:always; padding:2px; box-sizing:border-box; }
+  .cs-arrow { position:absolute; top:50%; transform:translateY(-50%); width:46px; height:46px; border-radius:50%; z-index:3;
+              border:1px solid var(--border); background:var(--card); color:var(--primary); font-size:20px; cursor:pointer;
+              display:flex; align-items:center; justify-content:center; box-shadow:0 6px 18px rgba(15,23,42,.12); transition:all .15s; }
+  .cs-arrow:hover:not(:disabled) { background:var(--primary); color:#fff; border-color:var(--primary); }
+  .cs-arrow:disabled { opacity:.35; cursor:default; }
+  .cs-prev { left:-23px; } .cs-next { right:-23px; }
+
+  /* ── Slide content ── */
+  .cs-card { background:var(--card); border:1px solid var(--border); border-radius:18px; overflow:hidden; box-shadow:0 1px 3px rgba(15,23,42,.05); }
+  .cs-head { display:flex; align-items:center; gap:16px; padding:22px 28px; border-bottom:1px solid var(--border);
+             background:linear-gradient(90deg, color-mix(in srgb, var(--c) 9%, #fff), #fff 70%); }
+  .cs-avatar { width:56px; height:56px; border-radius:50%; background:var(--c); color:#fff; font-size:24px; font-weight:700;
+               display:flex; align-items:center; justify-content:center; flex-shrink:0; box-shadow:0 0 0 4px color-mix(in srgb, var(--c) 20%, #fff); }
+  .cs-name { font-size:22px; font-weight:700; color:var(--primary); line-height:1.2; }
+  .cs-streams { display:flex; gap:6px; flex-wrap:wrap; margin-top:6px; }
+  .cs-stream { font-size:12px; font-weight:600; padding:3px 10px; border-radius:999px; background:#fff; border:1px solid var(--border); color:var(--text-secondary); }
+  .cs-count { margin-left:auto; text-align:right; color:var(--muted); font-size:12px; white-space:nowrap; }
+  .cs-count b { display:block; font-size:22px; color:var(--primary); }
+
+  .cs-chart { padding:22px 28px 10px; }
+  .cs-chart-top { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; gap:12px; flex-wrap:wrap; }
+  .cs-chart-title { font-weight:700; color:var(--primary); font-size:14px; }
+  .cs-legend { display:flex; gap:16px; font-size:12px; color:var(--text-secondary); }
+  .cs-legend i { display:inline-block; width:12px; height:12px; border-radius:3px; margin-right:6px; vertical-align:-1px; }
+  .cs-legend i.line { height:0; border-top:2px dashed var(--primary); border-radius:0; vertical-align:3px; width:16px; }
+  .cs-canvas { position:relative; height:400px; }
+
+  .cs-stats { display:grid; grid-template-columns:1fr 1fr 1.3fr; border-top:1px solid var(--border); }
+  .cs-stat { padding:20px 28px; border-right:1px solid var(--border); min-width:0; }
+  .cs-stat:last-child { border-right:none; }
+  .cs-label { color:var(--muted); font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.08em; }
+  .cs-big { font-size:26px; font-weight:700; color:var(--primary); font-variant-numeric:tabular-nums; margin:6px 0 2px; line-height:1.1; }
+  .cs-sub { font-size:13px; color:var(--muted); }
+  .cs-pct { font-weight:700; } .cs-pct.good { color:var(--success); } .cs-pct.low { color:#B45309; }
+  .cs-bar { height:8px; border-radius:999px; background:var(--surface); border:1px solid var(--border); overflow:hidden; margin-top:10px; }
+  .cs-bar span { display:block; height:100%; background:var(--c); border-radius:999px; }
+  .cs-note { font-size:11px; color:var(--muted); margin-top:8px; line-height:1.45; }
+  .cs-top { list-style:none; margin:8px 0 0; padding:0; font-size:13px; counter-reset:top; }
+  .cs-top li { display:flex; justify-content:space-between; gap:10px; padding:5px 0; border-bottom:1px dashed var(--border); }
+  .cs-top li:last-child { border-bottom:none; }
+  .cs-top li { align-items:center; }
+  .cs-pick { flex:1; min-width:0; text-align:left; border:none; background:none; padding:2px 6px; margin-left:-6px; border-radius:6px;
+             font:inherit; color:var(--primary); cursor:pointer; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .cs-pick::before { counter-increment:top; content:counter(top) ". "; color:var(--muted); }
+  .cs-pick:hover { color:var(--accent); }
+  .cs-pick[aria-pressed="true"] { background:color-mix(in srgb, var(--c) 14%, #fff); color:var(--primary); font-weight:700; }
+  .cs-go { color:var(--muted); text-decoration:none; font-size:12px; padding:0 2px; }
+  .cs-go:hover { color:var(--accent); }
+
+  .cs-products { padding:20px 28px 22px; border-top:1px solid var(--border); }
+  .cs-pwrap { position:relative; height:340px; }
+  .cs-pempty { padding:36px 10px; text-align:center; color:var(--muted); font-size:13px; background:var(--surface); border-radius:12px; border:2px dashed var(--border); }
+  .cs-foot { display:flex; justify-content:space-between; align-items:center; gap:12px; padding:14px 28px; background:var(--surface);
+             border-top:1px solid var(--border); flex-wrap:wrap; }
+  .cs-open { background:var(--c) !important; border-color:var(--c) !important; color:#fff !important; }
+
+  .cs-dots { display:flex; justify-content:center; align-items:center; gap:8px; margin:18px 0 6px; }
+  .cs-dots button { width:8px; height:8px; padding:0; border-radius:999px; border:none; background:#CBD5E1; cursor:pointer; transition:all .2s; }
+  .cs-dots button[aria-current="true"] { width:26px; background:var(--primary); }
+  .cs-counter { text-align:center; color:var(--muted); font-size:12px; }
+
+  /* ── This month's % of target, every rep ── */
+  .cs-month { display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:14px; max-width:1180px; margin:0 auto 22px; }
+  .cs-mcard { background:var(--card); border:1px solid var(--border); border-top:4px solid var(--c); border-radius:14px; padding:14px 16px; min-width:0; }
+  .cs-mcard.me { box-shadow:0 0 0 2px var(--c); }
+  .cs-mhead { display:flex; align-items:center; gap:10px; }
+  .cs-mhead .dot { width:30px; height:30px; border-radius:50%; background:var(--c); color:#fff; font-size:13px; font-weight:700;
+                   display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+  .cs-mname { font-weight:700; color:var(--primary); font-size:14px; line-height:1.2; }
+  .cs-mname small { color:var(--muted); font-weight:600; font-size:11px; margin-left:4px; }
+  .cs-mstreams { color:var(--muted); font-size:11px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .cs-mpct { font-size:28px; font-weight:700; font-variant-numeric:tabular-nums; margin:10px 0 0; line-height:1; }
+  .cs-mpct.good { color:var(--success); } .cs-mpct.low { color:#B45309; } .cs-mpct.none { color:var(--muted); font-size:14px; font-weight:600; }
+  .cs-msub { color:var(--muted); font-size:12px; margin-top:4px; }
+
+  @media (max-width: 1260px) { .cs-prev { left:0; } .cs-next { right:0; } .cs-arrow { top:auto; bottom:-62px; transform:none; } }
+  @media (max-width: 860px) {
+    .cs-stats { grid-template-columns:1fr; } .cs-stat { border-right:none; border-bottom:1px solid var(--border); }
+    .cs-head, .cs-chart, .cs-stat, .cs-foot { padding-left:18px; padding-right:18px; }
+    .cs-canvas { height:300px; } .cs-count { display:none; }
+  }
+  @media (prefers-reduced-motion: reduce) { .cs-track { scroll-behavior:auto; } }
+</style>
+
+<div class="page-header">
+  <div>
+    <h2 class="page-title">Corporate Sales</h2>
+    <p class="page-sub">Actual sales against target for each corporate stream · WST</p>
+  </div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+    <form method="get"><select name="year" class="sms-input" style="width:auto" onchange="this.form.submit()" aria-label="Year">
+      {% for y in years %}<option value="{{ y }}" {% if y == year %}selected{% endif %}>{{ y }}</option>{% endfor %}
+    </select></form>
+    {% if not own_rep %}
+    <a href="{% url 'corporate_targets' %}?year={{ year }}" class="btn-sms btn-primary-custom">🎯 Set Targets</a>
+    <a href="{% url 'corporate_manager' 'all' %}?year={{ year }}" class="btn-sms btn-outline-custom">Corporate Sales Clients</a>
+    {% endif %}
+  </div>
+</div>
+
+{% if not has_targets %}
+<div class="alert alert-info" style="font-size:13px;max-width:1180px;margin:0 auto 16px">No targets set for {{ year }} yet.{% if own_rep %} Ask a manager to set your targets.{% else %} <a href="{% url 'corporate_targets' %}?year={{ year }}">Set targets</a> to see the target line on each graph.{% endif %}</div>
+{% endif %}
+
+<!-- This month: every rep's % of target (percentages only, no amounts) -->
+{% if month_cards and month_cards.0.month_label %}
+<div class="cs-month" aria-label="Each rep’s progress to this month’s target">
+  {% for c in month_cards %}
+  <div class="cs-mcard{% if c.is_me %} me{% endif %}" style="--c:{{ c.color }}">
+    <div class="cs-mhead">
+      <span class="dot">{{ c.name|slice:":1" }}</span>
+      <div style="min-width:0">
+        <div class="cs-mname">{{ c.name }}{% if c.is_me %}<small>You</small>{% endif %}</div>
+        <div class="cs-mstreams">{{ c.streams|join:", " }}</div>
+      </div>
+    </div>
+    {% if c.month_pct is not None %}
+    <div class="cs-mpct {% if c.month_pct >= 100 %}good{% else %}low{% endif %}">{{ c.month_pct }}%</div>
+    <div class="cs-msub">of {{ c.month_label }} target</div>
+    <div class="cs-bar"><span style="width:{% if c.month_pct > 100 %}100{% else %}{{ c.month_pct }}{% endif %}%"></span></div>
+    {% else %}
+    <div class="cs-mpct none">No target set</div>
+    <div class="cs-msub">for {{ c.month_label }}</div>
+    {% endif %}
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<!-- Person tabs -->
+<div class="cs-tabs" role="tablist" aria-label="Corporate account managers"{% if own_rep %} style="display:none"{% endif %}>
+  {% for m in managers %}
+  <button type="button" class="cs-tab" role="tab" id="tab-{{ m.key }}" aria-controls="slide-{{ m.key }}"
+          aria-selected="{% if forloop.first %}true{% else %}false{% endif %}" data-i="{{ forloop.counter0 }}" style="--c:{{ m.color }}">
+    <span class="dot">{{ m.name|slice:":1" }}</span>{{ m.name }}
+  </button>
+  {% endfor %}
+</div>
+
+<!-- Slides -->
+<div class="cs-stage">
+  <button type="button" class="cs-arrow cs-prev" aria-label="Previous person"{% if own_rep %} style="display:none"{% endif %}>←</button>
+  <div class="cs-track" id="cs-track" tabindex="0" aria-roledescription="carousel" aria-label="Corporate sales by person">
+    {% for m in managers %}
+    <section class="cs-slide" id="slide-{{ m.key }}" role="tabpanel" aria-labelledby="tab-{{ m.key }}"
+             aria-roledescription="slide" aria-label="{{ forloop.counter }} of {{ managers|length }}" style="--c:{{ m.color }}">
+      <div class="cs-card">
+        <div class="cs-head">
+          <div class="cs-avatar">{{ m.name|slice:":1" }}</div>
+          <div style="min-width:0">
+            <div class="cs-name">{{ m.name }}</div>
+            <div class="cs-streams">{% for s in m.streams %}<span class="cs-stream">{{ s }}</span>{% endfor %}</div>
+          </div>
+          <div class="cs-count"><b>{{ m.client_count }}</b>client{{ m.client_count|pluralize }}</div>
+        </div>
+
+        <div class="cs-chart">
+          <div class="cs-chart-top">
+            <div class="cs-chart-title">Monthly sales vs target · {{ year }}</div>
+            <div class="cs-legend"><span><i style="background:{{ m.color }}"></i>Actual</span><span><i class="line"></i>Target</span></div>
+          </div>
+          <div class="cs-canvas"><canvas id="chart-{{ m.key }}" role="img"
+               aria-label="{{ m.name }}: actual sales against target for each month of {{ year }}"></canvas></div>
+        </div>
+
+        <div class="cs-stats">
+          <div class="cs-stat">
+            {% if m.month_label %}
+            <div class="cs-label">{{ m.month_label }}</div>
+            <div class="cs-big">{{ m.month_actual|floatformat:"0g" }}</div>
+            <div class="cs-sub">{% if m.month_target %}of {{ m.month_target|floatformat:"0g" }} target · <span class="cs-pct {% if m.month_pct >= 100 %}good{% else %}low{% endif %}">{{ m.month_pct }}%</span>{% else %}no target set{% endif %}</div>
+            {% if m.month_target %}<div class="cs-bar"><span style="width:{% if m.month_pct > 100 %}100{% else %}{{ m.month_pct }}{% endif %}%"></span></div>{% endif %}
+            {% else %}
+            <div class="cs-label">This month</div><div class="cs-sub" style="margin-top:8px">{{ year }} hasn’t started yet.</div>
+            {% endif %}
+          </div>
+          <div class="cs-stat">
+            <div class="cs-label">Year to date{% if m.ytd_months %} · {{ m.ytd_months }}{% endif %}</div>
+            <div class="cs-big">{{ m.ytd_actual|floatformat:"0g" }}</div>
+            <div class="cs-sub">{% if m.ytd_target and not m.ytd_missing_months %}of {{ m.ytd_target|floatformat:"0g" }} target · <span class="cs-pct {% if m.ytd_pct >= 100 %}good{% else %}low{% endif %}">{{ m.ytd_pct }}%</span>{% elif m.ytd_target %}total sales{% else %}no target set{% endif %}</div>
+            {% if m.ytd_target %}<div class="cs-bar"><span style="width:{% if m.ytd_pct > 100 %}100{% else %}{{ m.ytd_pct }}{% endif %}%"></span></div>{% endif %}
+            {% if m.ytd_target and m.ytd_missing_months %}
+            <div class="cs-note">Target set for {{ m.ytd_target_months }} only: {{ m.ytd_actual_on_target|floatformat:"0g" }} of {{ m.ytd_target|floatformat:"0g" }} ·
+              <span class="cs-pct {% if m.ytd_pct >= 100 %}good{% else %}low{% endif %}">{{ m.ytd_pct }}%</span>.
+              {% if not own_rep %}<a href="{% url 'corporate_targets' %}?year={{ year }}" style="color:var(--accent)">Add {{ m.ytd_missing_months }}</a>{% endif %}</div>
+            {% endif %}
+          </div>
+          <div class="cs-stat">
+            <div class="cs-label">Top clients · {{ year }}</div>
+            {% if m.top_clients %}
+            <ul class="cs-top">
+              {% for c in m.top_clients %}<li><button type="button" class="cs-pick" data-rep="{{ m.key }}" data-shop="{{ c.shop_id }}" aria-pressed="false"
+                  title="Show {{ c.shop__name }}’s top 10 products">{{ c.shop__name }}</button><span style="font-variant-numeric:tabular-nums;color:var(--text-secondary)">{{ c.total|floatformat:"0g" }}</span><a
+                  class="cs-go" href="{% url 'shop_detail' c.shop_id %}" title="Open {{ c.shop__name }}" aria-label="Open {{ c.shop__name }}">↗</a></li>{% endfor %}
+            </ul>
+            <div class="cs-note">Click a client to see their top 10 products below.</div>
+            {% else %}
+            <div class="cs-sub" style="margin-top:8px">No sales recorded yet.</div>
+            {% endif %}
+          </div>
+        </div>
+
+        <div class="cs-products">
+          <div class="cs-chart-top">
+            <div>
+              <div class="cs-chart-title">Top 10 products · {{ year }}</div>
+              <div class="cs-sub" id="prod-sub-{{ m.key }}" style="font-size:12px">All {{ m.name }}’s clients</div>
+            </div>
+            <button type="button" class="btn-sms btn-outline-custom sm" id="prod-reset-{{ m.key }}" style="display:none">← All {{ m.name }}’s clients</button>
+          </div>
+          <div class="cs-pwrap" id="prod-wrap-{{ m.key }}"><canvas id="prod-{{ m.key }}" role="img" aria-label="Top 10 products by sales"></canvas></div>
+          <div class="cs-pempty" id="prod-empty-{{ m.key }}" style="display:none"></div>
+        </div>
+
+        <div class="cs-foot">
+          <span style="color:var(--muted);font-size:12px">{% if m.types %}Customer types: {{ m.types|join:", " }}{% else %}Clients join when their Customer Type is {{ m.streams|join:" / " }}{% endif %}</span>
+          <a href="{% url 'corporate_manager' m.key %}?year={{ year }}" class="btn-sms btn-primary-custom cs-open">View {{ m.name }}’s clients &amp; sales →</a>
+        </div>
+      </div>
+    </section>
+    {% endfor %}
+  </div>
+  <button type="button" class="cs-arrow cs-next" aria-label="Next person"{% if own_rep %} style="display:none"{% endif %}>→</button>
+</div>
+
+<div class="cs-dots" aria-hidden="true"{% if own_rep %} style="display:none"{% endif %}>
+  {% for m in managers %}<button type="button" data-i="{{ forloop.counter0 }}" tabindex="-1" {% if forloop.first %}aria-current="true"{% endif %}></button>{% endfor %}
+</div>
+<div class="cs-counter" id="cs-counter" aria-live="polite"{% if own_rep %} style="display:none"{% endif %}>1 of {{ managers|length }} · swipe or use ← → to see the next person</div>
+
+{% if unmatched_types %}
+<p style="color:var(--muted);font-size:12px;text-align:center;margin-top:18px">Customer types not in any corporate stream: {{ unmatched_types|join:", " }}.</p>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+(function () {
+  var D = {{ chart_data|safe }};
+  var keys = D.managers.map(function (m) { return m.key; });
+  var names = D.managers.map(function (m) { return m.name; });
+  var track = document.getElementById('cs-track');
+  var slides = track.querySelectorAll('.cs-slide');
+  var tabs = document.querySelectorAll('.cs-tab');
+  var dots = document.querySelectorAll('.cs-dots button');
+  var prev = document.querySelector('.cs-prev'), next = document.querySelector('.cs-next');
+  var current = 0;
+
+  // ── Charts ──────────────────────────────────────────────────────────
+  function money(v) {
+    var a = Math.abs(v);
+    if (a >= 1e6) return (v / 1e6).toFixed(a >= 1e7 ? 0 : 1) + 'M';
+    if (a >= 1e3) return (v / 1e3).toFixed(a >= 1e4 ? 0 : 1) + 'k';
+    return v;
+  }
+  function wst(v) { return 'WST ' + Number(v).toLocaleString(undefined, { maximumFractionDigits: 0 }); }
+  var thisMonth = D.currentMonth;   // index of the month in progress, or -1
+  D.managers.forEach(function (m) {
+    new Chart(document.getElementById('chart-' + m.key), {
+      data: {
+        labels: D.labels,
+        datasets: [
+          { type: 'line', label: 'Target', data: m.target, borderColor: '#0F172A', borderDash: [6, 5], borderWidth: 2,
+            pointRadius: 3, pointBackgroundColor: '#fff', pointBorderColor: '#0F172A', pointBorderWidth: 2, spanGaps: true, order: 0 },
+          { type: 'bar', label: 'Actual', data: m.actual, order: 1, borderRadius: 6, maxBarThickness: 46,
+            backgroundColor: m.actual.map(function (_, i) { return i === thisMonth ? m.color + 'A6' : m.color; }) }
+        ]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        interaction: { mode: 'index', intersect: false },
+        layout: { padding: { top: 6 } },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            padding: 12, backgroundColor: '#0F172A', titleFont: { weight: '700' },
+            callbacks: {
+              title: function (items) { return items[0].label + ' ' + D.year + (items[0].dataIndex === thisMonth ? ' (so far)' : ''); },
+              label: function (c) { return ' ' + c.dataset.label + ': ' + (c.parsed.y == null ? '—' : wst(c.parsed.y)); },
+              afterBody: function (items) {
+                var a = m.actual[items[0].dataIndex], t = m.target[items[0].dataIndex];
+                return (a != null && t) ? ['', ' ' + Math.round(a / t * 100) + '% of target'] : [];
+              }
+            }
+          }
+        },
+        scales: {
+          x: { grid: { display: false }, ticks: { color: '#64748B', font: { size: 12, weight: '600' } } },
+          y: { beginAtZero: true, border: { display: false }, grid: { color: '#EEF2F7' },
+               ticks: { color: '#94A3B8', callback: money, maxTicksLimit: 6 } }
+        }
+      }
+    });
+  });
+
+  // ── Top 10 products: all the rep's clients, or the top client that was clicked ──
+  var UPLOAD_URL = {% if access.bulk_import %}'{% url "import_customer_product_sales" %}'{% else %}''{% endif %};
+  function shortName(s) { return s.length > 34 ? s.slice(0, 33) + '…' : s; }
+  D.managers.forEach(function (m) {
+    var wrap = document.getElementById('prod-wrap-' + m.key), empty = document.getElementById('prod-empty-' + m.key);
+    var sub = document.getElementById('prod-sub-' + m.key), reset = document.getElementById('prod-reset-' + m.key);
+    var picks = document.querySelectorAll('.cs-pick[data-rep="' + m.key + '"]');
+    var rows = [];
+    var chart = new Chart(document.getElementById('prod-' + m.key), {
+      type: 'bar',
+      data: { labels: [], datasets: [{ data: [], backgroundColor: m.color, borderRadius: 5, maxBarThickness: 22 }] },
+      options: {
+        indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false },
+          tooltip: { padding: 10, backgroundColor: '#0F172A', callbacks: {
+            title: function (items) { var r = rows[items[0].dataIndex]; return r.name + '  (' + r.code + ')'; },
+            label: function (c) { return ' ' + wst(c.parsed.x); } } } },
+        scales: {
+          x: { beginAtZero: true, border: { display: false }, grid: { color: '#EEF2F7' }, ticks: { color: '#94A3B8', callback: money, maxTicksLimit: 6 } },
+          y: { grid: { display: false }, ticks: { color: '#334155', font: { size: 12 } } }
+        }
+      }
+    });
+    function showProducts(shopId, clientName) {
+      rows = m.products[shopId || 'all'] || [];
+      sub.textContent = shopId ? clientName : 'All ' + m.name + '’s clients';
+      reset.style.display = shopId ? '' : 'none';
+      picks.forEach(function (b) { b.setAttribute('aria-pressed', b.getAttribute('data-shop') === shopId ? 'true' : 'false'); });
+      if (!rows.length) {
+        wrap.style.display = 'none'; empty.style.display = '';
+        empty.innerHTML = (shopId ? 'No product sales uploaded for this client in ' + D.year + '.'
+                                  : 'No customer product sales uploaded for ' + D.year + ' yet.') +
+          (UPLOAD_URL ? ' <a href="' + UPLOAD_URL + '">Upload Customer Product Sales</a>' : '');
+        return;
+      }
+      wrap.style.display = ''; empty.style.display = 'none';
+      chart.data.labels = rows.map(function (r) { return shortName(r.name); });
+      chart.data.datasets[0].data = rows.map(function (r) { return r.value; });
+      chart.update();
+    }
+    picks.forEach(function (b) {
+      b.addEventListener('click', function () {
+        var id = b.getAttribute('data-shop');
+        // Clicking the selected client again goes back to all clients
+        if (b.getAttribute('aria-pressed') === 'true') showProducts(null);
+        else showProducts(id, b.textContent.trim());
+      });
+    });
+    reset.addEventListener('click', function () { showProducts(null); });
+    showProducts(null);
+  });
+
+  // ── Slider ──────────────────────────────────────────────────────────
+  function show(i, instant) {
+    i = Math.max(0, Math.min(slides.length - 1, i));
+    // 'instant', not 'auto': auto would follow the track's CSS smooth scrolling and animate anyway
+    track.scrollTo({ left: i * track.clientWidth, behavior: instant ? 'instant' : 'smooth' });
+    mark(i);
+  }
+  function mark(i) {
+    current = i;
+    tabs.forEach(function (t, n) { t.setAttribute('aria-selected', n === i ? 'true' : 'false'); t.tabIndex = n === i ? 0 : -1; });
+    dots.forEach(function (d, n) { d.setAttribute('aria-current', n === i ? 'true' : 'false'); });
+    prev.disabled = i === 0;
+    next.disabled = i === slides.length - 1;
+    document.getElementById('cs-counter').textContent = (i + 1) + ' of ' + slides.length + ' · ' + names[i] +
+      (i < slides.length - 1 ? '  ·  next: ' + names[i + 1] + ' →' : '');
+    try { history.replaceState(null, '', '#' + keys[i]); } catch (e) {}
+  }
+
+  prev.addEventListener('click', function () { show(current - 1); });
+  next.addEventListener('click', function () { show(current + 1); });
+  tabs.forEach(function (t) { t.addEventListener('click', function () { show(+t.getAttribute('data-i')); }); });
+  dots.forEach(function (d) { d.addEventListener('click', function () { show(+d.getAttribute('data-i')); }); });
+  document.addEventListener('keydown', function (e) {
+    if (/INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName)) return;
+    if (e.key === 'ArrowRight') { e.preventDefault(); show(current + 1); }
+    if (e.key === 'ArrowLeft') { e.preventDefault(); show(current - 1); }
+  });
+
+  // Swiping (touch or trackpad) snaps to a slide; keep the tabs and dots in step
+  var settle;
+  track.addEventListener('scroll', function () {
+    if (track.classList.contains('dragging')) return;
+    clearTimeout(settle);
+    settle = setTimeout(function () {
+      var i = Math.round(track.scrollLeft / track.clientWidth);
+      if (i !== current) mark(i);
+    }, 80);
+  }, { passive: true });
+
+  // Dragging with a mouse on desktop
+  var dragX = null, dragLeft = 0;
+  track.addEventListener('pointerdown', function (e) {
+    if (e.pointerType !== 'mouse' || e.button !== 0 || e.target.closest('a, button')) return;
+    dragX = e.clientX; dragLeft = track.scrollLeft;
+  });
+  window.addEventListener('pointermove', function (e) {
+    if (dragX === null) return;
+    if (!track.classList.contains('dragging') && Math.abs(e.clientX - dragX) > 6) {
+      track.classList.add('dragging');
+      track.style.scrollSnapType = 'none'; track.style.scrollBehavior = 'auto';
+    }
+    if (track.classList.contains('dragging')) track.scrollLeft = dragLeft - (e.clientX - dragX);
+  });
+  window.addEventListener('pointerup', function (e) {
+    if (dragX === null) return;
+    var delta = e.clientX - dragX, dragged = track.classList.contains('dragging');
+    dragX = null;
+    if (!dragged) return;
+    track.classList.remove('dragging');
+    track.style.scrollSnapType = ''; track.style.scrollBehavior = '';
+    show(Math.abs(delta) > track.clientWidth * 0.15 ? current + (delta < 0 ? 1 : -1) : current);
+  });
+
+  // Open on the person in the link (e.g. …/corporate-sales/#ivan), otherwise the first
+  var start = keys.indexOf(location.hash.slice(1));
+  show(start < 0 ? 0 : start, true);
+  window.addEventListener('resize', function () { show(current, true); });
+})();
+</script>
+{% endblock %}

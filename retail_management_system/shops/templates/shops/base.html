@@ -50,6 +50,14 @@
     .nav-item-custom:hover, .nav-item-custom.active { background: rgba(255,255,255,.15); color: #fff; font-weight: 700; }
     .nav-icon { font-size: 17px; }
     .sidebar .nav-sub { padding-left: 36px; }
+    .nav-section { color: rgba(255,255,255,.4); font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .1em; padding: 18px 14px 6px; }
+    .nav-small { font-size: 12px; padding: 7px 14px; }
+    .nav-small .nav-icon { font-size: 13px; }
+    .nav-group summary { list-style: none; cursor: pointer; color: rgba(255,255,255,.5); font-size: 11px; font-weight: 600; padding: 2px 14px 8px 50px; }
+    .nav-group summary::-webkit-details-marker { display: none; }
+    .nav-group summary::after { content: ' ▸'; }
+    .nav-group[open] summary::after { content: ' ▾'; }
+    .nav-group summary:hover { color: #fff; }
     .sidebar-footer { padding: 14px 10px; border-top: 1px solid rgba(255,255,255,.1); }
 
     /* ── Main ── */
@@ -145,40 +153,76 @@
       <div class="title">Sales and Marketing</div>
     </div>
     <nav>
-      <a href="{% url 'dashboard' %}"        class="nav-item-custom {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}"><span class="nav-icon">📊</span>Dashboard</a>
+      {% with n=request.resolver_match.url_name %}
+      <!-- Main -->
+      <a href="{% url 'dashboard' %}"        class="nav-item-custom {% if n == 'dashboard' %}active{% endif %}"><span class="nav-icon">📊</span>Dashboard</a>
+      <a href="{% url 'atlas' %}"            class="nav-item-custom {% if n == 'atlas' %}active{% endif %}"><span class="nav-icon">🗺️</span>Ah Liki Atlas</a>
+      <a href="{% url 'shop_list' %}"        class="nav-item-custom {% if n == 'shop_list' or n == 'shop_detail' or n == 'add_shop' or n == 'edit_shop' %}active{% endif %}"><span class="nav-icon">🏪</span>All Clients</a>
+      <details class="nav-group" {% if n == 'territory_shops' %}open{% endif %}>
+        <summary>Sales Territories</summary>
+        <div class="nav-sub">
+          <a href="{% url 'territory_shops' territory='EC1' %}" class="nav-item-custom nav-small {% if n == 'territory_shops' and request.resolver_match.kwargs.territory == 'EC1' %}active{% endif %}">EC1</a>
+          <a href="{% url 'territory_shops' territory='EC2' %}" class="nav-item-custom nav-small {% if n == 'territory_shops' and request.resolver_match.kwargs.territory == 'EC2' %}active{% endif %}">EC2</a>
+          <a href="{% url 'territory_shops' territory='EC3' %}" class="nav-item-custom nav-small {% if n == 'territory_shops' and request.resolver_match.kwargs.territory == 'EC3' %}active{% endif %}">EC3</a>
+          <a href="{% url 'territory_shops' territory='LFG' %}" class="nav-item-custom nav-small {% if n == 'territory_shops' and request.resolver_match.kwargs.territory == 'LFG' %}active{% endif %}">LFG</a>
+          <a href="{% url 'territory_shops' territory='VT1' %}" class="nav-item-custom nav-small {% if n == 'territory_shops' and request.resolver_match.kwargs.territory == 'VT1' %}active{% endif %}">VT1</a>
+          <a href="{% url 'territory_shops' territory='VT2' %}" class="nav-item-custom nav-small {% if n == 'territory_shops' and request.resolver_match.kwargs.territory == 'VT2' %}active{% endif %}">VT2</a>
+          <a href="{% url 'territory_shops' territory='VT3' %}" class="nav-item-custom nav-small {% if n == 'territory_shops' and request.resolver_match.kwargs.territory == 'VT3' %}active{% endif %}">VT3</a>
+          <a href="{% url 'territory_shops' territory='WC1' %}" class="nav-item-custom nav-small {% if n == 'territory_shops' and request.resolver_match.kwargs.territory == 'WC1' %}active{% endif %}">WC1</a>
+          <a href="{% url 'territory_shops' territory='WC2' %}" class="nav-item-custom nav-small {% if n == 'territory_shops' and request.resolver_match.kwargs.territory == 'WC2' %}active{% endif %}">WC2</a>
+          <a href="{% url 'territory_shops' territory='WC4' %}" class="nav-item-custom nav-small {% if n == 'territory_shops' and request.resolver_match.kwargs.territory == 'WC4' %}active{% endif %}">WC4</a>
+        </div>
+      </details>
+      {% if access.corporate_sales %}
+      <a href="{% url 'corporate_sales' %}"  class="nav-item-custom {% if n == 'corporate_sales' or n == 'corporate_targets' or n == 'business_list' or n == 'add_business' or n == 'edit_business' %}active{% endif %}"><span class="nav-icon">🏢</span>Corporate Sales</a>
+      {% endif %}
+      {% if access.product_sales %}
+      <a href="{% url 'product_sales' %}"    class="nav-item-custom {% if n == 'product_sales' or n == 'product_group_add' or n == 'product_group_edit' %}active{% endif %}"><span class="nav-icon">📈</span>Product Sales</a>
+      {% endif %}
+      {% if access.promotions %}
+      <a href="{% url 'promotion_list' %}"   class="nav-item-custom {% if n == 'promotion_list' or n == 'add_promotion' or n == 'edit_promotion' %}active{% endif %}"><span class="nav-icon">🏷️</span>Promotions</a>
+      {% endif %}
+      {% if access.sponsorships %}
+      <a href="{% url 'sponsorship_list' %}" class="nav-item-custom {% if n == 'sponsorship_list' or n == 'add_sponsorship' or n == 'edit_sponsorship' %}active{% endif %}"><span class="nav-icon">🤝</span>Sponsorships</a>
+      {% endif %}
 
-      <!-- Shops -->
-      <a href="{% url 'shop_list' %}"        class="nav-item-custom {% if request.resolver_match.url_name == 'shop_list' or request.resolver_match.url_name == 'shop_detail' or request.resolver_match.url_name == 'add_shop' %}active{% endif %}"><span class="nav-icon">🏪</span>All Shops</a>
-      <div class="nav-sub">
-        <div style="color:rgba(255,255,255,.4);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;padding:6px 0 4px">Sales Territories</div>
-        <a href="{% url 'territory_shops' territory='EC1' %}" class="nav-item-custom" style="font-size:12px;padding:7px 14px">EC1</a>
-        <a href="{% url 'territory_shops' territory='EC2' %}" class="nav-item-custom" style="font-size:12px;padding:7px 14px">EC2</a>
-        <a href="{% url 'territory_shops' territory='EC3' %}" class="nav-item-custom" style="font-size:12px;padding:7px 14px">EC3</a>
-        <a href="{% url 'territory_shops' territory='LFG' %}" class="nav-item-custom" style="font-size:12px;padding:7px 14px">LFG</a>
-        <a href="{% url 'territory_shops' territory='VT1' %}" class="nav-item-custom" style="font-size:12px;padding:7px 14px">VT1</a>
-        <a href="{% url 'territory_shops' territory='VT2' %}" class="nav-item-custom" style="font-size:12px;padding:7px 14px">VT2</a>
-        <a href="{% url 'territory_shops' territory='VT3' %}" class="nav-item-custom" style="font-size:12px;padding:7px 14px">VT3</a>
-        <a href="{% url 'territory_shops' territory='WC1' %}" class="nav-item-custom" style="font-size:12px;padding:7px 14px">WC1</a>
-        <a href="{% url 'territory_shops' territory='WC2' %}" class="nav-item-custom" style="font-size:12px;padding:7px 14px">WC2</a>
-        <a href="{% url 'territory_shops' territory='WC4' %}" class="nav-item-custom" style="font-size:12px;padding:7px 14px">WC4</a>
-      </div>
+      <!-- FE Ordering -->
+      {% if access.fe_ordering %}
+      <div class="nav-section">FE Ordering</div>
+      <a href="{% url 'fe_order_list' %}"    class="nav-item-custom {% if n == 'fe_order_list' or n == 'fe_order_detail' %}active{% endif %}"><span class="nav-icon">🛒</span>FE Orders</a>
+      <a href="{% url 'fe_issue_list' %}"    class="nav-item-custom {% if n == 'fe_issue_list' %}active{% endif %}"><span class="nav-icon">⚠️</span>FE Issues</a>
+      <a href="{% url 'product_list' %}"     class="nav-item-custom {% if n == 'product_list' or n == 'product_add' or n == 'product_edit' or n == 'product_import' %}active{% endif %}"><span class="nav-icon">📦</span>Products</a>
+      {% endif %}
 
-      <a href="{% url 'business_list' %}"    class="nav-item-custom {% if request.resolver_match.url_name == 'business_list' or request.resolver_match.url_name == 'add_business' or request.resolver_match.url_name == 'edit_business' %}active{% endif %}"><span class="nav-icon">🏨</span>HORECCA</a>
-      <a href="{% url 'sponsorship_list' %}" class="nav-item-custom {% if request.resolver_match.url_name == 'sponsorship_list' or request.resolver_match.url_name == 'add_sponsorship' or request.resolver_match.url_name == 'edit_sponsorship' %}active{% endif %}"><span class="nav-icon">🤝</span>Sponsorships</a>
-      <a href="{% url 'survey_list' %}"      class="nav-item-custom {% if request.resolver_match.url_name == 'survey_list' or request.resolver_match.url_name == 'survey_detail' or request.resolver_match.url_name == 'add_survey' or request.resolver_match.url_name == 'survey_analysis' %}active{% endif %}"><span class="nav-icon">📋</span>Surveys</a>
-      <a href="{% url 'reports' %}"          class="nav-item-custom {% if request.resolver_match.url_name == 'reports' %}active{% endif %}"><span class="nav-icon">📥</span>Reports &amp; Download</a>
-      
-      <!-- CSV Import Section -->
-      <div style="color:rgba(255,255,255,.4);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;padding:14px 0 6px;margin-top:6px">Bulk Import</div>
-      <div class="nav-sub" style="padding:0">
-        <a href="{% url 'import_shops' %}" class="nav-item-custom {% if request.resolver_match.url_name == 'import_shops' %}active{% endif %}" style="font-size:12px;padding:7px 14px"><span style="font-size:13px">📋</span>Import Shops</a>
-        <a href="{% url 'import_businesses' %}" class="nav-item-custom {% if request.resolver_match.url_name == 'import_businesses' %}active{% endif %}" style="font-size:12px;padding:7px 14px"><span style="font-size:13px">📋</span>Import HORECCA</a>
-        <a href="{% url 'import_sponsorships' %}" class="nav-item-custom {% if request.resolver_match.url_name == 'import_sponsorships' %}active{% endif %}" style="font-size:12px;padding:7px 14px"><span style="font-size:13px">📋</span>Import Sponsorships</a>
-      </div>
+      <!-- Insights -->
+      {% if access.monthly_sales or access.surveys or access.reports %}
+      <div class="nav-section">Insights</div>
+      {% endif %}
+      {% if access.monthly_sales %}
+      <a href="{% url 'monthly_sales' %}"    class="nav-item-custom {% if n == 'monthly_sales' %}active{% endif %}"><span class="nav-icon">💰</span>Monthly Sales</a>
+      {% endif %}
+      {% if access.surveys %}
+      <a href="{% url 'survey_list' %}"      class="nav-item-custom {% if n == 'survey_list' or n == 'survey_detail' or n == 'add_survey' or n == 'survey_analysis' %}active{% endif %}"><span class="nav-icon">📋</span>Surveys</a>
+      {% endif %}
+      {% if access.reports %}
+      <a href="{% url 'reports' %}"          class="nav-item-custom {% if n == 'reports' %}active{% endif %}"><span class="nav-icon">📥</span>Reports &amp; Download</a>
+      {% endif %}
+
+      <!-- Bulk Import -->
+      {% if access.bulk_import %}
+      <div class="nav-section">Bulk Import</div>
+      <a href="{% url 'import_shops' %}"        class="nav-item-custom nav-small {% if n == 'import_shops' %}active{% endif %}"><span class="nav-icon">⬆</span>Import Clients</a>
+      <a href="{% url 'import_monthly_sales' %}" class="nav-item-custom nav-small {% if n == 'import_monthly_sales' %}active{% endif %}"><span class="nav-icon">⬆</span>Import Monthly Sales</a>
+      <a href="{% url 'import_product_sales' %}" class="nav-item-custom nav-small {% if n == 'import_product_sales' %}active{% endif %}"><span class="nav-icon">⬆</span>Import Product Sales</a>
+      <a href="{% url 'import_customer_product_sales' %}" class="nav-item-custom nav-small {% if n == 'import_customer_product_sales' %}active{% endif %}"><span class="nav-icon">⬆</span>Import Customer Product Sales</a>
+      <a href="{% url 'import_sponsorships' %}" class="nav-item-custom nav-small {% if n == 'import_sponsorships' %}active{% endif %}"><span class="nav-icon">⬆</span>Import Sponsorships</a>
+      {% endif %}
+      {% endwith %}
     </nav>
     <div class="sidebar-footer">
       <div style="color:rgba(255,255,255,.7);font-size:11px;font-weight:600;margin-bottom:8px;padding:0 6px">
         👤 {{ user.username }}
+        {% if not is_fe %}<div style="color:rgba(255,255,255,.45);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;margin-top:3px">{{ user_role }}</div>{% endif %}
       </div>
       <a href="{% url 'logout' %}" class="nav-item-custom" style="font-size:12px;margin:0;background:rgba(255,255,255,.1)"><span class="nav-icon">🚪</span>Logout</a>
       <div style="color:rgba(255,255,255,.4);font-size:10px;text-align:center;margin-top:12px">© 2025 Ah Liki Wholesale</div>

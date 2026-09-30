@@ -16,100 +16,56 @@
     </div>
     {% endif %}
     
-    <!-- Product Information -->
-    <h3 style="font-size:13px;font-weight:700;color:var(--primary);text-transform:uppercase;letter-spacing:.07em;margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid var(--border)">Product Information</h3>
-    
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px">
+    <!-- Product -->
+    <h3 style="font-size:13px;font-weight:700;color:var(--primary);text-transform:uppercase;letter-spacing:.07em;margin:0 0 12px;padding-bottom:12px;border-bottom:1px solid var(--border)">Product</h3>
+
+    <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin-bottom:16px">
       <div class="form-group">
-        <label class="sms-label">Product Name</label>
+        <label class="sms-label">Products</label>
         {{ form.product }}
         {% if form.product.errors %}<p style="color:var(--danger);font-size:12px;margin:4px 0 0">{{ form.product.errors.0 }}</p>{% endif %}
       </div>
-      
       <div class="form-group">
-        <label class="sms-label">Category <span style="font-size:11px;color:var(--muted)">(select or type new)</span></label>
-        <div style="position:relative">
-          <input type="text" id="category_input" list="category_list" name="category" class="sms-input" placeholder="e.g., SODA, SNACKS, BEVERAGES..." value="{{ form.category.value|default:'' }}" style="width:100%">
-          <datalist id="category_list">
-            <option value="SODA">SODA</option>
-            <option value="SNACKS">SNACKS</option>
-            <option value="BEVERAGES">BEVERAGES</option>
-            <option value="ALCOHOL">ALCOHOL</option>
-            <option value="WATER">WATER</option>
-            <option value="JUICE">JUICE</option>
-            <option value="ENERGY DRINK">ENERGY DRINK</option>
-            <option value="MILK PRODUCTS">MILK PRODUCTS</option>
-            <option value="CONFECTIONERY">CONFECTIONERY</option>
-            <option value="SNACK FOODS">SNACK FOODS</option>
-            <option value="FROZEN FOODS">FROZEN FOODS</option>
-            <option value="DAIRY">DAIRY</option>
-          </datalist>
-        </div>
-        {% if form.category.errors %}<p style="color:var(--danger);font-size:12px;margin:4px 0 0">{{ form.category.errors.0 }}</p>{% endif %}
-        <p style="font-size:11px;color:var(--muted);margin:4px 0 0">💡 Type or select from suggestions</p>
+        <label class="sms-label">Customer/Shop</label>
+        {{ form.customer }}
+        {% if form.customer.errors %}<p style="color:var(--danger);font-size:12px;margin:4px 0 0">{{ form.customer.errors.0 }}</p>{% endif %}
       </div>
     </div>
-    
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px">
+
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:16px">
+      <div class="form-group">
+        <label class="sms-label">Period</label>
+        {{ form.period }}
+        {% if form.period.errors %}<p style="color:var(--danger);font-size:12px;margin:4px 0 0">{{ form.period.errors.0 }}</p>{% endif %}
+      </div>
       <div class="form-group">
         <label class="sms-label">Price (WST)</label>
         {{ form.price }}
         {% if form.price.errors %}<p style="color:var(--danger);font-size:12px;margin:4px 0 0">{{ form.price.errors.0 }}</p>{% endif %}
       </div>
-      
       <div class="form-group">
-        <label class="sms-label">Quantity</label>
+        <label class="sms-label">QTY</label>
         {{ form.quantity }}
         {% if form.quantity.errors %}<p style="color:var(--danger);font-size:12px;margin:4px 0 0">{{ form.quantity.errors.0 }}</p>{% endif %}
       </div>
     </div>
-    
-    <!-- Customer & Location -->
-    <h3 style="font-size:13px;font-weight:700;color:var(--primary);text-transform:uppercase;letter-spacing:.07em;margin:20px 0 12px;padding-bottom:12px;border-bottom:1px solid var(--border)">Customer & Location</h3>
-    
-    <div class="form-group">
-      <label class="sms-label">Customer/Store Name</label>
-      {{ form.customer }}
-      {% if form.customer.errors %}<p style="color:var(--danger);font-size:12px;margin:4px 0 0">{{ form.customer.errors.0 }}</p>{% endif %}
-    </div>
-    
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px">
+
+    <!-- Location -->
+    <h3 style="font-size:13px;font-weight:700;color:var(--primary);text-transform:uppercase;letter-spacing:.07em;margin:20px 0 12px;padding-bottom:12px;border-bottom:1px solid var(--border)">Location</h3>
+
+    <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin-bottom:16px">
       <div class="form-group">
         <label class="sms-label">Location</label>
         {{ form.location }}
         {% if form.location.errors %}<p style="color:var(--danger);font-size:12px;margin:4px 0 0">{{ form.location.errors.0 }}</p>{% endif %}
       </div>
-      
       <div class="form-group">
         <label class="sms-label">Region</label>
         {{ form.region }}
         {% if form.region.errors %}<p style="color:var(--danger);font-size:12px;margin:4px 0 0">{{ form.region.errors.0 }}</p>{% endif %}
       </div>
     </div>
-    
-    <!-- Survey Data -->
-    <h3 style="font-size:13px;font-weight:700;color:var(--primary);text-transform:uppercase;letter-spacing:.07em;margin:20px 0 12px;padding-bottom:12px;border-bottom:1px solid var(--border)">Survey Data</h3>
-    
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px">
-      <div class="form-group">
-        <label class="sms-label">Week #</label>
-        {{ form.week }}
-        {% if form.week.errors %}<p style="color:var(--danger);font-size:12px;margin:4px 0 0">{{ form.week.errors.0 }}</p>{% endif %}
-      </div>
-      
-      <div class="form-group">
-        <label class="sms-label">Rating</label>
-        {{ form.rating }}
-        {% if form.rating.errors %}<p style="color:var(--danger);font-size:12px;margin:4px 0 0">{{ form.rating.errors.0 }}</p>{% endif %}
-      </div>
-    </div>
-    
-    <div class="form-group">
-      <label class="sms-label">Notes</label>
-      {{ form.notes }}
-      {% if form.notes.errors %}<p style="color:var(--danger);font-size:12px;margin:4px 0 0">{{ form.notes.errors.0 }}</p>{% endif %}
-    </div>
-    
+
     <div class="form-group">
       <label class="sms-label">Recorded By</label>
       {{ form.recorded_by }}

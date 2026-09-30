@@ -1,0 +1,42 @@
+{% extends 'fe_orders/fe_base.html' %}
+{% block title %}Issues — Ah Liki FE{% endblock %}
+{% block content %}
+<div class="head-row">
+  <div>
+    <h1 class="page-title">⚠️ Issues</h1>
+    <p class="page-sub" style="margin:0">{% if is_fe %}Problems you have reported{% else %}Problems reported by the FE team{% endif %}</p>
+  </div>
+  <a class="btn btn-accent" href="{% url 'fe_report_issue' %}" style="background:var(--warn)">＋ Report Issue</a>
+</div>
+
+<div class="pills" style="margin-bottom:16px">
+  <a class="pill {% if not status %}active{% endif %}" href="?">All</a>
+  {% for value, label in statuses %}
+  <a class="pill {% if status == value %}active{% endif %}" href="?status={{ value|urlencode }}">{{ label }}</a>
+  {% endfor %}
+</div>
+
+{% for i in issues %}
+<div class="card" style="display:flex;gap:16px;align-items:flex-start">
+  {% if i.photo %}<a href="{{ i.photo.url }}" target="_blank"><img src="{{ i.photo.url }}" alt="" style="width:96px;height:96px;object-fit:cover;border-radius:12px;flex-shrink:0"></a>{% endif %}
+  <div style="flex:1;min-width:0">
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+      <b style="font-size:18px;color:var(--primary)">{{ i.category }}</b>
+      <span class="status s-{{ i.status|cut:' Progress' }}">{{ i.status }}</span>
+    </div>
+    <div class="muted" style="font-size:14px;margin:4px 0 8px">{{ i.shop.name|default:"No shop" }} · {{ i.created_at|date:"d M, g:i a" }}{% if not is_fe %} · {{ i.reported_by.username }}{% endif %}</div>
+    <div>{{ i.description|linebreaksbr }}</div>
+    {% if not is_fe %}
+    <form method="post" action="{% url 'fe_issue_status' i.pk %}" class="pills" style="margin-top:12px">
+      {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
+      {% for value, label in statuses %}
+      <button class="pill {% if i.status == value %}active{% endif %}" name="status" value="{{ value }}" style="min-height:40px;padding:7px 14px;font-size:14px">{{ label }}</button>
+      {% endfor %}
+    </form>
+    {% endif %}
+  </div>
+</div>
+{% empty %}
+<div class="card empty">No issues{% if status %} marked {{ status }}{% endif %}. 🎉</div>
+{% endfor %}
+{% endblock %}

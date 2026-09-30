@@ -2,7 +2,7 @@
 {% block content %}
 <div class="page-header">
   <div>
-    <h2 class="page-title">{{ action }} Shop{% if shop %} — {{ shop.name }}{% endif %}</h2>
+    <h2 class="page-title">{{ action }} Client{% if shop %} — {{ shop.name }}{% endif %}</h2>
   </div>
   <a href="{% url 'shop_list' %}" class="btn-sms btn-outline-custom">← Back</a>
 </div>
@@ -14,77 +14,80 @@
 
     <!-- Left: shop info -->
     <div>
-      <div class="form-section-title">Shop Details</div>
+      <div class="form-section-title">Client Details</div>
 
-      <div class="form-group">
-        <label class="sms-label">Shop Name <span style="color:var(--danger)">*</span></label>
-        <input type="text" name="name" value="{{ shop.name|default:'' }}" required class="sms-input" placeholder="e.g. Faleolo Grocery">
+      <div style="display:grid;grid-template-columns:1fr 2fr;gap:12px">
+        <div class="form-group">
+          <label class="sms-label">Customer Code</label>
+          <input type="text" name="customer_code" value="{{ client.customer_code|default:'' }}" maxlength="50" class="sms-input" placeholder="e.g. C00123">
+        </div>
+        <div class="form-group">
+          <label class="sms-label">Name <span style="color:var(--danger)">*</span></label>
+          <input type="text" name="name" value="{{ client.name|default:'' }}" required class="sms-input" placeholder="e.g. Faleolo Grocery">
+        </div>
       </div>
-      <div class="form-group">
-        <label class="sms-label">Owner</label>
-        <input type="text" name="owner" value="{{ shop.owner|default:'' }}" class="sms-input">
-      </div>
-      <div class="form-group">
-        <label class="sms-label">Phone</label>
-        <input type="text" name="phone" value="{{ shop.phone|default:'' }}" class="sms-input">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div class="form-group">
+          <label class="sms-label">Customer Type</label>
+          <input type="text" name="customer_type" value="{{ client.customer_type|default:'' }}" maxlength="100" class="sms-input" placeholder="e.g. Retail">
+        </div>
+        <div class="form-group">
+          <label class="sms-label">Contact Person</label>
+          <input type="text" name="contact_person" value="{{ client.contact_person|default:'' }}" class="sms-input">
+        </div>
       </div>
       <div class="form-group">
         <label class="sms-label">Address</label>
-        <input type="text" name="address" value="{{ shop.address|default:'' }}" class="sms-input">
+        <input type="text" name="address" value="{{ client.address|default:'' }}" class="sms-input">
       </div>
-      <div class="form-group">
-        <label class="sms-label">Island</label>
-        <select name="island" class="sms-input">
-          <option value="Upolu"  {% if shop.island == 'Upolu'  or not shop %}selected{% endif %}>Upolu</option>
-          <option value="Savaii" {% if shop.island == 'Savaii' %}selected{% endif %}>Savaii</option>
-        </select>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div class="form-group">
+          <label class="sms-label">Island</label>
+          <select name="island" class="sms-input">
+            <option value="Upolu"  {% if client.island != 'Savaii' %}selected{% endif %}>Upolu</option>
+            <option value="Savaii" {% if client.island == 'Savaii' %}selected{% endif %}>Savaii</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="sms-label">Territory Code</label>
+          <input type="text" name="territory" value="{{ client.territory|default:'' }}" list="territory-codes" maxlength="50" class="sms-input" placeholder="e.g. EC1">
+          <datalist id="territory-codes">{% for t in territories %}<option value="{{ t }}">{% endfor %}</datalist>
+        </div>
       </div>
-      <div class="form-group">
-        <label class="sms-label">Sales Territory</label>
-        <select name="territory" class="sms-input">
-          <option value="">-- Select Territory --</option>
-          <option value="EC1" {% if shop.territory == 'EC1' %}selected{% endif %}>EC1</option>
-          <option value="EC2" {% if shop.territory == 'EC2' %}selected{% endif %}>EC2</option>
-          <option value="EC3" {% if shop.territory == 'EC3' %}selected{% endif %}>EC3</option>
-          <option value="LFG" {% if shop.territory == 'LFG' %}selected{% endif %}>LFG</option>
-          <option value="VT1" {% if shop.territory == 'VT1' %}selected{% endif %}>VT1</option>
-          <option value="VT2" {% if shop.territory == 'VT2' %}selected{% endif %}>VT2</option>
-          <option value="VT3" {% if shop.territory == 'VT3' %}selected{% endif %}>VT3</option>
-          <option value="WC1" {% if shop.territory == 'WC1' %}selected{% endif %}>WC1</option>
-          <option value="WC2" {% if shop.territory == 'WC2' %}selected{% endif %}>WC2</option>
-          <option value="WC4" {% if shop.territory == 'WC4' %}selected{% endif %}>WC4</option>
-        </select>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div class="form-group">
+          <label class="sms-label">Phone Number</label>
+          <input type="text" name="phone" value="{{ client.phone|default:'' }}" maxlength="50" class="sms-input">
+        </div>
+        <div class="form-group">
+          <label class="sms-label">Email</label>
+          <input type="email" name="email" value="{{ client.email|default:'' }}" class="sms-input">
+        </div>
       </div>
       <div style="display:flex;gap:16px;flex-direction:column;margin-top:16px">
         <div style="display:flex;align-items:center;gap:10px">
-          <input type="checkbox" id="tip_top" name="tip_top" {% if shop.tip_top %}checked{% endif %} style="width:16px;height:16px;accent-color:var(--success)">
+          <input type="checkbox" id="tip_top" name="tip_top" {% if client.tip_top %}checked{% endif %} style="width:16px;height:16px;accent-color:var(--success)">
           <label for="tip_top" style="font-weight:600;font-size:13px;color:var(--primary);cursor:pointer">Tip Top Partner</label>
         </div>
         <div style="display:flex;align-items:center;gap:10px">
-          <input type="checkbox" id="taula_fridge" name="taula_fridge" {% if shop.taula_fridge %}checked{% endif %} style="width:16px;height:16px;accent-color:var(--info)">
+          <input type="checkbox" id="taula_fridge" name="taula_fridge" {% if client.taula_fridge %}checked{% endif %} style="width:16px;height:16px;accent-color:var(--info)">
           <label for="taula_fridge" style="font-weight:600;font-size:13px;color:var(--primary);cursor:pointer">Taula Fridge</label>
         </div>
         <div style="display:flex;align-items:center;gap:10px">
-          <input type="checkbox" id="talofa_voucher" name="talofa_voucher" {% if shop.talofa_voucher %}checked{% endif %} style="width:16px;height:16px;accent-color:var(--accent)">
+          <input type="checkbox" id="talofa_voucher" name="talofa_voucher" {% if client.talofa_voucher %}checked{% endif %} style="width:16px;height:16px;accent-color:var(--accent)">
           <label for="talofa_voucher" style="font-weight:600;font-size:13px;color:var(--primary);cursor:pointer">Talofa Voucher</label>
         </div>
         <div style="display:flex;align-items:center;gap:10px">
-          <input type="checkbox" id="faakau_com" name="faakau_com" {% if shop.faakau_com %}checked{% endif %} style="width:16px;height:16px;accent-color:var(--primary)">
+          <input type="checkbox" id="faakau_com" name="faakau_com" {% if client.faakau_com %}checked{% endif %} style="width:16px;height:16px;accent-color:var(--primary)">
           <label for="faakau_com" style="font-weight:600;font-size:13px;color:var(--primary);cursor:pointer">Faakau.com</label>
         </div>
       </div>
 
       {% if shop %}
-      <div style="margin-top:30px;padding-top:20px;border-top:1px solid var(--border)">
-        <div class="form-section-title">Sales Data</div>
-        <a href="{% url 'import_shop_sales' shop.id %}" class="btn-sms btn-accent-custom sm">📊 Import Sales CSV</a>
-        <div style="color:var(--muted);font-size:12px;margin-top:8px">Columns: products, quantity, total_sales, date — all optional. Duplicates are skipped.</div>
-      </div>
-
       <div style="margin-top:24px;padding-top:20px;border-top:1px solid var(--border)">
         <button type="submit" name="delete_shop" value="1"
                 onclick="return confirm('Are you sure you want to delete {{ shop.name }}?')"
-                class="btn-sms btn-danger-custom sm">🗑 Delete Shop</button>
+                class="btn-sms btn-danger-custom sm">🗑 Delete Client</button>
       </div>
       {% endif %}
     </div>
@@ -97,7 +100,7 @@
 
   <div style="display:flex;gap:10px;justify-content:flex-end;padding-top:22px;border-top:1px solid var(--border);margin-top:20px">
     <a href="{% url 'shop_list' %}" class="btn-sms btn-outline-custom">Cancel</a>
-    <button type="submit" class="btn-sms btn-primary-custom">{{ action }} Shop</button>
+    <button type="submit" class="btn-sms btn-primary-custom">{% if shop %}Save Client{% else %}Add Client{% endif %}</button>
   </div>
 </form>
 {% endblock %}

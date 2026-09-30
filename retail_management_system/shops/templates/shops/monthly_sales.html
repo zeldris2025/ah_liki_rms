@@ -1,0 +1,67 @@
+{% extends 'shops/base.html' %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <h2 class="page-title">Monthly Sales</h2>
+    <p class="page-sub">Total sales for each client, by month</p>
+  </div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap">
+    {% if can_export %}<a href="?month={{ month|urlencode }}&q={{ q|urlencode }}&export=1" class="btn-sms btn-outline-custom">⬇ Export CSV</a>{% endif %}
+    <a href="{% url 'import_monthly_sales' %}" class="btn-sms btn-primary-custom">⬆ Upload Sales</a>
+  </div>
+</div>
+
+<form method="get" class="sms-card" style="padding:14px 16px;margin-bottom:16px;display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+  <select name="month" class="sms-input" style="width:auto" onchange="this.form.submit()" aria-label="Month">
+    <option value="all" {% if month == 'all' %}selected{% endif %}>All months</option>
+    {% for m in months %}
+    <option value="{{ m|date:'Y-m' }}" {% if month == m|date:'Y-m' %}selected{% endif %}>{{ m|date:"F Y" }}</option>
+    {% endfor %}
+  </select>
+  <input class="sms-input" name="q" value="{{ q }}" placeholder="Search client name or customer code…" style="flex:1;min-width:200px">
+  <button class="btn-sms btn-primary-custom sm">Search</button>
+  {% if q %}<a href="?month={{ month|urlencode }}" class="btn-sms btn-outline-custom sm">Clear</a>{% endif %}
+</form>
+
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;margin-bottom:16px">
+  <div class="stat-card">
+    <div class="stat-label">Total Sales{% if month and month != 'all' %} · {{ page_obj.object_list.0.month|date:"M Y" }}{% endif %}</div>
+    <div class="stat-value" style="color:var(--success)">WST {{ total|floatformat:"2g" }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Clients</div>
+    <div class="stat-value" style="color:var(--primary)">{{ count }}</div>
+  </div>
+</div>
+
+<div class="sms-card">
+  {% if page_obj %}
+  <table class="sms-table">
+    <thead><tr><th>Customer Code</th><th>Customer Name</th><th>Month</th><th style="text-align:right">Sales (WST)</th></tr></thead>
+    <tbody>
+      {% for r in page_obj %}
+      <tr>
+        <td style="color:var(--muted);white-space:nowrap">{{ r.shop.customer_code }}</td>
+        <td><a href="{% url 'shop_detail' r.shop.id %}" style="font-weight:600;color:var(--primary);text-decoration:none">{{ r.shop.name }}</a></td>
+        <td style="white-space:nowrap">{{ r.month|date:"M Y" }}</td>
+        <td style="text-align:right;font-weight:600;font-variant-numeric:tabular-nums">{{ r.sales|floatformat:"2g" }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% if page_obj.has_other_pages %}
+  <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border-top:1px solid var(--border);font-size:13px;color:var(--muted)">
+    <span>Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+    <span style="display:flex;gap:8px">
+      {% if page_obj.has_previous %}<a class="btn-sms btn-outline-custom sm" href="?month={{ month|urlencode }}&q={{ q|urlencode }}&page={{ page_obj.previous_page_number }}">← Prev</a>{% endif %}
+      {% if page_obj.has_next %}<a class="btn-sms btn-outline-custom sm" href="?month={{ month|urlencode }}&q={{ q|urlencode }}&page={{ page_obj.next_page_number }}">Next →</a>{% endif %}
+    </span>
+  </div>
+  {% endif %}
+  {% else %}
+  <div style="padding:48px;text-align:center;color:var(--muted)">
+    {% if months %}No sales match.{% else %}No sales uploaded yet. <a href="{% url 'import_monthly_sales' %}">Upload a CSV</a> to get started.{% endif %}
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

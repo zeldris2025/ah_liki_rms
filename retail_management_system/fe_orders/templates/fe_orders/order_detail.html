@@ -1,0 +1,61 @@
+{% extends 'fe_orders/fe_base.html' %}
+{% block title %}{{ order.number }} — Ah Liki FE{% endblock %}
+{% block content %}
+<div class="head-row">
+  <div>
+    <h1 class="page-title">{{ order.number }} <span class="status s-{{ order.status }}" style="vertical-align:middle">{{ order.status }}</span></h1>
+    <p class="page-sub" style="margin:0">Placed {{ order.created_at|date:"l d M Y, g:i a" }} by {{ order.placed_by.username }}{% if not is_fe and order.telegram_status %} · Telegram: <b style="color:{% if order.telegram_status == 'Sent' %}var(--success){% elif 'Failed' in order.telegram_status %}var(--danger){% else %}var(--muted){% endif %}">{{ order.telegram_status }}</b>{% if order.telegram_status != 'Sent' and order.telegram_status != 'Sending' %}
+      <form method="post" style="display:inline;margin-left:6px">{% csrf_token %}
+        <button type="submit" name="resend_telegram" value="1" class="btn btn-light" style="min-height:0;padding:4px 12px;font-size:13px">↻ Resend to Telegram</button>
+      </form>{% endif %}{% endif %}{% if not is_fe and order.email_status %} · Email: <b style="color:{% if order.email_status == 'Sent' %}var(--success){% elif 'Failed' in order.email_status %}var(--danger){% else %}var(--muted){% endif %}">{{ order.email_status }}</b>{% if order.email_status != 'Sent' and order.email_status != 'Sending' %}
+      <form method="post" style="display:inline;margin-left:6px">{% csrf_token %}
+        <button type="submit" name="resend_email" value="1" class="btn btn-light" style="min-height:0;padding:4px 12px;font-size:13px">↻ Resend email</button>
+      </form>{% endif %}{% endif %}</p>
+  </div>
+  <a class="btn btn-light" href="{% url 'fe_order_list' %}">← All orders</a>
+</div>
+
+<div class="card">
+  <div class="card-title">Shop</div>
+  <div style="font-size:20px;font-weight:700;color:var(--primary)">{{ order.shop.name }}</div>
+  <div class="muted" style="margin-top:4px">{{ order.shop.territory|default:"" }} {{ order.shop.island }}</div>
+  <div class="grid2" style="margin-top:14px">
+    <div><div class="lbl">Address</div>{{ order.address|default:"—" }}</div>
+    <div><div class="lbl">Phone</div>{% if order.phone %}<a href="tel:{{ order.phone }}">{{ order.phone }}</a>{% else %}—{% endif %}</div>
+  </div>
+  {% if order.notes %}<div style="margin-top:14px"><div class="lbl">Notes</div>{{ order.notes|linebreaksbr }}</div>{% endif %}
+</div>
+
+<div class="card">
+  <div class="card-title">Products</div>
+  <table class="tbl">
+    <thead><tr><th>Product</th><th style="text-align:right">Qty</th><th class="hide-sm" style="text-align:right">Price</th><th style="text-align:right">Total</th></tr></thead>
+    <tbody>
+    {% for i in items %}
+      <tr>
+        <td><b style="color:var(--primary)">{{ i.product.name }}</b><div class="muted" style="font-size:13px">{{ i.product.category }}{% if i.product.unit %} · {{ i.product.unit }}{% endif %}</div></td>
+        <td style="text-align:right;font-weight:700">{{ i.quantity }}</td>
+        <td class="hide-sm" style="text-align:right">{% if i.unit_price is not None %}{{ i.unit_price|floatformat:2 }}{% else %}—{% endif %}</td>
+        <td style="text-align:right">{% if i.line_total is not None %}{{ i.line_total|floatformat:2 }}{% else %}—{% endif %}</td>
+      </tr>
+    {% endfor %}
+      <tr><td colspan="2" style="font-weight:800">Total ({{ order.item_count }} units)</td><td class="hide-sm"></td><td style="text-align:right;font-weight:800;font-size:18px">WST {{ order.total|floatformat:2 }}</td></tr>
+    </tbody>
+  </table>
+</div>
+
+{% if not is_fe %}
+<div class="card">
+  <div class="card-title">Update status</div>
+  <form method="post" class="pills">
+    {% csrf_token %}
+    {% for value, label in statuses %}
+    <button class="pill {% if order.status == value %}active{% endif %}" name="status" value="{{ value }}">{{ label }}</button>
+    {% endfor %}
+  </form>
+</div>
+{% endif %}
+{% endblock %}
+{% block extra_js %}
+{% if request.GET.placed %}<script>try { localStorage.removeItem('feOrderDraft'); } catch (e) {}</script>{% endif %}
+{% endblock %}

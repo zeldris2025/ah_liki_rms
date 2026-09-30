@@ -1,0 +1,213 @@
+{% extends 'shops/base.html' %}
+{% load static %}
+{% block content %}
+<style>
+  .promo-stats { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:14px; margin-bottom:22px; }
+  .promo-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(340px,1fr)); gap:18px; }
+  .promo-company { display:flex; flex-direction:column; box-shadow:0 1px 2px rgba(15,23,42,.04); }
+  .promo-company-head { display:flex; align-items:center; gap:12px; padding:16px 18px; border-bottom:1px solid var(--border); }
+  .promo-avatar { width:38px; height:38px; border-radius:10px; display:flex; align-items:center; justify-content:center; color:#fff; font-weight:700; font-size:14px; flex-shrink:0; }
+  .promo-logo { width:52px; height:52px; border-radius:12px; border:1px solid var(--border); background:#fff; padding:5px; object-fit:contain; flex-shrink:0; }
+  .promo-filters { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:20px; align-items:center; }
+  .promo-search { position:relative; flex:1 1 240px; }
+  .promo-search span { position:absolute; left:12px; top:50%; transform:translateY(-50%); color:var(--muted); font-size:13px; pointer-events:none; }
+  .promo-search input { width:100%; padding:8px 14px 8px 34px; border:1px solid var(--border); border-radius:8px; font-size:13px; background:var(--card); outline:none; }
+  .promo-search input:focus, .promo-filters select:focus { border-color:var(--accent); box-shadow:0 0 0 3px rgba(14,165,233,.15); }
+  .promo-filters select { padding:8px 12px; border:1px solid var(--border); border-radius:8px; font-size:13px; background:var(--card); outline:none; }
+  .promo-company-name { font-weight:700; font-size:15px; color:var(--primary); line-height:1.2; }
+  .promo-company-meta { color:var(--muted); font-size:12px; margin-top:2px; }
+  .promo-row { cursor:pointer; transition:background .12s; }
+  .promo-row:hover { background:#F0F9FF !important; }
+  .promo-row:focus-visible { outline:2px solid var(--accent); outline-offset:-2px; }
+  .promo-row td:first-child { font-weight:600; color:var(--primary); }
+  .promo-row .chev { color:#CBD5E1; font-size:16px; text-align:right; width:24px; }
+  .promo-row:hover .chev { color:var(--accent); }
+  .promo-empty { padding:28px 18px; text-align:center; color:var(--muted); font-size:13px; }
+
+  .promo-modal .modal-content { border:none; border-radius:16px; overflow:hidden; }
+  .promo-modal .modal-hero { background:linear-gradient(135deg,var(--primary),var(--primary2)); padding:22px 24px; color:#fff; }
+  .promo-modal .hero-company { color:var(--accent-light); font-size:11px; font-weight:800; letter-spacing:.12em; text-transform:uppercase; margin-bottom:6px; }
+  .promo-modal .hero-name { font-size:20px; font-weight:700; margin:0; line-height:1.3; }
+  .promo-detail-grid { display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:18px; }
+  .promo-detail { background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:12px 14px; }
+  .promo-detail .stat-label { margin-bottom:4px; }
+  .promo-detail .val { font-weight:600; color:var(--primary); font-size:14px; }
+  .promo-desc { white-space:pre-line; color:var(--text-secondary); font-size:14px; line-height:1.6; margin:0 0 18px; }
+  .promo-row .dates { display:block; font-weight:400; color:var(--muted); font-size:12px; margin-top:2px; }
+  .promo-row .prize-tag { font-weight:400; color:#92400E; font-size:12px; margin-left:4px; }
+  .prize-list { list-style:none; margin:0; padding:0; display:grid; gap:8px; }
+  .prize-list li { display:flex; gap:10px; align-items:flex-start; background:#FFFBEB; border:1px solid #FDE68A; border-radius:10px; padding:10px 12px; font-size:14px; color:var(--primary); }
+</style>
+
+<div class="page-header">
+  <div>
+    <h2 class="page-title">Promotions</h2>
+    <p class="page-sub">Current and upcoming promotions across our partner companies</p>
+  </div>
+  <div style="display:flex;gap:10px">
+    {% if can_export %}<a href="{% url 'download_report' %}?type=promotions{% if search_query %}&search_query={{ search_query|urlencode }}{% endif %}{% if selected_company %}&company={{ selected_company|urlencode }}{% endif %}{% if selected_status %}&status={{ selected_status|urlencode }}{% endif %}"
+       class="btn-sms btn-accent-custom" title="Download the promotions shown below as CSV">📊 Report</a>{% endif %}
+    <a href="{% url 'add_promotion' %}" class="btn-sms btn-primary-custom">+ Add Promotion</a>
+  </div>
+</div>
+
+<!-- Search & filters -->
+<form method="GET" class="promo-filters">
+  <label class="promo-search">
+    <span>🔍</span>
+    <input type="search" name="search_query" value="{{ search_query }}" placeholder="Search promotions by name, details or prizes…" aria-label="Search promotions">
+  </label>
+  <select name="company" aria-label="Company">
+    <option value="">All Companies</option>
+    {% for val,label in company_choices %}
+    <option value="{{ val }}" {% if selected_company == val %}selected{% endif %}>{{ label }}</option>
+    {% endfor %}
+  </select>
+  <select name="status" aria-label="Status">
+    <option value="">All Statuses</option>
+    {% for val,label in status_choices %}
+    <option value="{{ val }}" {% if selected_status == val %}selected{% endif %}>{{ label }}</option>
+    {% endfor %}
+  </select>
+  <button type="submit" class="btn-sms btn-primary-custom sm">Search</button>
+  {% if is_filtered %}<a href="{% url 'promotion_list' %}" class="btn-sms btn-outline-custom sm">Clear</a>{% endif %}
+</form>
+
+<div class="promo-stats">
+  <div class="stat-card">
+    <div class="stat-label">Companies</div>
+    <div class="stat-value" style="color:var(--primary)">{{ companies|length }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">{% if is_filtered %}Matching{% else %}Total{% endif %} Promotions</div>
+    <div class="stat-value" style="color:var(--info)">{{ total }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Active Now</div>
+    <div class="stat-value" style="color:var(--success)">{{ active_total }}</div>
+  </div>
+</div>
+
+<div class="promo-grid">
+  {% for c in companies %}
+  <div class="sms-card promo-company">
+    <div class="promo-company-head">
+      {% if c.logo %}
+      <img src="{% static c.logo %}" alt="{{ c.name }} logo" class="promo-logo">
+      {% else %}
+      <div class="promo-avatar" style="background:var(--accent)">{{ c.name|slice:":1" }}</div>
+      {% endif %}
+      <div style="flex:1;min-width:0">
+        <div class="promo-company-name">{{ c.name }}</div>
+        <div class="promo-company-meta">{{ c.promotions|length }} promotion{{ c.promotions|length|pluralize }} · {{ c.active_count }} active</div>
+      </div>
+    </div>
+    {% if c.promotions %}
+    <table class="sms-table">
+      <thead>
+        <tr><th>Promotion</th><th style="width:100px">Status</th><th></th></tr>
+      </thead>
+      <tbody>
+        {% for p in c.promotions %}
+        <tr class="promo-row" tabindex="0" role="button"
+            data-company="{{ p.company }}"
+            data-name="{{ p.name }}"
+            data-status="{{ p.status }}"
+            data-start="{{ p.start_date|date:'j M Y'|default:'—' }}"
+            data-end="{{ p.end_date|date:'j M Y'|default:'—' }}"
+            data-details="{{ p.details }}"
+            data-prizes="{{ p.prizes }}"
+            data-edit="{% url 'edit_promotion' p.pk %}">
+          <td>{{ p.name }}{% if p.prize_list %}<span class="prize-tag" title="Has prizes">🏆 {{ p.prize_list|length }}</span>{% endif %}
+            <span class="dates">{{ p.start_date|date:'j M Y'|default:'No start date' }} – {{ p.end_date|date:'j M Y'|default:'no end date' }}</span></td>
+          <td><span class="badge-custom {% if p.status == 'Active' %}badge-green{% elif p.status == 'Upcoming' %}badge-blue{% else %}badge-gray{% endif %}">{{ p.status }}</span></td>
+          <td class="chev">›</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="promo-empty">{% if is_filtered %}No matching promotions.{% else %}No promotions yet.{% endif %}</div>
+    {% endif %}
+  </div>
+  {% endfor %}
+</div>
+
+<!-- Promotion detail modal -->
+<div class="modal fade promo-modal" id="promoModal" tabindex="-1" aria-labelledby="pm-name" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-content">
+      <div class="modal-hero">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px">
+          <div>
+            <div class="hero-company" id="pm-company"></div>
+            <h3 class="hero-name" id="pm-name"></h3>
+            <span class="badge-custom" id="pm-status" style="margin-top:8px"></span>
+          </div>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+      </div>
+      <div class="modal-body" style="padding:22px 24px">
+        <div class="promo-detail-grid">
+          <div class="promo-detail">
+            <div class="stat-label">Start Date</div>
+            <div class="val" id="pm-start"></div>
+          </div>
+          <div class="promo-detail">
+            <div class="stat-label">End Date</div>
+            <div class="val" id="pm-end"></div>
+          </div>
+        </div>
+        <div class="form-section-title" style="margin-bottom:8px">Details</div>
+        <p class="promo-desc" id="pm-details"></p>
+        <div id="pm-prizes-wrap">
+          <div class="form-section-title" style="margin-bottom:8px">Prizes</div>
+          <ul class="prize-list" id="pm-prizes"></ul>
+        </div>
+      </div>
+      <div class="modal-footer" style="border-top:1px solid var(--border);padding:14px 24px">
+        <a href="#" id="pm-edit" class="btn-sms btn-outline-custom sm">✏️ Edit Promotion</a>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function() {
+  var modal = new bootstrap.Modal(document.getElementById('promoModal'));
+  var badgeClass = { Active:'badge-green', Upcoming:'badge-blue', Ended:'badge-gray' };
+
+  function openPromo(row) {
+    var d = row.dataset;
+    document.getElementById('pm-company').textContent     = d.company;
+    document.getElementById('pm-name').textContent        = d.name;
+    document.getElementById('pm-start').textContent       = d.start;
+    document.getElementById('pm-end').textContent         = d.end;
+    document.getElementById('pm-details').textContent     = d.details || 'No details provided.';
+    document.getElementById('pm-edit').href               = d.edit;
+    var prizes = (d.prizes || '').split('\n').map(function (s) { return s.trim(); }).filter(Boolean);
+    var list = document.getElementById('pm-prizes');
+    list.innerHTML = '';
+    prizes.forEach(function (text) {
+      var li = document.createElement('li');
+      li.textContent = '🏆 ' + text;
+      list.appendChild(li);
+    });
+    document.getElementById('pm-prizes-wrap').style.display = prizes.length ? '' : 'none';
+    var st = document.getElementById('pm-status');
+    st.textContent = d.status;
+    st.className = 'badge-custom ' + (badgeClass[d.status] || 'badge-gray');
+    modal.show();
+  }
+
+  document.querySelectorAll('.promo-row').forEach(function(row) {
+    row.addEventListener('click', function() { openPromo(row); });
+    row.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openPromo(row); }
+    });
+  });
+})();
+</script>
+{% endblock %}

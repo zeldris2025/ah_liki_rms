@@ -1,0 +1,42 @@
+{% extends 'shops/base.html' %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <h2 class="page-title">{% if product.pk %}Edit {{ product.name }}{% else %}Add Product{% endif %}</h2>
+    <p class="page-sub">Products appear on the FE Place Order screen, grouped by category.</p>
+  </div>
+  <a href="{% url 'product_list' %}" class="btn-sms btn-outline-custom">← Products</a>
+</div>
+{% if errors %}<div class="alert alert-danger">{% for e in errors %}<div>{{ e }}</div>{% endfor %}</div>{% endif %}
+<form method="post" class="sms-card" style="padding:24px;max-width:640px">
+  {% csrf_token %}
+  <div style="display:grid;grid-template-columns:1fr 2fr;gap:14px">
+    <div class="form-group"><label class="sms-label">Product No</label>
+      <input class="sms-input" name="product_no" value="{{ product.product_no|default:'' }}" maxlength="50" placeholder="e.g. 10045"></div>
+    <div class="form-group"><label class="sms-label">Product name *</label>
+      <input class="sms-input" name="name" value="{{ product.name|default:'' }}" required autofocus></div>
+  </div>
+  <div class="form-group"><label class="sms-label">Category *</label>
+    <input class="sms-input" name="category" value="{{ product.category|default:'' }}" list="cats" required placeholder="e.g. Soda, Water, Snacks">
+    <datalist id="cats">{% for c in categories %}<option value="{{ c }}">{% endfor %}</datalist></div>
+  <div class="form-group"><label class="sms-label">Quick link button</label>
+    <input class="sms-input" name="quick_link" value="{{ product.quick_link|default:'' }}" list="quick-links" maxlength="50" placeholder="Optional, e.g. Tip Top, Meat, Dairy">
+    <datalist id="quick-links">{% for q in quick_links %}<option value="{{ q }}">{% endfor %}</datalist>
+    <div style="color:var(--muted);font-size:12px;margin-top:4px">FE staff can tap this big button on the Place Order screen to jump straight to these products.</div></div>
+  <div class="form-group"><label class="sms-label">Unit of measure code</label>
+    <input class="sms-input" name="unit" value="{{ product.unit|default:'' }}" placeholder="e.g. CTN, CASE, EA"></div>
+  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px">
+    <div class="form-group"><label class="sms-label">Cost (WST)</label>
+      <input class="sms-input" name="cost" value="{{ product.cost|default_if_none:'' }}" inputmode="decimal" placeholder="Office only"></div>
+    <div class="form-group"><label class="sms-label">Unit price (WST)</label>
+      <input class="sms-input" name="unit_price" value="{{ product.unit_price|default_if_none:'' }}" inputmode="decimal" placeholder="Blank if priced by office"></div>
+    <div class="form-group"><label class="sms-label">Unit price incl. VAT</label>
+      <input class="sms-input" name="unit_price_incl_vat" value="{{ product.unit_price_incl_vat|default_if_none:'' }}" inputmode="decimal"></div>
+  </div>
+  <label style="display:flex;gap:10px;align-items:center;font-weight:600;color:var(--primary);margin:6px 0 20px">
+    <input type="checkbox" name="available" {% if not product or product.available %}checked{% endif %} style="width:18px;height:18px">
+    Available to order (untick when out of stock)
+  </label>
+  <button class="btn-sms btn-primary-custom">Save Product</button>
+</form>
+{% endblock %}

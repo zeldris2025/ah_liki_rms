@@ -1,0 +1,540 @@
+{% extends 'shops/base.html' %}
+{% block content %}
+<style>
+  /* ── Header: title · search (middle) · actions ── */
+  .ps-top { display:grid; grid-template-columns:1fr minmax(280px, 520px) 1fr; gap:16px; align-items:center; margin-bottom:16px; }
+  .ps-title h2 { margin:0; color:var(--primary); font-size:20px; font-weight:700; }
+  .ps-title p { margin:2px 0 0; color:var(--muted); font-size:13px; }
+  .ps-search { position:relative; }
+  .ps-search input { width:100%; height:46px; padding:0 110px 0 44px; border:1px solid var(--border); border-radius:999px; font-size:14px;
+                     background:var(--card); box-shadow:0 2px 8px rgba(15,23,42,.06); outline:none; transition:border-color .15s, box-shadow .15s; }
+  .ps-search input:focus { border-color:var(--accent); box-shadow:0 0 0 4px rgba(14,165,233,.15); }
+  .ps-search .icon { position:absolute; left:16px; top:50%; transform:translateY(-50%); color:var(--muted); pointer-events:none; }
+  .ps-search button { position:absolute; right:5px; top:5px; height:36px; padding:0 18px; border:none; border-radius:999px;
+                      background:var(--primary); color:#fff; font-weight:600; font-size:13px; cursor:pointer; }
+  .ps-actions { display:flex; gap:8px; justify-content:flex-end; flex-wrap:wrap; }
+  .ps-menu { position:relative; }
+  .ps-menu-list { display:none; position:absolute; right:0; top:calc(100% + 6px); min-width:240px; background:var(--card); z-index:30;
+                  border:1px solid var(--border); border-radius:12px; box-shadow:0 12px 30px rgba(15,23,42,.14); padding:6px; }
+  .ps-menu.open .ps-menu-list { display:block; }
+  .ps-menu-list a, .ps-menu-list button { display:flex; gap:10px; align-items:center; width:100%; padding:9px 12px; border:none; background:none;
+                  border-radius:8px; color:var(--primary); font:inherit; font-size:13px; text-decoration:none; cursor:pointer; text-align:left; }
+  .ps-menu-list a:hover, .ps-menu-list button:hover { background:var(--surface); }
+  .ps-menu-list small { display:block; color:var(--muted); font-size:11px; }
+  .ps-menu-list hr { margin:4px 0; border:none; border-top:1px solid var(--border); }
+
+  /* ── Filters ── */
+  .ps-filters { display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end; padding:14px 16px; margin-bottom:14px; }
+  .ps-filters label { display:block; color:var(--muted); font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; margin-bottom:4px; }
+  .ps-filters .sms-input { min-width:0; }
+  .ps-chip { display:inline-flex; align-items:center; gap:8px; padding:6px 8px 6px 12px; border-radius:999px; background:#EFF6FF;
+             border:1px solid #BFDBFE; color:#1E40AF; font-size:13px; font-weight:600; }
+  .ps-chip a { color:#1E40AF; text-decoration:none; font-size:15px; line-height:1; padding:0 4px; }
+
+  /* ── KPIs ── */
+  .ps-kpis { display:grid; grid-template-columns:repeat(5, minmax(0, 1fr)); gap:12px; margin-bottom:16px; }
+  .ps-kpis .stat-card { padding:16px 18px; }
+  .ps-kpis .stat-value { font-size:22px; }
+  .up { color:var(--success); } .down { color:var(--danger); }
+
+  /* ── Charts + quick links ── */
+  .ps-main { display:grid; grid-template-columns:minmax(0, 1fr) 270px; gap:18px; align-items:start; }
+  .ps-charts { display:grid; grid-template-columns:1fr 1fr; gap:18px; }
+  .ps-chart { padding:18px 20px 14px; }
+  .ps-chart.wide { grid-column:1 / -1; }
+  .ps-chart-head { display:flex; justify-content:space-between; align-items:flex-start; gap:10px; margin-bottom:10px; }
+  .ps-chart-head h3 { margin:0; font-size:15px; font-weight:700; color:var(--primary); }
+  .ps-chart-head p { margin:2px 0 0; color:var(--muted); font-size:12px; }
+  .ps-save { display:flex; gap:6px; flex-shrink:0; }
+  .ps-save a, .ps-save button { border:1px solid var(--border); background:var(--card); color:var(--text-secondary); border-radius:8px;
+             font:inherit; font-size:12px; font-weight:600; padding:5px 10px; cursor:pointer; text-decoration:none; white-space:nowrap; }
+  .ps-save a:hover, .ps-save button:hover { border-color:var(--accent); color:var(--accent); }
+  .ps-canvas { position:relative; height:300px; }
+  .ps-chart.wide .ps-canvas { height:340px; }
+
+  /* Quick links: stays on screen while the charts scroll; its own list scrolls when long */
+  .ps-links { position:sticky; top:16px; display:flex; flex-direction:column; max-height:calc(100vh - 32px); padding:0; }
+  .ps-links-head { padding:14px 14px 10px; border-bottom:1px solid var(--border); flex-shrink:0; }
+  .ps-links h3 { margin:0; font-size:15px; font-weight:700; color:var(--primary); }
+  .ps-links-head > p { margin:2px 0 8px; color:var(--muted); font-size:12px; }
+  .ps-links-list { overflow-y:auto; padding:0 14px 12px; flex:1; min-height:0; overscroll-behavior:contain; scrollbar-width:thin; }
+  .ps-links-list::-webkit-scrollbar { width:6px; } .ps-links-list::-webkit-scrollbar-thumb { background:#CBD5E1; border-radius:6px; }
+  .ps-sec { position:sticky; top:0; z-index:2; display:flex; justify-content:space-between; align-items:center; margin:0 -14px 6px;
+            padding:10px 14px 6px; background:var(--card); color:var(--muted); font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.08em; }
+  .ps-sec a { color:var(--accent); text-decoration:none; text-transform:none; letter-spacing:0; font-size:12px; font-weight:600; }
+  .ps-empty { color:var(--muted); font-size:12px; padding:2px 2px 6px; line-height:1.5; }
+  .ps-empty a { color:var(--accent); }
+
+  .ps-item { position:relative; }
+  .ps-targets { font-size:12px; font-weight:600; color:#7C3AED; text-decoration:none; border:1px solid #DDD6FE; background:#F5F3FF;
+                padding:3px 9px; border-radius:999px; }
+  .ps-targets:hover { background:#EDE9FE; }
+  .ps-links-find { padding:10px 14px 0; flex-shrink:0; }
+  .ps-links-find input { width:100%; height:32px; padding:0 10px; border:1px solid var(--border); border-radius:8px; font-size:12.5px; outline:none; }
+  .ps-links-find input:focus { border-color:var(--accent); box-shadow:0 0 0 3px rgba(14,165,233,.15); }
+  .ps-groups-found { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin:-4px 0 14px; }
+  .ps-groups-found .lbl { color:var(--muted); font-size:12px; font-weight:600; margin-right:2px; }
+  .ps-gfound { display:inline-flex; align-items:center; gap:8px; padding:7px 12px; border-radius:10px; border:1px solid #DDD6FE; background:#F5F3FF;
+               color:#5B21B6; text-decoration:none; font-size:13px; transition:box-shadow .15s; }
+  .ps-gfound:hover { box-shadow:0 4px 12px rgba(124,58,237,.18); }
+  .ps-gfound span { color:var(--muted); font-size:12px; }
+  .ps-gfound .go { color:#7C3AED; font-weight:600; }
+  .ps-gfound.s-good { border-color:#86EFAC; background:#F0FDF4; } .ps-gfound.s-close { border-color:#FCD34D; background:#FFFBEB; }
+  .ps-gfound.s-behind { border-color:#FCA5A5; background:#FEF2F2; }
+  .ps-link { display:block; border:1px solid var(--border); border-radius:10px; padding:7px 10px 8px 12px; margin-bottom:6px;
+             text-decoration:none; color:inherit; background:var(--card); transition:border-color .15s, box-shadow .15s, transform .1s; }
+  .ps-link:hover { border-color:var(--accent); }
+  .ps-link.all { display:flex; justify-content:space-between; align-items:center; margin:0; padding:8px 12px; }
+  .ps-link.all.on { border-color:var(--primary); box-shadow:inset 3px 0 0 var(--primary); }
+  .ps-link .n { font-weight:600; font-size:12.5px; color:var(--primary); padding-right:18px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .ps-link .n small { color:var(--muted); font-weight:400; }
+  .ps-link .mid { display:flex; align-items:baseline; gap:6px; margin-top:2px; }
+  .ps-link .t { font-weight:700; font-size:14px; color:var(--primary); font-variant-numeric:tabular-nums; }
+  .ps-link .tgt { color:var(--muted); font-size:11px; }
+  .ps-link .pct { margin-left:auto; }
+  .ps-link.on { outline:2px solid var(--primary); outline-offset:1px; }
+  .ps-act { position:absolute; top:5px; right:6px; margin:0; opacity:0; transition:opacity .15s; }
+  .ps-item:hover .ps-act, .ps-act:focus-within { opacity:1; }
+  .ps-act, .ps-act button { color:#94A3B8; text-decoration:none; font-size:12px; line-height:1; }
+  .ps-act button { border:none; background:none; cursor:pointer; padding:2px 3px; }
+  .ps-act:hover, .ps-act button:hover { color:var(--danger); }
+  a.ps-act:hover { color:var(--accent); }
+
+  /* target colours: green reached, orange almost there, red behind */
+  .ps-link.s-good   { border-color:#86EFAC; background:#F0FDF4; box-shadow:inset 4px 0 0 #16A34A; }
+  .ps-link.s-close  { border-color:#FCD34D; background:#FFFBEB; box-shadow:inset 4px 0 0 #F59E0B; }
+  .ps-link.s-behind { border-color:#FCA5A5; background:#FEF2F2; box-shadow:inset 4px 0 0 #DC2626; }
+  .tbar { height:4px; border-radius:999px; background:rgba(15,23,42,.08); overflow:hidden; margin-top:5px; }
+  .tbar span { display:block; height:100%; border-radius:999px; }
+  .tbar.s-good span { background:#16A34A; } .tbar.s-close span { background:#F59E0B; } .tbar.s-behind span { background:#DC2626; }
+  .pct { font-weight:700; font-size:11px; padding:1px 7px; border-radius:999px; }
+  .pct.s-good { background:#DCFCE7; color:#166534; } .pct.s-close { background:#FEF3C7; color:#92400E; } .pct.s-behind { background:#FEE2E2; color:#991B1B; }
+  .ps-key { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:10px; }
+  .ps-key button { display:inline-flex; align-items:center; gap:5px; border:1px solid var(--border); background:var(--card); border-radius:999px;
+                   padding:4px 9px; font:inherit; font-size:11px; font-weight:600; color:var(--text-secondary); cursor:pointer; transition:all .15s; }
+  .ps-key button b { font-weight:700; color:var(--primary); }
+  .ps-key button:hover { border-color:#94A3B8; }
+  .ps-key button[data-status="good"][aria-pressed="true"]   { background:#DCFCE7; border-color:#16A34A; color:#166534; }
+  .ps-key button[data-status="close"][aria-pressed="true"]  { background:#FEF3C7; border-color:#F59E0B; color:#92400E; }
+  .ps-key button[data-status="behind"][aria-pressed="true"] { background:#FEE2E2; border-color:#DC2626; color:#991B1B; }
+  .ps-key button[aria-pressed="true"] b { color:inherit; }
+  .ps-key i { display:inline-block; width:10px; height:10px; border-radius:3px; }
+  .ps-key i.s-good { background:#16A34A; } .ps-key i.s-close { background:#F59E0B; } .ps-key i.s-behind { background:#DC2626; }
+
+  /* ── Table ── */
+  .ps-tsearch { position:relative; flex:1 1 320px; max-width:460px; display:flex; }
+  .ps-tsearch input { flex:1; height:38px; padding:0 38px 0 38px; border:1px solid var(--border); border-radius:999px; font-size:13px; outline:none; }
+  .ps-tsearch input:focus { border-color:var(--accent); box-shadow:0 0 0 3px rgba(14,165,233,.15); }
+  .ps-tsearch .icon { position:absolute; left:13px; top:50%; transform:translateY(-50%); color:var(--muted); font-size:13px; pointer-events:none; }
+  .ps-tsearch button { position:absolute; right:4px; top:4px; height:30px; padding:0 14px; border:none; border-radius:999px;
+                       background:var(--primary); color:#fff; font-size:12px; font-weight:600; cursor:pointer; }
+  .ps-tsearch .spin { position:absolute; right:14px; top:50%; width:14px; height:14px; margin-top:-7px; border-radius:50%;
+                     border:2px solid #CBD5E1; border-top-color:var(--accent); animation:ps-spin .7s linear infinite; }
+  @keyframes ps-spin { to { transform:rotate(360deg); } }
+  #ps-table-body.loading { opacity:.55; transition:opacity .15s; }
+  .ps-table-head { display:flex; justify-content:space-between; align-items:center; gap:10px; padding:14px 16px; border-bottom:1px solid var(--border); flex-wrap:wrap; }
+  .ps-table th a { color:inherit; text-decoration:none; }
+  .num { text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
+  .star { border:none; background:none; cursor:pointer; font-size:16px; color:#CBD5E1; padding:0 4px; line-height:1; }
+  .star.on { color:#F59E0B; }
+
+  @media (max-width: 1300px) { .ps-kpis { grid-template-columns:repeat(3, minmax(0, 1fr)); } }
+  @media (max-width: 1150px) { .ps-main { grid-template-columns:1fr; } .ps-links { position:static; max-height:420px; } .ps-charts { grid-template-columns:1fr; } }
+  @media (max-width: 900px)  { .ps-top { grid-template-columns:1fr; } .ps-actions { justify-content:flex-start; } }
+
+  @media print {
+    .sidebar, .ps-actions, .ps-search, .ps-filters, .ps-save, .ps-links, .ps-table-head .btns, .ps-pager, .star, .no-print { display:none !important; }
+    .ps-main { grid-template-columns:1fr; } .ps-charts { grid-template-columns:1fr 1fr; }
+    .main-content { padding:0 !important; } .sms-card, .stat-card { box-shadow:none !important; break-inside:avoid; }
+    .ps-print-filters { display:block !important; }
+  }
+</style>
+
+{% for m in messages %}<div class="alert alert-{% if m.tags == 'error' %}danger{% else %}{{ m.tags }}{% endif %}" style="padding:10px 14px;font-size:13px">{{ m }}</div>{% endfor %}
+<div class="ps-top">
+  <div class="ps-title">
+    <h2>Product Sales</h2>
+    <p>Monthly sales by product · WST</p>
+  </div>
+  <form method="get" class="ps-search" role="search">
+    <input type="hidden" name="year" value="{{ f.year }}"><input type="hidden" name="compare" value="{{ f.compare }}">
+    {% if f.category %}<input type="hidden" name="category" value="{{ f.category }}">{% endif %}
+    {% if f.group %}<input type="hidden" name="group" value="{{ f.group.pk }}">{% endif %}
+    {% if f.start %}<input type="hidden" name="from" value="{{ f.start|date:'Y-m' }}">{% endif %}
+    {% if f.end %}<input type="hidden" name="to" value="{{ f.end|date:'Y-m' }}">{% endif %}
+    <span class="icon">🔍</span>
+    <input type="search" name="q" value="{{ f.q }}" placeholder="Search products or groups…" aria-label="Search products and groups" autofocus>
+    <button type="submit">Search</button>
+  </form>
+  {% if can_export %}
+  <div class="ps-actions">
+    <a href="{% url 'product_sales_export' %}?{{ query }}" class="btn-sms btn-primary-custom">⬇ Excel Report</a>
+    <div class="ps-menu" id="ps-menu">
+      <button type="button" class="btn-sms btn-outline-custom" aria-haspopup="true" aria-expanded="false">More ▾</button>
+      <div class="ps-menu-list" role="menu">
+        <a href="{% url 'product_sales_export' %}?{{ query }}" role="menuitem">📊<span>Full Excel report<small>Summary, every chart with Excel charts, and the data</small></span></a>
+        <a href="{% url 'product_sales_export' %}?{{ query }}&sheet=data" role="menuitem">📄<span>Table only (Excel)</span></a>
+        <a href="{% url 'product_sales_export' %}?{{ query }}&format=csv" role="menuitem">🧾<span>Table only (CSV)</span></a>
+        <hr>
+        <button type="button" id="save-all" role="menuitem">🖼<span>All charts as images<small>One PNG per chart</small></span></button>
+        <button type="button" onclick="window.print()" role="menuitem">🖨<span>Print / Save as PDF<small>Charts and figures, no menus</small></span></button>
+        <hr>
+        <a href="{% url 'import_product_sales' %}" role="menuitem">⬆<span>Upload product sales</span></a>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+</div>
+
+<!-- Filters -->
+<form method="get" class="sms-card ps-filters">
+  {% if f.q %}<input type="hidden" name="q" value="{{ f.q }}">{% endif %}
+  {% if f.product %}<input type="hidden" name="product" value="{{ f.product }}">{% endif %}
+  {% if f.group %}<input type="hidden" name="group" value="{{ f.group.pk }}">{% endif %}
+  <div><label for="year">Year</label>
+    <select id="year" name="year" class="sms-input" onchange="this.form.submit()">{% for y in f.years %}<option {% if y == f.year %}selected{% endif %}>{{ y }}</option>{% endfor %}</select></div>
+  <div><label for="compare">Compare with</label>
+    <select id="compare" name="compare" class="sms-input" onchange="this.form.submit()">
+      {% for y in f.years %}<option {% if y == f.compare %}selected{% endif %}>{{ y }}</option>{% endfor %}
+      {% if f.compare not in f.years %}<option selected>{{ f.compare }}</option>{% endif %}
+    </select></div>
+  <div><label for="from">From month</label><input id="from" type="month" name="from" value="{{ f.start|date:'Y-m' }}" class="sms-input" onchange="this.form.submit()"></div>
+  <div><label for="to">To month</label><input id="to" type="month" name="to" value="{{ f.end|date:'Y-m' }}" class="sms-input" onchange="this.form.submit()"></div>
+  {% if categories %}
+  <div><label for="category">Category</label>
+    <select id="category" name="category" class="sms-input" onchange="this.form.submit()">
+      <option value="">All categories</option>{% for c in categories %}<option {% if c == f.category %}selected{% endif %}>{{ c }}</option>{% endfor %}
+    </select></div>
+  {% endif %}
+  <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-left:auto">
+    {% if f.group %}<span class="ps-chip" style="background:#F5F3FF;border-color:#DDD6FE;color:#5B21B6">🗂 {{ f.group.name }}
+      <a href="{% url 'product_group_edit' f.group.pk %}" title="Edit this group" style="color:#5B21B6;font-size:12px">✎</a>
+      <a href="?{{ keep_query }}" title="Show all products" style="color:#5B21B6">×</a></span>{% endif %}
+    {% if f.product %}<span class="ps-chip">📦 {{ selected_name|default:f.product }} <a href="?{{ keep_query }}" title="Show all products">×</a></span>{% endif %}
+    {% if f.q %}<span class="ps-chip">🔍 “{{ f.q }}” <a href="?{{ keep_query }}{% if f.product %}&product={{ f.product|urlencode }}{% endif %}{% if f.group %}&group={{ f.group.pk }}{% endif %}" title="Clear search">×</a></span>
+      {% if not f.group and not f.product %}<a href="{% url 'product_group_add' %}?name={{ f.q|title|urlencode }}&keywords={{ f.q|urlencode }}" class="btn-sms btn-outline-custom sm" title="Make a quick link for everything matching this search">＋ Save search as group</a>{% endif %}
+    {% endif %}
+    {% if f.q or f.product or f.group or f.category or f.start or f.end %}<a href="{% url 'product_sales' %}" class="btn-sms btn-outline-custom sm">Clear all</a>{% endif %}
+  </div>
+</form>
+{% if matching_groups %}
+<div class="ps-groups-found" role="region" aria-label="Groups matching your search">
+  <span class="lbl">🗂 Groups matching “{{ f.q }}”</span>
+  {% for g in matching_groups %}
+  <a href="?{{ keep_query }}{% if keep_query %}&{% endif %}group={{ g.id }}" class="ps-gfound s-{{ g.status }}">
+    <b>{{ g.name }}</b><span>{{ g.products }} product{{ g.products|pluralize }}</span>
+    {% if g.pct is not None %}<span class="pct s-{{ g.status }}">{{ g.pct }}%</span>{% endif %}<span class="go">Open →</span>
+  </a>
+  {% endfor %}
+</div>
+{% endif %}
+<div class="ps-print-filters" style="display:none;color:var(--muted);font-size:12px;margin-bottom:10px">Filters: {{ filters_text }} · printed {% now "j M Y" %}</div>
+
+{% if not has_data %}
+<div class="sms-card" style="padding:48px;text-align:center">
+  <div style="font-size:40px">📈</div>
+  <div style="font-weight:700;color:var(--primary);font-size:16px;margin:8px 0 4px">No product sales yet</div>
+  <p style="color:var(--muted);font-size:13px;margin:0 0 16px">Upload a CSV with Product Code, Product Name, Date (YY-MM) and Total Sales.</p>
+  {% if access.bulk_import %}<a href="{% url 'import_product_sales' %}" class="btn-sms btn-primary-custom">⬆ Upload Product Sales</a>{% endif %}
+</div>
+{% else %}
+
+<!-- KPIs -->
+<div class="ps-kpis">
+  <div class="stat-card"><div class="stat-label">Sales · {{ kpi.month_label|default:f.year }}</div>
+    <div class="stat-value" style="color:var(--primary)">{% if kpi.month_value is not None %}{{ kpi.month_value|floatformat:"0g" }}{% else %}—{% endif %}</div>
+    <div class="stat-sub">{% if kpi.month_before %}<span class="pct s-{{ kpi.month_status }}">{{ kpi.month_pct }}%</span> of {{ target_month }} ({{ kpi.month_before|floatformat:"0g" }}){% else %}no {{ target_month|default:"last year" }} sales to compare{% endif %}</div></div>
+  <div class="stat-card"><div class="stat-label">vs same months {{ f.compare }}</div>
+    <div class="stat-value {% if kpi.growth > 0 %}up{% elif kpi.growth < 0 %}down{% endif %}">{% if kpi.growth is not None %}{% if kpi.growth > 0 %}▲{% elif kpi.growth < 0 %}▼{% endif %} {{ kpi.growth }}%{% else %}—{% endif %}</div>
+    <div class="stat-sub">{{ kpi.ytd_before|floatformat:"0g" }} in {{ f.compare }}</div></div>
+  <div class="stat-card"><div class="stat-label">Best month</div>
+    <div class="stat-value" style="color:var(--success)">{{ kpi.best_month|default:"—" }}</div>
+    <div class="stat-sub">{% if kpi.best_value is not None %}{{ kpi.best_value|floatformat:"0g" }}{% endif %}</div></div>
+  <div class="stat-card"><div class="stat-label">Average per month</div>
+    <div class="stat-value" style="color:var(--info)">{% if kpi.avg_month %}{{ kpi.avg_month|floatformat:"0g" }}{% else %}—{% endif %}</div></div>
+  <div class="stat-card"><div class="stat-label">Products</div>
+    <div class="stat-value" style="color:var(--primary)">{{ kpi.products }}</div>
+    <div class="stat-sub">{% if f.product %}selected{% elif f.q or f.category %}matching{% else %}with sales{% endif %}</div></div>
+</div>
+
+<div class="ps-main">
+  <!-- Charts -->
+  <div class="ps-charts">
+    <div class="sms-card ps-chart wide">
+      <div class="ps-chart-head">
+        <div><h3>1 · Monthly sales trend</h3><p>{% if f.start or f.end %}Selected months{% else %}All months uploaded{% endif %} · {% if f.product %}{{ selected_name }}{% elif f.group %}{{ f.group.name }}{% if f.q %} · matching “{{ f.q }}”{% endif %}{% elif f.q or f.category %}matching products{% else %}all products{% endif %}</p></div>
+        {% if can_export %}<div class="ps-save"><button type="button" data-png="trend">🖼 PNG</button><a href="{% url 'product_sales_export' %}?{{ query }}&sheet=trend">📊 Excel</a></div>{% endif %}
+      </div>
+      <div class="ps-canvas"><canvas id="c-trend" role="img" aria-label="Monthly sales trend"></canvas></div>
+    </div>
+
+    <div class="sms-card ps-chart wide">
+      <div class="ps-chart-head">
+        <div><h3>2 · {{ f.year }} vs {{ f.compare }} by month</h3><p>Same month, side by side · hover for the % change</p></div>
+        {% if can_export %}<div class="ps-save"><button type="button" data-png="yoy">🖼 PNG</button><a href="{% url 'product_sales_export' %}?{{ query }}&sheet=yoy">📊 Excel</a></div>{% endif %}
+      </div>
+      <div class="ps-canvas"><canvas id="c-yoy" role="img" aria-label="{{ f.year }} against {{ f.compare }} by month"></canvas></div>
+    </div>
+
+    <div class="sms-card ps-chart">
+      <div class="ps-chart-head">
+        <div><h3>3 · Year to date, running total</h3><p>Are we ahead of {{ f.compare }}?</p></div>
+        {% if can_export %}<div class="ps-save"><button type="button" data-png="cumulative">🖼 PNG</button><a href="{% url 'product_sales_export' %}?{{ query }}&sheet=cumulative">📊 Excel</a></div>{% endif %}
+      </div>
+      <div class="ps-canvas"><canvas id="c-cumulative" role="img" aria-label="Running total year to date"></canvas></div>
+    </div>
+
+    <div class="sms-card ps-chart">
+      <div class="ps-chart-head">
+        <div><h3>4 · Top 10 products</h3><p>{{ top_label }} · click a bar to open that product</p></div>
+        {% if can_export %}<div class="ps-save"><button type="button" data-png="top">🖼 PNG</button><a href="{% url 'product_sales_export' %}?{{ query }}&sheet=top">📊 Excel</a></div>{% endif %}
+      </div>
+      <div class="ps-canvas"><canvas id="c-top" role="img" aria-label="Top 10 products by sales"></canvas></div>
+    </div>
+  </div>
+
+  <!-- Quick links -->
+  <aside class="sms-card ps-links" aria-label="Quick links">
+    <div class="ps-links-head">
+      <div style="display:flex;justify-content:space-between;align-items:center"><h3>★ Quick links</h3>
+        <a href="{% url 'quick_link_targets' %}?year={{ f.year }}" class="ps-targets" title="Set targets by hand">🎯 Targets</a></div>
+      <p>{{ link_month }} vs target · 🎯 = set by hand, otherwise {{ target_month }}</p>
+      <div class="ps-key" role="group" aria-label="Show quick links by target">
+        <button type="button" data-status="good" aria-pressed="false"><i class="s-good"></i>Reached <b>{{ status_counts.good }}</b></button>
+        <button type="button" data-status="close" aria-pressed="false"><i class="s-close"></i>{{ close_pct }}–99% <b>{{ status_counts.close }}</b></button>
+        <button type="button" data-status="behind" aria-pressed="false"><i class="s-behind"></i>Below {{ close_pct }}% <b>{{ status_counts.behind }}</b></button>
+      </div>
+      <a href="?{{ keep_query }}" class="ps-link all {% if not f.product and not f.group %}on{% endif %}">
+        <span class="n">All products</span><span class="tgt">{{ all_products }}</span>
+      </a>
+    </div>
+
+    <div class="ps-links-find"><input type="search" id="ps-find" placeholder="Filter quick links…" aria-label="Filter quick links" autocomplete="off"></div>
+    <div class="ps-links-list">
+      <div class="ps-sec"><span>Lowest first · {{ quick|length }}</span><a href="{% url 'product_group_add' %}" title="Create a group of products">＋ New group</a></div>
+      {% for q in quick %}
+      <div class="ps-item" data-status="{{ q.status }}">
+        {% if q.kind == 'group' %}
+        <a href="?{{ keep_query }}{% if keep_query %}&{% endif %}group={{ q.id }}" class="ps-link s-{{ q.status }} {% if f.group.pk == q.id %}on{% endif %}"
+           title="Group: {{ q.name }} · {{ q.products }} product{{ q.products|pluralize }}&#10;{{ link_month }}: {{ q.month_sales|floatformat:'0g'|default:'—' }}{% if q.target %} of {{ q.target|floatformat:'0g' }} ({% if q.manual_target %}target set by hand{% else %}{{ target_month }}{% endif %}){% endif %}&#10;YTD {{ q.total|floatformat:'0g' }}{% if q.growth is not None %} · {{ q.growth }}% vs {{ f.compare }}{% endif %}">
+          <div class="n">🗂 {{ q.name }} <small>· {{ q.products }}</small></div>
+          {% include 'shops/_ps_link_figures.html' with l=q %}
+        </a>
+        <a href="{% url 'product_group_edit' q.id %}" class="ps-act" title="Edit group" aria-label="Edit group {{ q.name }}">✎</a>
+        {% else %}
+        <a href="?{{ keep_query }}{% if keep_query %}&{% endif %}product={{ q.code|urlencode }}" class="ps-link s-{{ q.status }} {% if f.product|lower == q.code|lower %}on{% endif %}"
+           title="{{ q.name }} · {{ q.code }}&#10;{{ link_month }}: {{ q.month_sales|floatformat:'0g'|default:'—' }}{% if q.target %} of {{ q.target|floatformat:'0g' }} ({% if q.manual_target %}target set by hand{% else %}{{ target_month }}{% endif %}){% endif %}&#10;YTD {{ q.total|floatformat:'0g' }}{% if q.growth is not None %} · {{ q.growth }}% vs {{ f.compare }}{% endif %}">
+          <div class="n">{{ q.name }}</div>
+          {% include 'shops/_ps_link_figures.html' with l=q %}
+        </a>
+        <form method="post" action="{% url 'product_sales_pin' %}" class="ps-act">{% csrf_token %}
+          <input type="hidden" name="code" value="{{ q.code }}"><input type="hidden" name="next" value="{{ page_url }}">
+          <button type="submit" title="Remove from quick links" aria-label="Unpin {{ q.name }}">✕</button>
+        </form>
+        {% endif %}
+      </div>
+      {% empty %}
+      <div class="ps-empty"><a href="{% url 'product_group_add' %}">Create a group</a> (e.g. “Tip Top”), or click <b style="color:#F59E0B">☆</b> next to a product in the table to pin it here.</div>
+      {% endfor %}
+      <div class="ps-find-none ps-empty" hidden>No quick links match.</div>
+    </div>
+  </aside>
+</div>
+
+<!-- Table -->
+<div class="sms-card ps-table" id="ps-table" style="margin-top:18px;scroll-margin-top:16px">
+  <div class="ps-table-head">
+    <div style="font-weight:700;color:var(--primary)">Product sales <span id="ps-table-count" style="color:var(--muted);font-weight:400;font-size:13px">·
+      {% if table_total is not None %}{{ row_count }} of {{ table_total }} rows{% else %}{{ row_count }} row{{ row_count|pluralize }}{% endif %}</span></div>
+    <form method="get" action="#ps-table" class="ps-tsearch" id="ps-tsearch" role="search">
+      {% for k, v in table_keep %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endfor %}
+      <span class="icon">🔍</span>
+      <input type="search" name="tq" id="ps-tq" value="{{ f.tq }}" placeholder="Type to search products in the table…"
+             aria-label="Search the product sales table" autocomplete="off">
+      <span class="spin" id="ps-tspin" hidden></span>
+    </form>
+    {% if can_export %}<div class="btns" style="display:flex;gap:6px">
+      <a href="{% url 'product_sales_export' %}?{{ query }}&sheet=data" class="btn-sms btn-outline-custom sm" data-export="sheet=data">⬇ Excel</a>
+      <a href="{% url 'product_sales_export' %}?{{ query }}&format=csv" class="btn-sms btn-outline-custom sm" data-export="format=csv">⬇ CSV</a>
+    </div>{% endif %}
+  </div>
+  {% include 'shops/_ps_table.html' %}
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+(function () {
+  // "More" menu
+  var menu = document.getElementById('ps-menu');
+  if (menu) menu.querySelector('button').addEventListener('click', function (e) {
+    e.stopPropagation();
+    var open = menu.classList.toggle('open');
+    this.setAttribute('aria-expanded', open);
+  });
+  document.addEventListener('click', function () { if (menu) menu.classList.remove('open'); });
+
+  // Product table: live search as you type (only the table is fetched, not the charts)
+  var tForm = document.getElementById('ps-tsearch'), tq = document.getElementById('ps-tq');
+  if (tForm && tq) {
+    var timer, seq = 0;
+    tForm.addEventListener('submit', function (e) { e.preventDefault(); run(); });
+    tq.addEventListener('input', function () { clearTimeout(timer); timer = setTimeout(run, 250); });
+    function run() {
+      var params = new URLSearchParams(new FormData(tForm));
+      if (!tq.value.trim()) params.delete('tq');
+      var mine = ++seq, body = document.getElementById('ps-table-body');
+      document.getElementById('ps-tspin').hidden = false;
+      if (body) body.classList.add('loading');
+      var partial = new URLSearchParams(params); partial.set('partial', 'table');
+      fetch('?' + partial.toString(), { headers: { 'X-Requested-With': 'fetch' }, credentials: 'same-origin' })
+        .then(function (r) { return r.text(); })
+        .then(function (html) {
+          if (mine !== seq) return;   // a newer search already started
+          var tpl = document.createElement('template'); tpl.innerHTML = html.trim();
+          var fresh = tpl.content.getElementById('ps-table-body');
+          document.getElementById('ps-table-body').replaceWith(fresh);
+          var n = +fresh.dataset.count, total = fresh.dataset.total;
+          document.getElementById('ps-table-count').textContent = '· ' + (total ? n + ' of ' + total + ' rows' : n + ' row' + (n === 1 ? '' : 's'));
+          var qs = params.toString();
+          document.querySelectorAll('[data-export]').forEach(function (a) {
+            a.href = '{% url "product_sales_export" %}?' + qs + (qs ? '&' : '') + a.getAttribute('data-export');
+          });
+          try { history.replaceState(null, '', '?' + qs + '#ps-table'); } catch (e) {}
+        })
+        .catch(function () { tForm.submit(); })   // if the live request fails, fall back to a normal search
+        .finally(function () { if (mine === seq) document.getElementById('ps-tspin').hidden = true; });
+    }
+  }
+
+  // Filter the quick links: by typing, and by the Reached / 70–99% / Below buttons (both work together)
+  var find = document.getElementById('ps-find'), statusOn = '';
+  function filterLinks() {
+    var q = find ? find.value.trim().toLowerCase() : '', shown = 0;
+    document.querySelectorAll('.ps-links-list .ps-item').forEach(function (el) {
+      var hit = (!q || el.querySelector('.ps-link').getAttribute('title').toLowerCase().indexOf(q) !== -1) &&
+                (!statusOn || el.getAttribute('data-status') === statusOn);
+      el.hidden = !hit; if (hit) shown++;
+    });
+    var none = document.querySelector('.ps-links-list .ps-find-none');
+    if (none) none.hidden = !(q || statusOn) || shown > 0;
+  }
+  if (find) find.addEventListener('input', filterLinks);
+  document.querySelectorAll('.ps-key button').forEach(function (b) {
+    b.addEventListener('click', function () {
+      statusOn = statusOn === b.getAttribute('data-status') ? '' : b.getAttribute('data-status');   // click again to show all
+      document.querySelectorAll('.ps-key button').forEach(function (x) {
+        x.setAttribute('aria-pressed', x.getAttribute('data-status') === statusOn ? 'true' : 'false');
+      });
+      filterLinks();
+    });
+  });
+
+  if (!document.getElementById('c-trend')) return;   // no data yet
+  var D = {{ chart_data|safe }};
+  var YEAR = D.yoy.year, COMPARE = D.yoy.compare;
+  var INK = '#0F172A', ACCENT = '#0EA5E9', PREV = '#94A3B8';
+
+  function short(v) {
+    var a = Math.abs(v);
+    if (a >= 1e6) return (v / 1e6).toFixed(a >= 1e7 ? 0 : 1) + 'M';
+    if (a >= 1e3) return (v / 1e3).toFixed(a >= 1e4 ? 0 : 1) + 'k';
+    return v;
+  }
+  function wst(v) { return v == null ? '—' : 'WST ' + Number(v).toLocaleString(undefined, { maximumFractionDigits: 0 }); }
+  // White background so saved PNGs aren't transparent
+  var whiteBg = { id: 'whiteBg', beforeDraw: function (c) {
+    var ctx = c.ctx; ctx.save(); ctx.globalCompositeOperation = 'destination-over'; ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, c.width, c.height); ctx.restore(); } };
+  Chart.register(whiteBg);
+  Chart.defaults.font.family = "'Segoe UI', system-ui, sans-serif";
+  Chart.defaults.color = '#64748B';
+
+  var axis = { y: { beginAtZero: true, border: { display: false }, grid: { color: '#EEF2F7' }, ticks: { callback: short, maxTicksLimit: 6 } },
+               x: { grid: { display: false }, ticks: { maxRotation: 0, autoSkipPadding: 14 } } };
+  var tip = { backgroundColor: INK, padding: 10, callbacks: { label: function (c) { return ' ' + c.dataset.label + ': ' + wst(c.parsed.y); } } };
+  var legend = { position: 'bottom', labels: { boxWidth: 12, boxHeight: 12, usePointStyle: true, pointStyle: 'rectRounded' } };
+  var charts = {}, titles = {
+    trend: 'Monthly sales trend', yoy: YEAR + ' vs ' + COMPARE + ' by month',
+    cumulative: 'Year to date running total, ' + YEAR + ' vs ' + COMPARE, top: 'Top 10 products'
+  };
+
+  charts.trend = new Chart(document.getElementById('c-trend'), {
+    type: 'line',
+    data: { labels: D.trend.labels, datasets: [{ label: 'Total sales', data: D.trend.values, borderColor: ACCENT, borderWidth: 2.5,
+      backgroundColor: 'rgba(14,165,233,.12)', fill: true, tension: .3, pointRadius: 3, pointHoverRadius: 6, pointBackgroundColor: ACCENT }] },
+    options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
+      plugins: { legend: { display: false }, tooltip: tip }, scales: axis }
+  });
+
+  charts.yoy = new Chart(document.getElementById('c-yoy'), {
+    type: 'bar',
+    data: { labels: D.yoy.labels, datasets: [
+      { label: String(YEAR), data: D.yoy.this, backgroundColor: ACCENT, borderRadius: 5, maxBarThickness: 28 },
+      { label: String(COMPARE), data: D.yoy.last, backgroundColor: '#CBD5E1', borderRadius: 5, maxBarThickness: 28 } ] },
+    options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
+      plugins: { legend: legend, tooltip: Object.assign({}, tip, { callbacks: Object.assign({}, tip.callbacks, {
+        afterBody: function (items) {
+          var i = items[0].dataIndex, now = D.yoy.this[i], before = D.yoy.last[i];
+          if (now == null || !before) return [];
+          var p = (now - before) / before * 100;
+          return ['', ' ' + (p >= 0 ? '▲ +' : '▼ ') + p.toFixed(1) + '% vs ' + COMPARE];
+        } }) }) },
+      scales: axis }
+  });
+
+  charts.cumulative = new Chart(document.getElementById('c-cumulative'), {
+    type: 'line',
+    data: { labels: D.yoy.labels, datasets: [
+      { label: String(YEAR), data: D.cumulative.this, borderColor: ACCENT, backgroundColor: ACCENT, borderWidth: 2.5, tension: .25, pointRadius: 2 },
+      { label: String(COMPARE), data: D.cumulative.last, borderColor: PREV, backgroundColor: PREV, borderDash: [6, 5], borderWidth: 2, tension: .25, pointRadius: 0 } ] },
+    options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
+      plugins: { legend: legend, tooltip: tip }, scales: axis }
+  });
+
+  charts.top = new Chart(document.getElementById('c-top'), {
+    type: 'bar',
+    data: { labels: D.top.labels, datasets: [{ label: 'Total sales', data: D.top.values, borderRadius: 4, maxBarThickness: 18,
+      backgroundColor: D.top.values.map(function (_, i) { return i === 0 ? INK : ACCENT; }) }] },
+    options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: { backgroundColor: INK, callbacks: { label: function (c) { return ' ' + wst(c.parsed.x); } } } },
+      scales: { x: { beginAtZero: true, border: { display: false }, grid: { color: '#EEF2F7' }, ticks: { callback: short, maxTicksLimit: 5 } },
+                y: { grid: { display: false }, ticks: { font: { size: 11 }, callback: function (v) { var s = this.getLabelForValue(v); return s.length > 24 ? s.slice(0, 23) + '…' : s; } } } },
+      onClick: function (e, els) {
+        if (!els.length) return;
+        var params = new URLSearchParams(location.search);
+        params.set('product', D.top.codes[els[0].index]); params.delete('q'); params.delete('page');
+        location.search = params.toString();
+      },
+      onHover: function (e, els) { e.native.target.style.cursor = els.length ? 'pointer' : 'default'; } }
+  });
+
+  // Save a chart as PNG, with its title and filters written on the image
+  function savePng(key) {
+    var c = charts[key];
+    var before = c.options.plugins.title, pad = c.options.layout.padding;
+    c.options.plugins.title = { display: true, text: [titles[key], 'Ah Liki Wholesale · ' + '{{ filters_text|escapejs }}'],
+                                color: INK, font: { size: 15, weight: '700' }, padding: { bottom: 14 } };
+    c.options.layout.padding = 16;
+    c.update('none');
+    var a = document.createElement('a');
+    a.href = c.toBase64Image('image/png', 1);
+    a.download = 'product_sales_' + key + '_' + YEAR + '.png';
+    document.body.appendChild(a); a.click(); a.remove();
+    c.options.plugins.title = before || { display: false }; c.options.layout.padding = pad;
+    c.update('none');
+  }
+  document.querySelectorAll('[data-png]').forEach(function (b) {
+    b.addEventListener('click', function () { savePng(b.getAttribute('data-png')); });
+  });
+  var saveAll = document.getElementById('save-all');
+  if (saveAll) saveAll.addEventListener('click', function () {
+    Object.keys(charts).forEach(function (k, i) { setTimeout(function () { savePng(k); }, i * 400); });
+  });
+
+})();
+</script>
+{% endblock %}

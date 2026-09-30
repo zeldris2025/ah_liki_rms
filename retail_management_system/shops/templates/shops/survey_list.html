@@ -5,7 +5,8 @@
     <h1 class="page-title">Surveys</h1>
     <p class="page-sub">Manage staff surveys and market research data</p>
   </div>
-  <div>
+  <div style="display:flex;gap:8px">
+    {% if access.surveys %}<a href="{% url 'import_surveys' %}" class="btn-sms btn-outline-custom">📥 Import CSV</a>{% endif %}
     <a href="{% url 'add_survey' %}" class="btn-sms btn-primary-custom">+ Create Survey</a>
   </div>
 </div>
@@ -59,6 +60,7 @@
             <a href="{% url 'survey_detail' survey.id %}" class="btn-sms btn-outline-custom sm">View</a>
             <a href="{% url 'survey_analysis' survey.id %}" class="btn-sms btn-accent-custom sm">Analyze</a>
             <a href="{% url 'edit_survey' survey.id %}" class="btn-sms btn-outline-custom sm">Edit</a>
+            <a href="{% url 'delete_survey' survey.id %}" class="btn-sms btn-danger-custom sm" title="Delete this survey and its {{ survey.response_count }} response{{ survey.response_count|pluralize }}">Delete</a>
           </td>
         </tr>
         {% endfor %}

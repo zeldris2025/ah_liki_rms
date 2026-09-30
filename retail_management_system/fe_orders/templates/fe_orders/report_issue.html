@@ -1,0 +1,73 @@
+{% extends 'fe_orders/fe_base.html' %}
+{% block title %}Report Issue — Ah Liki FE{% endblock %}
+{% block extra_css %}
+<style>
+  .cat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; }
+  .cat-grid label { display: flex; align-items: center; justify-content: center; text-align: center; min-height: 64px; border: 2px solid var(--border);
+                    border-radius: 14px; font-size: 16px; font-weight: 700; color: var(--primary); cursor: pointer; background: #fff; padding: 8px; }
+  .cat-grid input { display: none; }
+  .cat-grid input:checked + label { background: var(--warn); border-color: var(--warn); color: #fff; }
+  .shop-results { border: 2px solid var(--border); border-radius: 14px; margin-top: 6px; display: none; max-height: 300px; overflow-y: auto; }
+  .shop-opt { padding: 12px 16px; border-bottom: 1px solid var(--border); cursor: pointer; }
+  .shop-opt:last-child { border-bottom: none; }
+  .shop-opt:active { background: #FFFBEB; }
+  .shop-opt span { display: block; font-size: 13px; color: var(--muted); }
+</style>
+{% endblock %}
+{% block content %}
+<h1 class="page-title">⚠️ Report an Issue</h1>
+<p class="page-sub">Tell the office what’s wrong. Add a photo if you can.</p>
+<form method="post" enctype="multipart/form-data">
+  {% csrf_token %}
+  <div class="card">
+    <div class="card-title">What kind of issue?</div>
+    <div class="cat-grid">
+      {% for value, label in categories %}
+      <input type="radio" name="category" id="cat{{ forloop.counter }}" value="{{ value }}" required>
+      <label for="cat{{ forloop.counter }}">{{ label }}</label>
+      {% endfor %}
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title">Which shop? <span style="text-transform:none;letter-spacing:0;font-weight:400">(optional)</span></div>
+    <input type="hidden" name="shop_id" id="shop-id">
+    <input class="input" id="shop-search" placeholder="Type the shop name…" autocomplete="off">
+    <div class="shop-results" id="shop-results"></div>
+  </div>
+  <div class="card">
+    <div class="card-title">Describe the problem</div>
+    <textarea class="input" name="description" rows="4" required placeholder="e.g. Taula fridge not cooling since Monday"></textarea>
+    <label class="lbl" style="margin-top:16px">📷 Photo (optional)</label>
+    <input class="input" type="file" name="photo" accept="image/*" capture="environment">
+  </div>
+  <button class="btn btn-primary" style="width:100%;font-size:19px;min-height:60px;background:var(--warn)">Send Report</button>
+</form>
+{{ shops|json_script:"shops-data" }}
+{% endblock %}
+{% block extra_js %}
+<script>
+(function () {
+  var shops = JSON.parse(document.getElementById('shops-data').textContent);
+  var input = document.getElementById('shop-search'), box = document.getElementById('shop-results'), hidden = document.getElementById('shop-id');
+  var hits = [];
+  function esc(s) { var d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
+  function choose(s) { hidden.value = s.id; input.value = s.name; box.style.display = 'none'; }
+  input.addEventListener('input', function () {
+    hidden.value = '';
+    var q = input.value.trim().toLowerCase();
+    if (!q) { box.style.display = 'none'; return; }
+    hits = shops.filter(function (s) { return (s.name + ' ' + s.address).toLowerCase().indexOf(q) !== -1; }).slice(0, 12);
+    box.innerHTML = hits.map(function (s, i) {
+      return '<div class="shop-opt" data-i="' + i + '"><b>' + esc(s.name) + '</b><span>' + esc([s.address, s.territory].filter(Boolean).join(' · ')) + '</span></div>';
+    }).join('') || '<div class="shop-opt muted">No match</div>';
+    box.style.display = 'block';
+  });
+  box.addEventListener('click', function (e) {
+    var o = e.target.closest('[data-i]');
+    if (o) choose(hits[+o.getAttribute('data-i')]);
+  });
+  var pre = '{{ preselect|default:""|escapejs }}';
+  shops.forEach(function (s) { if (String(s.id) === pre) choose(s); });
+})();
+</script>
+{% endblock %}

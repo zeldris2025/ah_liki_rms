@@ -16,7 +16,7 @@ class Command(BaseCommand):
             # Upolu - Region 1
             {
                 'name': 'Central Convenience Store',
-                'owner': 'Tasi Fuafua',
+                'contact_person': 'Tasi Fuafua',
                 'phone': '+685 7777 001',
                 'address': 'Main Street, Apia',
                 'island': 'Upolu',
@@ -25,7 +25,7 @@ class Command(BaseCommand):
             },
             {
                 'name': 'Beach Side Market',
-                'owner': 'Leilani Vaai',
+                'contact_person': 'Leilani Vaai',
                 'phone': '+685 7777 002',
                 'address': 'Seaside Rd, Apia',
                 'island': 'Upolu',
@@ -34,7 +34,7 @@ class Command(BaseCommand):
             },
             {
                 'name': 'Upolu Plaza Shop',
-                'owner': 'Siale Uili',
+                'contact_person': 'Siale Uili',
                 'phone': '+685 7777 003',
                 'address': 'Plaza Center, Apia',
                 'island': 'Upolu',
@@ -44,7 +44,7 @@ class Command(BaseCommand):
             # Upolu - Region 2
             {
                 'name': 'Savai\'i Valley Store',
-                'owner': 'Fafagaloa Samoa',
+                'contact_person': 'Fafagaloa Samoa',
                 'phone': '+685 7777 004',
                 'address': 'Valley Rd, Vailoa',
                 'island': 'Upolu',
@@ -53,7 +53,7 @@ class Command(BaseCommand):
             },
             {
                 'name': 'Mountain View Retail',
-                'owner': 'Pepe Toefili',
+                'contact_person': 'Pepe Toefili',
                 'phone': '+685 7777 005',
                 'address': 'Highland Ave, Samoa',
                 'island': 'Upolu',
@@ -63,7 +63,7 @@ class Command(BaseCommand):
             # Upolu - Region 3
             {
                 'name': 'East Side Shops',
-                'owner': 'Malosi Aileen',
+                'contact_person': 'Malosi Aileen',
                 'phone': '+685 7777 006',
                 'address': 'East Way, Samoa',
                 'island': 'Upolu',
@@ -72,7 +72,7 @@ class Command(BaseCommand):
             },
             {
                 'name': 'Premium Distribution',
-                'owner': 'Vaovaai Ulafala',
+                'contact_person': 'Vaovaai Ulafala',
                 'phone': '+685 7777 007',
                 'address': 'Commerce St, Samoa',
                 'island': 'Upolu',
@@ -82,7 +82,7 @@ class Command(BaseCommand):
             # Upolu - Region 4
             {
                 'name': 'South Bay Market',
-                'owner': 'Taulapapa Vai',
+                'contact_person': 'Taulapapa Vai',
                 'phone': '+685 7777 008',
                 'address': 'Bay Front, Samoa',
                 'island': 'Upolu',
@@ -92,7 +92,7 @@ class Command(BaseCommand):
             # Savaii - Region 1
             {
                 'name': 'Savaii Main Store',
-                'owner': 'Fa\'asaleleaga Samoa',
+                'contact_person': 'Fa\'asaleleaga Samoa',
                 'phone': '+685 7777 009',
                 'address': 'Main Rd, Savaii',
                 'island': 'Savaii',
@@ -101,7 +101,7 @@ class Command(BaseCommand):
             },
             {
                 'name': 'Island Express Market',
-                'owner': 'Pule Samoa',
+                'contact_person': 'Pule Samoa',
                 'phone': '+685 7777 010',
                 'address': 'Island Blvd, Savaii',
                 'island': 'Savaii',
@@ -111,7 +111,7 @@ class Command(BaseCommand):
             # Savaii - Region 2
             {
                 'name': 'Savaii Center Shop',
-                'owner': 'Tapua\'i Samoa',
+                'contact_person': 'Tapua\'i Samoa',
                 'phone': '+685 7777 011',
                 'address': 'Center Sq, Savaii',
                 'island': 'Savaii',
@@ -121,7 +121,7 @@ class Command(BaseCommand):
             # Savaii - Region 3
             {
                 'name': 'West Savaii Store',
-                'owner': 'Toaga Laifailai',
+                'contact_person': 'Toaga Laifailai',
                 'phone': '+685 7777 012',
                 'address': 'West Way, Savaii',
                 'island': 'Savaii',

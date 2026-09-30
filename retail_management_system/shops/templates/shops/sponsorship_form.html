@@ -40,6 +40,15 @@
       </div>
 
       <div class="form-group">
+        <label class="sms-label">Sponsorship Type</label>
+        <select name="sponsorship_type" class="sms-input">
+          {% for val, label in sponsorship_types %}
+          <option value="{{ val }}" {% if sp.sponsorship_type == val or not sp and val == 'Cash Value' %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="form-group">
         <label class="sms-label">Value (WST) <span style="color:var(--danger)">*</span></label>
         <input type="number" name="value" value="{{ sp.value|default:'' }}" step="0.01" min="0" required class="sms-input" placeholder="0.00">
       </div>

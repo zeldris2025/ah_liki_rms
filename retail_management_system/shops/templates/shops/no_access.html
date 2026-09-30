@@ -1,0 +1,11 @@
+{% extends 'shops/base.html' %}
+{% block content %}
+<div class="sms-card" style="max-width:520px;margin:60px auto;padding:36px;text-align:center">
+  <div style="font-size:40px;margin-bottom:10px">🔒</div>
+  <h2 class="page-title" style="margin-bottom:8px">No access</h2>
+  <p style="color:var(--muted);font-size:14px;margin:0 0 20px">
+    Your access level ({{ role }}) doesn’t include {{ what }}. Ask a manager if you need it.
+  </p>
+  <a href="{% url 'dashboard' %}" class="btn-sms btn-primary-custom">← Back to Dashboard</a>
+</div>
+{% endblock %}

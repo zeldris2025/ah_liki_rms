@@ -1,0 +1,4 @@
+# Secrets (Telegram bot token)
+.env
+# Daily sales files (business data, not code)
+exports/

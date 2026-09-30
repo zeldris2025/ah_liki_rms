@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Ah Liki FE{% endblock %}</title>
+  <style>
+    :root {
+      --primary: #0F172A; --primary2: #1E293B; --accent: #0EA5E9; --surface: #F1F5F9; --card: #FFFFFF;
+      --muted: #64748B; --border: #E2E8F0; --success: #16A34A; --danger: #DC2626; --warn: #D97706;
+    }
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    body { margin: 0; font-family: 'Segoe UI', system-ui, sans-serif; background: var(--surface); color: #1F2937; font-size: 16px; }
+    a { color: inherit; }
+    .topbar { background: var(--primary); color: #fff; display: flex; align-items: center; gap: 12px; padding: 12px 20px; position: sticky; top: 0; z-index: 50; }
+    .topbar .brand { font-weight: 700; font-size: 18px; text-decoration: none; display: flex; flex-direction: column; line-height: 1.15; }
+    .topbar .brand small { color: var(--accent); font-size: 10px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; }
+    .topbar .spacer { flex: 1; }
+    .topbar .user { color: rgba(255,255,255,.7); font-size: 14px; }
+    .tb-btn { background: rgba(255,255,255,.12); color: #fff; text-decoration: none; border-radius: 10px; padding: 10px 16px; font-size: 15px; font-weight: 600; white-space: nowrap; }
+    .tb-btn:active { background: rgba(255,255,255,.25); }
+    .wrap { max-width: 1100px; margin: 0 auto; padding: 22px 18px 120px; }
+    .page-title { font-size: 24px; font-weight: 700; color: var(--primary); margin: 0 0 4px; }
+    .page-sub { color: var(--muted); margin: 0 0 20px; font-size: 15px; }
+    .head-row { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; margin-bottom: 18px; }
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 20px; margin-bottom: 16px; }
+    .card-title { font-size: 13px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 0 0 14px; }
+    .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; border: none; border-radius: 12px; padding: 14px 22px; font-size: 17px; font-weight: 700; cursor: pointer; text-decoration: none; min-height: 52px; }
+    .btn-primary { background: var(--primary); color: #fff; }
+    .btn-accent { background: var(--accent); color: #fff; }
+    .btn-success { background: var(--success); color: #fff; }
+    .btn-light { background: #fff; color: var(--primary); border: 2px solid var(--border); }
+    .btn:disabled { opacity: .45; cursor: not-allowed; }
+    .input, select.input, textarea.input { width: 100%; font-size: 18px; padding: 14px 16px; border: 2px solid var(--border); border-radius: 12px; background: #fff; color: var(--primary); outline: none; font-family: inherit; }
+    .input:focus { border-color: var(--accent); }
+    label.lbl { display: block; font-size: 14px; font-weight: 700; color: var(--primary); margin-bottom: 6px; }
+    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .pills { display: flex; gap: 10px; flex-wrap: wrap; }
+    .pill { border: 2px solid var(--border); background: #fff; color: var(--primary); border-radius: 999px; padding: 11px 20px; font-size: 16px; font-weight: 600; cursor: pointer; text-decoration: none; min-height: 48px; display: inline-flex; align-items: center; gap: 6px; }
+    .pill.active { background: var(--primary); border-color: var(--primary); color: #fff; }
+    .tbl { width: 100%; border-collapse: collapse; }
+    .tbl th { text-align: left; font-size: 12px; font-weight: 800; letter-spacing: .07em; text-transform: uppercase; color: var(--muted); padding: 10px 12px; border-bottom: 2px solid var(--border); }
+    .tbl td { padding: 14px 12px; border-bottom: 1px solid var(--border); font-size: 16px; vertical-align: middle; }
+    .tbl tr.link { cursor: pointer; }
+    .tbl tr.link:active td { background: #F0F9FF; }
+    .status { display: inline-block; font-size: 13px; font-weight: 700; border-radius: 999px; padding: 4px 12px; white-space: nowrap; }
+    .s-Pending, .s-Open { background: #FEF3C7; color: #92400E; }
+    .s-Confirmed, .s-In { background: #DBEAFE; color: #1E40AF; }
+    .s-Delivered, .s-Resolved { background: #DCFCE7; color: #166534; }
+    .s-Cancelled { background: #F1F5F9; color: #475569; }
+    .msg { border-radius: 12px; padding: 14px 18px; margin-bottom: 16px; font-weight: 600; }
+    .msg-success { background: #DCFCE7; color: #166534; }
+    .msg-error { background: #FEE2E2; color: #991B1B; }
+    .muted { color: var(--muted); }
+    .empty { text-align: center; color: var(--muted); padding: 40px 10px; font-size: 17px; }
+    @media (max-width: 640px) {
+      .grid2 { grid-template-columns: 1fr; }
+      .topbar .user { display: none; }
+      .tbl .hide-sm { display: none; }
+    }
+  </style>
+  {% block extra_css %}{% endblock %}
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="{% url 'fe_home' %}"><small>Ah Liki Wholesale</small>FE Ordering</a>
+  <span class="spacer"></span>
+  {% if not is_fe %}<a class="tb-btn" href="{% url 'dashboard' %}">← Dashboard</a>{% endif %}
+  {% if request.resolver_match.url_name != 'fe_home' %}<a class="tb-btn" href="{% url 'fe_home' %}">🏠 Home</a>{% endif %}
+  <span class="user">👤 {{ user.username }}</span>
+  <a class="tb-btn" href="{% url 'logout' %}">Logout</a>
+</header>
+<main class="wrap">
+  {% for m in messages %}<div class="msg msg-{{ m.tags }}">{{ m }}</div>{% endfor %}
+  {% block content %}{% endblock %}
+</main>
+{% block extra_js %}{% endblock %}
+</body>
+</html>

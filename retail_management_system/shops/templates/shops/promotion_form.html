@@ -1,0 +1,65 @@
+{% extends 'shops/base.html' %}
+{% block content %}
+<div class="page-header">
+  <div><h2 class="page-title">{{ action }} Promotion{% if promo.pk %} — {{ promo.name }}{% endif %}</h2></div>
+  <a href="{% url 'promotion_list' %}" class="btn-sms btn-outline-custom">← Back</a>
+</div>
+{% if errors %}<div style="background:#FEE2E2;color:#991B1B;padding:12px 16px;border-radius:10px;margin-bottom:16px;font-size:14px">{% for e in errors %}<div>{{ e }}</div>{% endfor %}</div>{% endif %}
+
+<form method="POST" class="sms-card" style="padding:24px;max-width:760px">
+  {% csrf_token %}
+  <div class="form-section-title">Promotion Details</div>
+
+  <div style="display:grid;grid-template-columns:3fr 2fr;gap:12px">
+    <div class="form-group">
+      <label class="sms-label" for="name">Promotion name <span style="color:var(--danger)">*</span></label>
+      <input type="text" id="name" name="name" value="{{ promo.name }}" required maxlength="255" class="sms-input" placeholder="e.g. Teuila Festival Competition" autofocus>
+    </div>
+    <div class="form-group">
+      <label class="sms-label" for="company">Company <span style="color:var(--danger)">*</span></label>
+      <select id="company" name="company" required class="sms-input">
+        <option value="">Choose…</option>
+        {% for val, label in company_choices %}
+        <option value="{{ val }}" {% if promo.company == val %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+    <div class="form-group">
+      <label class="sms-label" for="start_date">Start date</label>
+      <input type="date" id="start_date" name="start_date" value="{{ promo.start_date|date:'Y-m-d' }}" class="sms-input">
+    </div>
+    <div class="form-group">
+      <label class="sms-label" for="end_date">End date</label>
+      <input type="date" id="end_date" name="end_date" value="{{ promo.end_date|date:'Y-m-d' }}" class="sms-input">
+    </div>
+  </div>
+
+  <div class="form-group">
+    <label class="sms-label" for="details">Details</label>
+    <textarea id="details" name="details" rows="5" class="sms-input" placeholder="What the promotion is, who can take part, and any conditions…">{{ promo.details }}</textarea>
+  </div>
+
+  <div class="form-group">
+    <label class="sms-label" for="prizes">Prizes</label>
+    <textarea id="prizes" name="prizes" rows="4" class="sms-input" placeholder="One prize per line, e.g.&#10;1st — WST 500 voucher&#10;2nd — Taula merchandise pack">{{ promo.prizes }}</textarea>
+    <div style="color:var(--muted);font-size:12px;margin-top:4px">One prize per line. Leave blank if there are no prizes.</div>
+  </div>
+
+  <p style="color:var(--muted);font-size:12px;margin:0 0 4px">Status is set from the dates: Upcoming before the start date, Active until the end date, then Ended.</p>
+
+  <div style="display:flex;gap:10px;align-items:center;padding-top:18px;border-top:1px solid var(--border);margin-top:18px">
+    {% if promo.pk %}
+    <button type="submit" name="delete_promotion" value="1" formnovalidate
+            onclick="return confirm('Delete this promotion?')"
+            class="btn-sms btn-danger-custom sm">🗑 Delete</button>
+    {% endif %}
+    <div style="margin-left:auto;display:flex;gap:10px">
+      <a href="{% url 'promotion_list' %}" class="btn-sms btn-outline-custom">Cancel</a>
+      <button type="submit" class="btn-sms btn-primary-custom">{% if promo.pk %}Save Changes{% else %}Add Promotion{% endif %}</button>
+    </div>
+  </div>
+</form>
+{% endblock %}

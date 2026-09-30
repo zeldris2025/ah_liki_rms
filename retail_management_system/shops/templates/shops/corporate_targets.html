@@ -1,0 +1,55 @@
+{% extends 'shops/base.html' %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <h2 class="page-title">🎯 Corporate Targets — {{ year }}</h2>
+    <p class="page-sub">Monthly sales targets in WST. Leave a box blank for no target that month.</p>
+  </div>
+  <div style="display:flex;gap:8px;align-items:center">
+    <form method="get"><select name="year" class="sms-input" style="width:auto" onchange="this.form.submit()" aria-label="Year">
+      <option value="{{ year|add:'-1' }}">{{ year|add:"-1" }}</option>
+      <option value="{{ year }}" selected>{{ year }}</option>
+      <option value="{{ year|add:'1' }}">{{ year|add:"1" }}</option>
+    </select></form>
+    <a href="{% url 'corporate_sales' %}?year={{ year }}" class="btn-sms btn-outline-custom">← Corporate Sales</a>
+  </div>
+</div>
+
+{% if errors %}<div class="alert alert-danger">Nothing was saved. Please fix:{% for e in errors %}<div>• {{ e }}</div>{% endfor %}</div>{% endif %}
+
+<form method="post" class="sms-card" style="padding:18px;overflow-x:auto">
+  {% csrf_token %}
+  <table class="sms-table" style="min-width:980px">
+    <thead>
+      <tr><th style="width:130px">Manager</th>{% for label in months %}<th style="text-align:center">{{ label }}</th>{% endfor %}<th style="width:60px"></th></tr>
+    </thead>
+    <tbody>
+      {% for r in rows %}
+      <tr>
+        <td><b style="color:{{ r.color }}">{{ r.name }}</b><div style="color:var(--muted);font-size:11px">{{ r.streams|join:", " }}</div></td>
+        {% for c in r.cells %}
+        <td style="padding:6px 4px"><input class="sms-input" name="{{ c.name }}" value="{{ c.value }}" inputmode="decimal"
+               aria-label="{{ r.name }} target, {{ c.label }}" style="padding:7px 6px;text-align:right;font-size:13px;min-width:0"></td>
+        {% endfor %}
+        <td style="padding:6px 4px"><button type="button" class="btn-sms btn-outline-custom sm fill-row" title="Copy January’s target to every month">Fill</button></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:16px;flex-wrap:wrap">
+    <span style="color:var(--muted);font-size:12px">“Fill” copies January’s figure across the year, for a flat monthly target.</span>
+    <button class="btn-sms btn-primary-custom">Save Targets</button>
+  </div>
+</form>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.querySelectorAll('.fill-row').forEach(function (btn) {
+  btn.addEventListener('click', function () {
+    var inputs = btn.closest('tr').querySelectorAll('input');
+    inputs.forEach(function (i) { i.value = inputs[0].value; });
+  });
+});
+</script>
+{% endblock %}

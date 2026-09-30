@@ -1,0 +1,49 @@
+{% extends 'shops/base.html' %}
+{% comment %}Shared layout for the client and monthly sales CSV uploads.{% endcomment %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <h2 class="page-title">{% block upload_title %}{% endblock %}</h2>
+    <p class="page-sub">{% block upload_sub %}{% endblock %}</p>
+  </div>
+  <a href="{% block back_url %}{% endblock %}" class="btn-sms btn-outline-custom">{% block back_label %}{% endblock %}</a>
+</div>
+
+{% if error %}<div class="alert alert-danger">{{ error }}</div>{% endif %}
+
+{% if result %}
+<div class="sms-card" style="padding:20px;margin-bottom:18px">
+  <div style="display:flex;gap:14px;flex-wrap:wrap">
+    <div class="stat-card" style="flex:1;min-width:120px"><div class="stat-label">Added</div><div class="stat-value" style="color:var(--success)">{{ result.created }}</div></div>
+    {% if result.linked is not None %}<div class="stat-card" style="flex:1;min-width:120px"><div class="stat-label">Code Added to Existing</div><div class="stat-value" style="color:#7C3AED">{{ result.linked }}</div></div>{% endif %}
+    <div class="stat-card" style="flex:1;min-width:120px"><div class="stat-label">Updated</div><div class="stat-value" style="color:var(--info)">{{ result.updated }}</div></div>
+    <div class="stat-card" style="flex:1;min-width:120px"><div class="stat-label">Unchanged</div><div class="stat-value" style="color:var(--muted)">{{ result.unchanged }}</div></div>
+    <div class="stat-card" style="flex:1;min-width:120px"><div class="stat-label">Skipped</div><div class="stat-value" style="color:{% if result.skipped %}var(--danger){% else %}var(--muted){% endif %}">{{ result.skipped|length }}</div></div>
+  </div>
+  {% if result.renamed %}
+  <div style="margin-top:14px;font-weight:600;font-size:13px;color:var(--info)">✎ Renamed ({{ result.renamed|length }}):</div>
+  <ul style="margin:6px 0 0;color:var(--text-secondary);font-size:13px;max-height:200px;overflow-y:auto">{% for r in result.renamed %}<li>{{ r }}</li>{% endfor %}</ul>
+  {% endif %}
+  {% if result.skipped %}
+  <div style="margin-top:14px;font-weight:600;font-size:13px;color:var(--danger)">Rows skipped (everything else was saved):</div>
+  <ul style="margin:6px 0 0;color:var(--danger);font-size:13px;max-height:260px;overflow-y:auto">{% for e in result.skipped %}<li>{{ e }}</li>{% endfor %}</ul>
+  {% endif %}
+</div>
+{% endif %}
+
+<div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.3fr);gap:18px" class="upload-grid">
+  <form method="post" enctype="multipart/form-data" class="sms-card" style="padding:22px">
+    {% csrf_token %}
+    <div class="form-section-title">Upload file</div>
+    <input type="file" name="csv_file" accept=".csv" required class="sms-input" style="margin-bottom:14px">
+    <button class="btn-sms btn-primary-custom">Upload</button>
+    <div style="color:var(--muted);font-size:13px;margin-top:16px;line-height:1.55">{% block upload_rules %}{% endblock %}</div>
+  </form>
+  <div class="sms-card" style="padding:22px">
+    <div class="form-section-title">CSV columns</div>
+    <table class="sms-table">{% block column_rows %}{% endblock %}</table>
+    <div style="margin-top:14px"><a href="{% block template_url %}{% endblock %}" class="btn-sms btn-outline-custom sm">⬇ Download template</a></div>
+  </div>
+</div>
+<style>@media (max-width: 900px) { .upload-grid { grid-template-columns:1fr !important; } }</style>
+{% endblock %}

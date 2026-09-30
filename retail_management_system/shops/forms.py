@@ -27,15 +27,6 @@ class SponsorshipCSVImportForm(CSVImportForm):
     pass
 
 
-class SalesCSVImportForm(CSVImportForm):
-    """Form for importing shop sales from CSV."""
-    csv_file = forms.FileField(
-        label='Sales CSV File',
-        help_text='Columns: products, quantity, total_sales, date (YYYY-MM-DD)',
-        widget=forms.FileInput(attrs={'accept': '.csv'})
-    )
-
-
 class SurveyForm(forms.ModelForm):
     """Form for creating/editing surveys."""
     class Meta:
@@ -55,18 +46,15 @@ class SurveyResponseForm(forms.ModelForm):
     """Form for adding individual survey responses."""
     class Meta:
         model = SurveyResponse
-        fields = ['product', 'category', 'customer', 'location', 'region', 'week', 'price', 'quantity', 'rating', 'notes', 'recorded_by']
+        fields = ['product', 'customer', 'period', 'price', 'quantity', 'location', 'region', 'recorded_by']
         widgets = {
             'product': forms.TextInput(attrs={'class': 'sms-input', 'placeholder': 'Product name'}),
-            'category': forms.TextInput(attrs={'class': 'sms-input', 'placeholder': 'e.g., SODA, SNACKS'}),
-            'customer': forms.TextInput(attrs={'class': 'sms-input', 'placeholder': 'Customer/Store name'}),
+            'customer': forms.TextInput(attrs={'class': 'sms-input', 'placeholder': 'Customer/Shop name'}),
+            'period': forms.TextInput(attrs={'class': 'sms-input', 'placeholder': 'e.g. May-26'}),
             'location': forms.TextInput(attrs={'class': 'sms-input', 'placeholder': 'Location'}),
             'region': forms.TextInput(attrs={'class': 'sms-input', 'placeholder': 'Region'}),
-            'week': forms.NumberInput(attrs={'class': 'sms-input', 'placeholder': 'Week number', 'min': '1', 'max': '52'}),
             'price': forms.NumberInput(attrs={'class': 'sms-input', 'placeholder': 'Price (WST)', 'step': '0.01'}),
             'quantity': forms.NumberInput(attrs={'class': 'sms-input', 'placeholder': 'Quantity', 'min': '0'}),
-            'rating': forms.Select(attrs={'class': 'sms-input'}, choices=[(i, f'{i} Stars') for i in range(1, 6)]),
-            'notes': forms.Textarea(attrs={'class': 'sms-input', 'rows': 2, 'placeholder': 'Additional notes'}),
             'recorded_by': forms.TextInput(attrs={'class': 'sms-input', 'placeholder': 'Your name'}),
         }
 
@@ -75,6 +63,27 @@ class BulkSurveyResponseForm(forms.Form):
     """Form for bulk CSV import of survey responses."""
     csv_file = forms.FileField(
         label='Upload Survey Data (CSV)',
-        help_text='Columns: product, category, customer, location, region, week, price, quantity, rating, notes',
+        help_text='Columns: Products, Customer/Shop, Period, Price, QTY, Location, Region',
         widget=forms.FileInput(attrs={'accept': '.csv'})
     )
+
+
+class SurveyCSVImportForm(BulkSurveyResponseForm):
+    """CSV import from the Surveys list: add to an existing survey or create a new one."""
+    survey = forms.ModelChoiceField(
+        queryset=Survey.objects.order_by('-created_at'), required=False,
+        empty_label='— Create a new survey —',
+        widget=forms.Select(attrs={'class': 'sms-input'}),
+    )
+    new_title = forms.CharField(max_length=255, required=False,
+                                widget=forms.TextInput(attrs={'class': 'sms-input', 'placeholder': 'e.g. Soda prices — May 2026'}))
+    new_category = forms.ChoiceField(choices=Survey.CATEGORY_CHOICES, required=False,
+                                     widget=forms.Select(attrs={'class': 'sms-input'}))
+
+    field_order = ['survey', 'new_title', 'new_category', 'csv_file']
+
+    def clean(self):
+        data = super().clean()
+        if not data.get('survey') and not data.get('new_title', '').strip():
+            self.add_error('new_title', 'Pick an existing survey or give the new survey a title.')
+        return data

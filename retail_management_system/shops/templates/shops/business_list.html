@@ -2,11 +2,11 @@
 {% block content %}
 <div class="page-header">
   <div>
-    <h2 class="page-title">HORECCA Clients</h2>
-    <p class="page-sub">Hotels, restaurants, cafés and other Ah Liki Wholesale customers</p>
+    <h2 class="page-title">HORECA Clients</h2>
+    <p class="page-sub"><a href="{% url 'corporate_sales' %}" style="color:var(--accent);text-decoration:none">← Corporate Sales</a> · Hotels, restaurants, cafés and other Ah Liki Wholesale customers</p>
   </div>
   <div style="display:flex;gap:10px">
-    <a href="{% url 'reports' %}?type=horecca" class="btn-sms btn-accent-custom">⬇ Export CSV</a>
+    {% if can_export %}<a href="{% url 'reports' %}?type=horecca" class="btn-sms btn-accent-custom">⬇ Export CSV</a>{% endif %}
     <a href="{% url 'add_business' %}" class="btn-sms btn-primary-custom">+ Add Client</a>
   </div>
 </div>

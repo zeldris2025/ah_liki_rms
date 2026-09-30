@@ -1,0 +1,131 @@
+"""Corporate sales streams: who looks after which clients, and their actual sales against target.
+
+The reps (Grace, Ruth, …) are Sales Rep records edited in the admin panel. A client belongs to a rep
+when its Customer Type (from the client CSV upload) contains one of the rep's keywords, ignoring
+case, so "Ministry of Health", "MINISTRIES" and "Govt Ministry" all count for the rep with "ministr".
+"""
+from datetime import date
+
+from django.db.models import Max, Sum
+
+from .models import CustomerProductSales, MonthlySales, SalesRep, SalesTarget, Shop
+
+MONTH_LABELS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+
+
+def month_span(indexes):
+    """[0, 1, 2, 5] -> 'Jan–Mar, Jun' (month indexes 0-11)"""
+    parts, run = [], []
+    for i in sorted(indexes):
+        if run and i != run[-1] + 1:
+            parts.append(run)
+            run = []
+        run.append(i)
+    if run:
+        parts.append(run)
+    return ', '.join(MONTH_LABELS[r[0]] if len(r) == 1 else f'{MONTH_LABELS[r[0]]}–{MONTH_LABELS[r[-1]]}' for r in parts)
+
+
+def managers():
+    """Active reps in page order, as dicts: key, name, color, streams (list)."""
+    return [{'key': r.key, 'name': r.name, 'color': r.color, 'streams': r.stream_list(), 'rep': r}
+            for r in SalesRep.objects.filter(active=True)]
+
+
+def own_rep_key(user):
+    """The rep key a logged-in rep is limited to, or None when they see every stream (Managers, and staff who
+    aren't a rep). A rep sees only their own stream, plus everyone's % of this month's target."""
+    from .access import MANAGER, roles_of
+    if not user.is_authenticated or MANAGER in roles_of(user):
+        return None
+    rep = SalesRep.objects.filter(user=user, active=True).first()
+    return rep.key if rep else None
+
+
+def manager_keys():
+    return list(SalesRep.objects.filter(active=True).values_list('key', flat=True))
+
+
+def manager_for_type(customer_type, reps=None):
+    """The key of the first rep (in page order) whose keywords match a customer type, or None."""
+    for r in (reps if reps is not None else SalesRep.objects.filter(active=True)):
+        if r.matches(customer_type):
+            return r.key
+    return None
+
+
+def client_ids_by_manager():
+    """{manager key: [shop ids]} plus the customer types that matched no stream."""
+    reps = list(SalesRep.objects.filter(active=True))
+    ids = {r.key: [] for r in reps}
+    types = {r.key: set() for r in reps}
+    unmatched = set()
+    owner = {}   # each distinct customer type is only matched once
+    for pk, ctype in Shop.objects.exclude(customer_type='').values_list('id', 'customer_type'):
+        if ctype not in owner:
+            owner[ctype] = manager_for_type(ctype, reps)
+        key = owner[ctype]
+        if key:
+            ids[key].append(pk)
+            types[key].add(ctype)
+        else:
+            unmatched.add(ctype)
+    return ids, types, sorted(unmatched)
+
+
+def top_products(shop_ids, year, limit=10):
+    """The best-selling products for these clients in a year, from the Customer Product Sales upload."""
+    rows = (CustomerProductSales.objects.filter(month__year=year, shop_id__in=shop_ids)
+            .values('product_code').annotate(total=Sum('sales'), name=Max('product_name')).order_by('-total')[:limit])
+    return [{'code': r['product_code'], 'name': r['name'], 'value': float(r['total'])} for r in rows]
+
+
+def year_summary(year, today=None):
+    """Actual and target per month for each manager, plus the figures for their card."""
+    today = today or date.today()
+    current_month = today.month if today.year == year else (12 if year < today.year else 0)
+    ids, types, unmatched = client_ids_by_manager()
+
+    reps = managers()
+    targets = {m['key']: [None] * 12 for m in reps}
+    for t in SalesTarget.objects.filter(month__year=year, manager__in=list(targets)):
+        targets[t.manager][t.month.month - 1] = t.amount
+
+    summary = []
+    for m in reps:
+        actual = [None] * 12
+        rows = (MonthlySales.objects.filter(month__year=year, shop_id__in=ids[m['key']])
+                .values('month').annotate(total=Sum('sales')))
+        for r in rows:
+            actual[r['month'].month - 1] = r['total']
+        done = range(current_month)   # months that have started this year
+        ytd_actual = sum(actual[i] or 0 for i in done)
+        # Compare like with like: only months that have a target count towards the YTD %
+        targeted = [i for i in done if targets[m['key']][i] is not None]
+        ytd_target = sum(targets[m['key']][i] for i in targeted)
+        ytd_actual_on_target = sum(actual[i] or 0 for i in targeted)
+        month_i = current_month - 1
+        top = (MonthlySales.objects.filter(month__year=year, shop_id__in=ids[m['key']])
+               .values('shop_id', 'shop__name').annotate(total=Sum('sales')).order_by('-total')[:5])
+        summary.append({
+            **m,
+            'actual': actual,
+            'target': targets[m['key']],
+            'client_count': len(ids[m['key']]),
+            'client_ids': ids[m['key']],
+            'types': sorted(types[m['key']]),
+            'ytd_actual': ytd_actual,
+            'ytd_target': ytd_target,
+            'ytd_actual_on_target': ytd_actual_on_target,
+            'ytd_pct': round(ytd_actual_on_target / ytd_target * 100) if ytd_target else None,
+            'ytd_target_months': month_span(targeted),
+            'ytd_missing_months': month_span([i for i in done if i not in targeted]),
+            'ytd_months': month_span(list(done)),
+            'month_label': f'{MONTH_LABELS[month_i]} {year}' if month_i >= 0 else '',
+            'month_actual': actual[month_i] or 0 if month_i >= 0 else 0,
+            'month_target': targets[m['key']][month_i] if month_i >= 0 else None,
+            'top_clients': list(top),
+        })
+    for m in summary:
+        m['month_pct'] = round(m['month_actual'] / m['month_target'] * 100) if m['month_target'] else None
+    return summary, unmatched
