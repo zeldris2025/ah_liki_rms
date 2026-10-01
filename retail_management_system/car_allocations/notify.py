@@ -1,0 +1,100 @@
+"""Tell the rest of the office when someone books a car: a notice under everyone's bell, plus an email.
+
+Email goes through Microsoft 365 (fe_orders.office365). It is sent to OFFICE365_CAR_EMAILS when that is
+set, otherwise to the email address on each Sales, Marketing and Manager account.
+"""
+from django.conf import settings
+from django.contrib.auth import get_user_model
+from django.db.models import Q
+from django.urls import reverse
+from django.utils import timezone
+
+from fe_orders import office365
+from shops.access import ROLES
+
+from .models import Booking, Notification
+
+
+def office_team():
+    """Active Sales, Marketing and Manager users (FE staff never book cars)."""
+    User = get_user_model()
+    return User.objects.filter(is_active=True).filter(Q(is_superuser=True) | Q(groups__name__in=ROLES)).distinct()
+
+
+def _time(dt):
+    """12-hour time, e.g. '9:30 AM'."""
+    return f'{dt.hour % 12 or 12}:{dt:%M} {"AM" if dt.hour < 12 else "PM"}'
+
+
+def _when(booking):
+    start, end = timezone.localtime(booking.start), timezone.localtime(booking.end)
+    if start.date() == end.date():
+        return f'{start:%a %d %b}, {_time(start)}–{_time(end)}'
+    return f'{start:%a %d %b} {_time(start)} – {end:%a %d %b} {_time(end)}'
+
+
+def car_recipients(exclude_user):
+    raw = office365._config().get('CAR_EMAILS', '')
+    listed = [a.strip() for a in raw.replace(';', ',').split(',') if a.strip()]
+    if listed:
+        return listed
+    return sorted({u.email for u in office_team().exclude(pk=exclude_user.pk) if u.email})
+
+
+def email_link(booking):
+    """The 'Open Car Allocations' button: always the office server (settings.SITE_URL), whichever
+    address the booker happened to use, so it works for everyone who gets the email."""
+    return (settings.SITE_URL.rstrip('/') + reverse('car_allocations')
+            + f'?car={booking.car}&date={timezone.localtime(booking.start):%Y-%m-%d}')
+
+
+def booking_email(booking, url):
+    details = office365._details([
+        ('Car', booking.car), ('When', _when(booking)), ('Reason', booking.reason),
+        ('Booked by', booking.booked_by_name),
+    ])
+    subject = f'Car {booking.car} booked — {_when(booking)}'
+    return subject, office365._page(f'🚗 Car {booking.car} booked', details, url, 'Open Car Allocations')
+
+
+def notify_new_booking(booking, url):
+    message = f'{booking.booked_by_name} booked {booking.car} for {_when(booking)}: {booking.reason}'[:255]
+    Notification.objects.bulk_create([
+        Notification(recipient=u, message=message, link=url, booking=booking)
+        for u in office_team().exclude(pk=booking.booked_by_id)
+    ])
+
+    to = car_recipients(booking.booked_by)
+    if not (office365.is_configured() and to):
+        Booking.objects.filter(pk=booking.pk).update(email_status='Not configured')
+        return
+    subject, body = booking_email(booking, email_link(booking))
+    office365._send_later(Booking, booking.pk, subject, body, to, f'car booking {booking.pk}')
+
+
+def notify_cancelled(booking, by_user, url):
+    who = by_user.get_full_name() or by_user.username
+    message = f'{who} cancelled the {booking.car} booking for {_when(booking)}'[:255]
+    Notification.objects.bulk_create([
+        Notification(recipient=u, message=message, link=url) for u in office_team().exclude(pk=by_user.pk)
+    ])
+
+
+def describe(booking):
+    """'81, Thu 01 Oct, 09:00–10:00', to say what a booking was before it changed."""
+    return f'{booking.car}, {_when(booking)}'
+
+
+def notify_changed(booking, before, by_user, url):
+    """Tell everyone else about an edit. When a Manager edits someone else's booking, the owner hears it first-hand."""
+    who = by_user.get_full_name() or by_user.username
+    whose = 'their' if booking.booked_by_id == by_user.pk else f"{booking.booked_by_name}'s"
+    after = describe(booking)
+    change = f'{before} → {after}' if after != before else after
+    message = f'{who} changed {whose} booking: {change}: {booking.reason}'[:255]
+    notices = [Notification(recipient=u, message=message, link=url, booking=booking)
+               for u in office_team().exclude(pk=by_user.pk).exclude(pk=booking.booked_by_id)]
+    if booking.booked_by_id != by_user.pk:
+        notices.append(Notification(recipient=booking.booked_by, link=url, booking=booking,
+                                    message=f'{who} (Manager) changed your booking: {change}: {booking.reason}'[:255]))
+    Notification.objects.bulk_create(notices)

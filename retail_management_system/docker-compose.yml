@@ -1,0 +1,23 @@
+services:
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: retail-management-system
+    restart: unless-stopped
+    command: ["./entrypoint.sh", "python", "manage.py", "runserver", "0.0.0.0:8000"]
+    environment:
+      DEBUG: "True"
+      SECRET_KEY: "dev-secret-key-change-me"
+      ALLOWED_HOSTS: "localhost,127.0.0.1,0.0.0.0,[::1], 10.10.8.49"
+      CSRF_TRUSTED_ORIGINS: "http://localhost:8000,http://127.0.0.1:8000,http://0.0.0.0:8000"
+      DATABASE_PATH: "/data/db.sqlite3"
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/app
+      - sqlite_data:/data
+    working_dir: /app
+
+volumes:
+  sqlite_data:

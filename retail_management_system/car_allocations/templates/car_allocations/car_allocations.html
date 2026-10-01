@@ -1,0 +1,640 @@
+{% extends 'shops/base.html' %}
+{% block content %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.css">
+<style>
+  .ca, #booking-modal { --c81: #2563EB; --c82: #7C3AED; --cRingo: #D97706; --cRanger: #059669; --radius: 14px; --shadow: 0 1px 2px rgba(15,23,42,.04), 0 4px 16px rgba(15,23,42,.05); }
+  .ca .section-label { font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .1em; margin: 0 0 10px; }
+
+  /* Header */
+  .ca-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; margin-bottom: 22px; flex-wrap: wrap; }
+  .ca-head h1 { margin: 0; font-size: 24px; font-weight: 800; color: var(--primary); letter-spacing: -.01em; }
+  .ca-head p { margin: 4px 0 0; color: var(--muted); font-size: 14px; }
+  .live { font-size: 12px; color: var(--muted); display: inline-flex; align-items: center; gap: 7px; background: var(--card); border: 1px solid var(--border); padding: 6px 12px; border-radius: 999px; }
+  .live i { width: 8px; height: 8px; border-radius: 50%; background: var(--success); box-shadow: 0 0 0 0 rgba(22,163,74,.5); animation: pulse 2s infinite; }
+  .live.off i { background: var(--danger); animation: none; }
+  @keyframes pulse { 70% { box-shadow: 0 0 0 7px rgba(22,163,74,0); } 100% { box-shadow: 0 0 0 0 rgba(22,163,74,0); } }
+
+  /* Quick-book car cards */
+  .cars { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; margin-bottom: 24px; }
+  .car { --c: var(--accent); position: relative; text-align: left; background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 18px 14px; cursor: pointer; box-shadow: var(--shadow); transition: transform .15s, box-shadow .15s, border-color .15s; overflow: hidden; }
+  .car::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 5px; background: var(--c); }
+  .car:hover { transform: translateY(-2px); border-color: var(--c); box-shadow: 0 10px 28px rgba(15,23,42,.10); }
+  .car .top { display: flex; align-items: center; gap: 12px; }
+  .car .icon { width: 42px; height: 42px; border-radius: 12px; display: grid; place-items: center; font-size: 20px; background: color-mix(in srgb, var(--c) 12%, white); }
+  .car .name { font-size: 20px; font-weight: 800; color: var(--primary); line-height: 1.1; }
+  .car .state { font-size: 12px; font-weight: 600; display: flex; align-items: center; gap: 6px; margin-top: 3px; color: var(--success); }
+  .car .state::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+  .car .state.busy { color: var(--danger); }
+  .car .next { font-size: 12px; color: var(--muted); margin-top: 10px; min-height: 16px; }
+  .car .cta { margin-top: 12px; display: flex; justify-content: space-between; align-items: center; padding-top: 10px; border-top: 1px solid var(--border); font-size: 13px; font-weight: 700; color: var(--c); }
+  .car .cta span { transition: transform .15s; }
+  .car:hover .cta span { transform: translateX(4px); }
+
+  /* Toolbar */
+  .toolbar { display: flex; gap: 10px; align-items: center; background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 10px; box-shadow: var(--shadow); margin-bottom: 8px; flex-wrap: wrap; position: relative; }
+  .toolbar .search { flex: 1; min-width: 220px; position: relative; }
+  .toolbar .search input { padding-left: 36px; border: none; background: var(--surface); }
+  .toolbar .search::before { content: '🔍'; position: absolute; left: 12px; top: 50%; transform: translateY(-50%); font-size: 13px; opacity: .6; }
+  .toolbar select { width: auto; border: none; background-color: var(--surface); font-weight: 600; cursor: pointer; }
+  .results { display: none; position: absolute; left: 10px; right: 10px; top: calc(100% + 6px); z-index: 20; background: var(--card); border: 1px solid var(--border); border-radius: 12px; box-shadow: 0 16px 40px rgba(15,23,42,.15); max-height: 360px; overflow-y: auto; }
+  .results.show { display: block; }
+  .hit { display: flex; gap: 12px; align-items: center; padding: 11px 16px; border-bottom: 1px solid var(--border); cursor: pointer; font-size: 13px; }
+  .hit:last-child { border-bottom: none; }
+  .hit:hover { background: var(--surface); }
+  .hit .hwhen { min-width: 200px; font-weight: 600; color: var(--primary); }
+  .hit .why { flex: 1; color: #334155; }
+  .hit .who { color: var(--muted); }
+
+  /* Week navigation */
+  .weeknav { display: flex; align-items: center; gap: 10px; margin: 18px 0 12px; }
+  .weeknav .arrow { width: 38px; height: 38px; border-radius: 10px; border: 1px solid var(--border); background: var(--card); font-size: 20px; line-height: 1; cursor: pointer; color: var(--primary); }
+  .weeknav .arrow:hover { background: var(--primary); color: #fff; border-color: var(--primary); }
+  .weeknav .title { font-size: 18px; font-weight: 800; color: var(--primary); }
+  .weeknav .wk { font-size: 12px; font-weight: 700; color: var(--muted); background: var(--card); border: 1px solid var(--border); padding: 3px 10px; border-radius: 999px; }
+  .weeknav .spacer { flex: 1; }
+  .legend { display: flex; gap: 14px; font-size: 12px; color: var(--muted); }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .legend i { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+
+  /* Day rows */
+  .days { display: flex; flex-direction: column; gap: 12px; }
+  .day { display: grid; grid-template-columns: 96px minmax(0, 1fr); background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; }
+  .day.today { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(14,165,233,.15); }
+  .day.past { opacity: .62; }
+  .day.weekend .date { background: #F1F5F9; }
+  .date { background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 14px 6px; }
+  .date .dow { font-size: 11px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+  .date .num { font-size: 30px; font-weight: 800; color: var(--primary); line-height: 1.1; }
+  .date .mon { font-size: 12px; color: var(--muted); font-weight: 600; }
+  .day.today .date { background: var(--primary); }
+  .day.today .date .num { color: #fff; }
+  .day.today .date .dow, .day.today .date .mon { color: var(--accent-light); }
+  .body { padding: 14px 16px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+
+  .tl { display: grid; grid-template-columns: 52px minmax(0, 1fr); gap: 6px 10px; font-size: 10px; color: var(--muted); align-items: center; }
+  .tl .lane-name { text-align: right; font-weight: 700; line-height: 1; }
+  .tl .lane { position: relative; height: 10px; background: #EEF2F6; border-radius: 5px; }
+  .tl .lane b { cursor: default; }
+  .tl .lane b { position: absolute; top: 0; bottom: 0; border-radius: 5px; background: var(--c); }
+  .tl .hours { position: relative; height: 12px; }
+  .tl .hours span { position: absolute; transform: translateX(-50%); white-space: nowrap; }
+  .tl .hours span:last-child { transform: translateX(-100%); }
+
+  .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 10px; }
+  .bk { --c: var(--accent); position: relative; border: 1px solid var(--border); border-left: 4px solid var(--c); border-radius: 10px; padding: 10px 12px; background: #fff; transition: box-shadow .15s; }
+  .bk:hover { box-shadow: 0 6px 18px rgba(15,23,42,.08); }
+  .bk.hit-mark { box-shadow: 0 0 0 2px #F59E0B; }
+  .bk.fresh { animation: flash 2.2s ease-out; }
+  @keyframes flash { from { background: #FEF3C7; } to { background: #fff; } }
+  .bk .row1 { display: flex; align-items: center; gap: 8px; }
+  .pill { font-size: 11px; font-weight: 800; color: #fff; background: var(--c); padding: 2px 8px; border-radius: 6px; }
+  .bk .time { font-weight: 700; color: var(--primary); font-size: 13px; }
+  .bk .dur { font-size: 11px; color: var(--muted); margin-left: auto; }
+  .bk .why { font-size: 13px; color: #334155; margin: 6px 0 8px; word-wrap: break-word; }
+  .bk .who { display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--muted); }
+  .avatar { width: 22px; height: 22px; border-radius: 50%; background: #E2E8F0; color: var(--primary); font-size: 10px; font-weight: 800; display: grid; place-items: center; }
+  .bk.mine .avatar { background: var(--success); color: #fff; }
+  .bk.editable { cursor: pointer; }
+  .bk .acts { margin-left: auto; display: flex; gap: 4px; }
+  .bk .acts button { border: 1px solid var(--border); background: #fff; border-radius: 6px; padding: 2px 8px; font-size: 11px; font-weight: 600; color: #334155; cursor: pointer; }
+  .bk .acts button:hover { border-color: var(--accent); color: var(--accent); }
+  .bk .acts button.del:hover { border-color: var(--danger); color: var(--danger); background: #FEF2F2; }
+  .bk .lock { margin-left: auto; font-size: 12px; opacity: .55; cursor: help; }
+  .empty { display: flex; align-items: center; justify-content: space-between; gap: 12px; border: 1px dashed var(--border); border-radius: 10px; padding: 12px 14px; color: var(--muted); font-size: 13px; }
+  .add { border: 1px dashed #CBD5E1; background: transparent; border-radius: 10px; padding: 10px; font-size: 13px; font-weight: 600; color: var(--muted); cursor: pointer; min-height: 44px; transition: all .15s; }
+  #booking-modal .btn-sms:disabled { opacity: .45; cursor: not-allowed; }
+  .add:hover { border-color: var(--accent); color: var(--accent); background: #F0F9FF; }
+
+  /* Booking modal */
+  #booking-modal .modal-content { border: none; border-radius: 18px; box-shadow: 0 24px 64px rgba(15,23,42,.25); }
+  #booking-modal .modal-header { border: none; padding: 22px 24px 4px; }
+  #booking-modal .modal-body { padding: 14px 24px 8px; }
+  #booking-modal .modal-footer { border-top: 1px solid var(--border); padding: 14px 24px; justify-content: space-between; }
+  .m-title { font-size: 19px; font-weight: 800; color: var(--primary); margin: 0; }
+  .m-sub { font-size: 13px; color: var(--muted); margin-top: 2px; }
+  .field-label { font-size: 12px; font-weight: 700; color: var(--primary); margin-bottom: 6px; display: block; }
+  .car-pick { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 18px; }
+  .car-pick button { --c: var(--accent); border: 2px solid var(--border); background: #fff; border-radius: 12px; padding: 9px 4px 7px; cursor: pointer; transition: all .15s; }
+  .car-pick button .n { font-weight: 800; font-size: 15px; color: var(--primary); display: block; }
+  .car-pick button .a { font-size: 11px; font-weight: 600; color: var(--success); }
+  .car-pick button.busy .a { color: var(--danger); }
+  .car-pick button.on { border-color: var(--c); background: color-mix(in srgb, var(--c) 8%, white); box-shadow: 0 0 0 3px color-mix(in srgb, var(--c) 18%, transparent); }
+  .when { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .fp-input { cursor: pointer; background: #fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' stroke='%2364748B' stroke-width='2' viewBox='0 0 24 24'%3E%3Crect x='3' y='4' width='18' height='18' rx='2'/%3E%3Cpath d='M16 2v4M8 2v4M3 10h18'/%3E%3C/svg%3E") no-repeat right 12px center; padding-right: 36px !important; font-weight: 600; }
+  .chips { display: flex; gap: 6px; flex-wrap: wrap; margin: 10px 0 4px; }
+  .chip { border: 1px solid var(--border); background: #fff; border-radius: 999px; padding: 4px 12px; font-size: 12px; font-weight: 600; color: #334155; cursor: pointer; }
+  .chip:hover { border-color: var(--accent); color: var(--accent); }
+  .summary { font-size: 13px; color: var(--muted); margin: 8px 0 16px; cursor: pointer; }
+  .summary b { color: var(--primary); }
+  .avail { border-radius: 10px; padding: 10px 12px; font-size: 13px; margin-bottom: 4px; display: none; }
+  .avail.ok { display: block; background: #F0FDF4; color: #166534; border: 1px solid #BBF7D0; }
+  .avail.bad { display: block; background: #FEF2F2; color: #991B1B; border: 1px solid #FECACA; }
+  .flatpickr-calendar { border-radius: 12px; box-shadow: 0 16px 40px rgba(15,23,42,.2); }
+  .flatpickr-day.selected, .flatpickr-day.selected:hover { background: var(--primary); border-color: var(--primary); }
+
+  @media (max-width: 1100px) { .cars { grid-template-columns: repeat(2, minmax(0, 1fr)); } .legend { display: none; } }
+  @media (max-width: 640px) {
+    .cars { grid-template-columns: 1fr 1fr; gap: 10px; }
+    .day { grid-template-columns: 70px minmax(0, 1fr); }
+    .date .num { font-size: 24px; }
+    .tl { display: none; }
+    .when { grid-template-columns: 1fr; }
+    .car-pick { grid-template-columns: repeat(2, 1fr); }
+  }
+</style>
+
+<div class="ca">
+  <div class="ca-head">
+    <div>
+      <h1>Car Allocations</h1>
+      <p>Tap a car to book it. Everyone sees new bookings within seconds, and a car can't be double-booked.</p>
+    </div>
+    <span class="live" id="live"><i></i>Live</span>
+  </div>
+
+  <div class="section-label">Quick book</div>
+  <div class="cars">
+    {% for car in cars %}
+    <button type="button" class="car" data-car="{{ car }}" style="--c: var(--c{{ car }})" onclick="quickBook('{{ car|escapejs }}')">
+      <div class="top">
+        <div class="icon">🚗</div>
+        <div>
+          <div class="name">{{ car }}</div>
+          <div class="state" data-state>Checking…</div>
+        </div>
+      </div>
+      <div class="next" data-next></div>
+      <div class="cta">Book {{ car }} <span>→</span></div>
+    </button>
+    {% endfor %}
+  </div>
+
+  <div class="toolbar">
+    <div class="search"><input type="search" class="sms-input" id="search" placeholder="Search bookings by reason, person or car" autocomplete="off"></div>
+    <select class="sms-input" id="filter" title="Show bookings for">
+      <option value="">All cars</option>
+      {% for car in cars %}<option value="{{ car }}">{{ car }}</option>{% endfor %}
+    </select>
+    <select class="sms-input" id="month">{% for num, name in months %}<option value="{{ num }}">{{ name }}</option>{% endfor %}</select>
+    <select class="sms-input" id="year">{% for y in years %}<option value="{{ y }}">{{ y }}</option>{% endfor %}</select>
+    <div class="results" id="results"></div>
+  </div>
+
+  <div class="weeknav">
+    <button class="arrow" onclick="moveWeek(-1)" title="Previous week">‹</button>
+    <button class="arrow" onclick="moveWeek(1)" title="Next week">›</button>
+    <span class="title" id="week-title"></span>
+    <span class="wk" id="week-num"></span>
+    <button class="btn-sms sm btn-outline-custom" onclick="goTo(firstWorkday(new Date()))">Today</button>
+    <span class="spacer"></span>
+    <div class="legend">{% for car in cars %}<span><i style="background: var(--c{{ car }})"></i>{{ car }}</span>{% endfor %}</div>
+  </div>
+
+  <div class="days" id="days"></div>
+</div>
+
+<!-- Booking form -->
+<div class="modal fade" id="booking-modal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered" style="max-width:560px">
+    <form class="modal-content" id="booking-form">
+      {% csrf_token %}
+      <div class="modal-header">
+        <div>
+          <h5 class="m-title" id="m-title">Book a car</h5>
+          <div class="m-sub" id="m-sub">Booking as <b>{{ me }}</b></div>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" name="car" id="f-car">
+        <span class="field-label">Car</span>
+        <div class="car-pick" id="car-pick">
+          {% for car in cars %}
+          <button type="button" data-car="{{ car }}" style="--c: var(--c{{ car }})"><span class="n">{{ car }}</span><span class="a">Free</span></button>
+          {% endfor %}
+        </div>
+
+        <span class="field-label">Duration</span>
+        <div class="when">
+          <input type="text" name="start" id="f-start" placeholder="From" required>
+          <input type="text" name="end" id="f-end" placeholder="Until" required>
+        </div>
+        <div class="chips">
+          <button type="button" class="chip" data-hours="1">1 hour</button>
+          <button type="button" class="chip" data-hours="2">2 hours</button>
+          <button type="button" class="chip" data-hours="4">Half day</button>
+          <button type="button" class="chip" data-full="1">Full day (8 AM–5 PM)</button>
+        </div>
+        <div class="summary" id="f-summary"></div>
+
+        <label class="field-label" for="f-reason">Reason</label>
+        <input type="text" class="sms-input" name="reason" id="f-reason" maxlength="255" required placeholder="e.g. Delivering promo stock to Savai'i shops">
+        <div class="chips">
+          <button type="button" class="chip" data-reason="Shop visits">Shop visits</button>
+          <button type="button" class="chip" data-reason="Deliveries">Deliveries</button>
+          <button type="button" class="chip" data-reason="Promotion / event">Promotion / event</button>
+          <button type="button" class="chip" data-reason="Client meeting">Client meeting</button>
+        </div>
+        <div style="height:12px"></div>
+        <div class="avail" id="f-avail"></div>
+      </div>
+      <div class="modal-footer">
+        <div style="display:flex;gap:8px">
+          <button type="button" class="btn-sms btn-outline-custom" data-bs-dismiss="modal">Close</button>
+          <button type="button" class="btn-sms btn-outline-custom" id="f-delete" style="color:var(--danger);display:none">Cancel booking</button>
+        </div>
+        <button type="submit" class="btn-sms btn-primary-custom" id="f-submit">Confirm booking</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.js"></script>
+<script>
+// Runs once the page has loaded, because base.html loads Bootstrap after this block
+document.addEventListener('DOMContentLoaded', function () {
+  var CARS = [{% for car in cars %}'{{ car|escapejs }}'{% if not forloop.last %},{% endif %}{% endfor %}];
+  var URLS = {
+    bookings: '{% url "car_bookings" %}',
+    search: '{% url "car_booking_search" %}',
+    book: '{% url "car_book" %}',
+    edit: '{% url "car_booking_edit" 0 %}',
+    cancel: '{% url "car_booking_cancel" 0 %}'
+  };
+  var DOW = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+  var MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  var DAY_FROM = 7, DAY_TO = 19;          // hours shown on each day's timeline
+  var POLL_MS = 10000;
+
+  var state = { monday: null, bookings: [], status: {}, seen: null, hits: {}, filter: '', editing: null };
+  var ME = '{{ me|escapejs }}';
+  var modal = new bootstrap.Modal(document.getElementById('booking-modal'), { focus: false });
+
+  // ── Dates. Bookings travel as wall-clock text like '2026-10-01T09:30', which sorts and compares correctly ──
+  function pad(n) { return (n < 10 ? '0' : '') + n; }
+  function ymd(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
+  function str(d) { return ymd(d) + 'T' + pad(d.getHours()) + ':' + pad(d.getMinutes()); }
+  function nowStr() { return str(new Date()); }
+  function parse(s) { return new Date(+s.slice(0, 4), +s.slice(5, 7) - 1, +s.slice(8, 10), +(s.slice(11, 13) || 0), +(s.slice(14, 16) || 0)); }
+  function addDays(d, n) { var c = new Date(d); c.setDate(c.getDate() + n); return c; }
+  function addMins(d, n) { return new Date(d.getTime() + n * 60000); }
+  function mondayOf(d) { var c = new Date(d.getFullYear(), d.getMonth(), d.getDate()); return addDays(c, -((c.getDay() + 6) % 7)); }
+  function firstWorkday(d) { var w = d.getDay(); return w === 6 ? addDays(d, 2) : w === 0 ? addDays(d, 1) : d; }
+  // Times are shown in 12-hour format, e.g. '9:30 AM' (the data itself stays '09:30')
+  function hm(s) { var h = +s.slice(11, 13), m = s.slice(14, 16); return (h % 12 || 12) + ':' + m + ' ' + (h < 12 ? 'AM' : 'PM'); }
+  function hourLabel(h) { return (h % 12 || 12) + ' ' + (h < 12 || h === 24 ? 'AM' : 'PM'); }
+  function dayName(s, long) { var d = parse(s); return DOW[(d.getDay() + 6) % 7].slice(0, long ? 9 : 3) + ' ' + d.getDate() + ' ' + MON[d.getMonth()]; }
+  function mins(s) { return +s.slice(11, 13) * 60 + +s.slice(14, 16); }
+  function esc(s) { var d = document.createElement('div'); d.textContent = s == null ? '' : s; return d.innerHTML; }
+  function overlaps(a, b) { return a.start < b.end && a.end > b.start; }
+  function initials(name) { return name.split(/\s+/).map(function (w) { return w[0]; }).join('').slice(0, 2).toUpperCase(); }
+  function carColor(car) { return 'var(--c' + car + ', var(--accent))'; }
+  function duration(start, end) {
+    var m = Math.round((parse(end) - parse(start)) / 60000);
+    if (!(m > 0)) return '';
+    var d = Math.floor(m / 1440), h = Math.floor(m % 1440 / 60), r = m % 60;
+    return [d && d + (d === 1 ? ' day' : ' days'), h && h + 'h', r && r + 'm'].filter(Boolean).join(' ');
+  }
+  function span(b) {   // '09:00 – 11:30', or with days when it runs over more than one day
+    return b.start.slice(0, 10) === b.end.slice(0, 10) ? hm(b.start) + ' – ' + hm(b.end)
+      : dayName(b.start) + ' ' + hm(b.start) + ' → ' + dayName(b.end) + ' ' + hm(b.end);
+  }
+
+  // ── Loading (polled, so other people's bookings appear within seconds) ──
+  function load() {
+    var asked = ymd(state.monday);
+    return fetch(URLS.bookings + '?start=' + asked)
+      .then(function (r) { if (!r.ok) throw r; return r.json(); })
+      .then(function (data) {
+        state.status = data.status;
+        renderCars();
+        if (asked !== ymd(state.monday)) return;   // the week changed while we waited
+        var before = state.seen, ids = {};
+        data.bookings.forEach(function (b) { ids[b.id] = true; b.fresh = before && !before[b.id] && !b.mine; });
+        state.seen = ids;
+        state.bookings = data.bookings;
+        document.getElementById('live').classList.remove('off');
+        renderWeek();
+        data.bookings.forEach(function (b) { b.fresh = false; });   // flash only once
+      })
+      .catch(function () { document.getElementById('live').classList.add('off'); });
+  }
+
+  function renderCars() {
+    document.querySelectorAll('.car').forEach(function (btn) {
+      var s = state.status[btn.dataset.car] || {}, el = btn.querySelector('[data-state]');
+      el.classList.toggle('busy', !!s.out_until);
+      el.textContent = s.out_until ? 'Out until ' + (s.out_until.slice(0, 10) === ymd(new Date()) ? hm(s.out_until) : dayName(s.out_until) + ' ' + hm(s.out_until)) : 'Available now';
+      btn.querySelector('[data-next]').textContent = s.next ? 'Next booking: ' + dayName(s.next) + ', ' + hm(s.next) : 'No upcoming bookings';
+    });
+  }
+
+  function renderWeek() {
+    var today = ymd(new Date()), fri = addDays(state.monday, 4);
+    document.getElementById('week-title').textContent = state.monday.getDate() + ' ' + MON[state.monday.getMonth()] +
+      ' – ' + fri.getDate() + ' ' + MON[fri.getMonth()] + ' ' + fri.getFullYear();
+    document.getElementById('week-num').textContent = 'Week ' + isoWeek(state.monday);
+
+    var thursday = addDays(state.monday, 3), yearSel = document.getElementById('year');
+    document.getElementById('month').value = thursday.getMonth() + 1;
+    if (!yearSel.querySelector('option[value="' + thursday.getFullYear() + '"]')) {
+      var opt = document.createElement('option'); opt.value = opt.textContent = thursday.getFullYear(); yearSel.appendChild(opt);
+    }
+    yearSel.value = thursday.getFullYear();
+
+    var shown = state.bookings.filter(function (b) { return !state.filter || b.car === state.filter; });
+    var lanes = state.filter ? [state.filter] : CARS;
+    var box = document.getElementById('days');
+    box.innerHTML = '';
+
+    for (var i = 0; i < 7; i++) {
+      var day = addDays(state.monday, i), d = ymd(day);
+      var range = { start: d + 'T00:00', end: ymd(addDays(day, 1)) + 'T00:00' };
+      var list = shown.filter(function (b) { return overlaps(b, range); });
+      if (i >= 5 && !list.length) continue;   // weekends only appear when something is booked
+
+      var tl = '<div class="tl"><span></span><div class="hours">';
+      for (var h = DAY_FROM; h <= DAY_TO; h += 2) tl += '<span style="left:' + ((h - DAY_FROM) / (DAY_TO - DAY_FROM) * 100) + '%">' + hourLabel(h) + '</span>';
+      tl += '</div>';
+      lanes.forEach(function (car) {
+        tl += '<span class="lane-name">' + esc(car) + '</span><div class="lane">' + list.filter(function (b) { return b.car === car; }).map(function (b) {
+          var from = b.start < range.start ? 0 : mins(b.start), to = b.end >= range.end ? 1440 : mins(b.end);
+          from = Math.max(from, DAY_FROM * 60); to = Math.min(to, DAY_TO * 60);
+          if (to <= from) return '';
+          var w = (DAY_TO - DAY_FROM) * 60;
+          return '<b style="--c:' + carColor(car) + ';left:' + ((from - DAY_FROM * 60) / w * 100) + '%;width:' + ((to - from) / w * 100) + '%" title="' + esc(span(b) + ' · ' + b.reason) + '"></b>';
+        }).join('') + '</div>';
+      });
+      tl += '</div>';
+
+      var cards = list.map(function (b) {
+        var editable = b.can_change && b.end > nowStr();
+        var cls = 'bk' + (b.mine ? ' mine' : '') + (editable ? ' editable' : '') + (state.hits[b.id] ? ' hit-mark' : '') + (b.fresh ? ' fresh' : '');
+        // Only your own bookings (or any booking, for a Manager) get Edit and Cancel; the rest are locked
+        var actions = b.can_change
+          ? '<span class="acts">' + (editable ? '<button type="button" onclick="event.stopPropagation(); editBooking(' + b.id + ')">✎ Edit</button>' : '') +
+            '<button type="button" class="del" onclick="event.stopPropagation(); cancelBooking(' + b.id + ')">✕ Cancel</button></span>'
+          : '<span class="lock" title="Only ' + esc(b.booked_by) + ' or a Manager can change this booking">🔒</span>';
+        return '<div class="' + cls + '" style="--c:' + carColor(b.car) + '"' + (editable ? ' onclick="editBooking(' + b.id + ')" title="Click to edit"' : '') + '>' +
+          '<div class="row1"><span class="pill">' + esc(b.car) + '</span><span class="time">' + esc(span(b)) + '</span><span class="dur">' + duration(b.start, b.end) + '</span></div>' +
+          '<div class="why">' + esc(b.reason) + '</div>' +
+          '<div class="who"><span class="avatar">' + esc(initials(b.booked_by)) + '</span>' + (b.mine ? 'You' : esc(b.booked_by)) + actions + '</div></div>';
+      }).join('');
+      if (d >= today) cards += '<button class="add" onclick="bookDay(\'' + d + '\')">＋ Book a car for ' + DOW[i] + '</button>';
+
+      var row = document.createElement('div');
+      row.className = 'day' + (d === today ? ' today' : '') + (d < today ? ' past' : '') + (i >= 5 ? ' weekend' : '');
+      row.innerHTML = '<div class="date"><div class="dow">' + DOW[i].slice(0, 3) + '</div><div class="num">' + day.getDate() +
+        '</div><div class="mon">' + (d === today ? 'Today' : MON[day.getMonth()]) + '</div></div>' +
+        '<div class="body">' + (list.length ? tl + '<div class="cards">' + cards + '</div>'
+          : '<div class="empty"><span>No bookings' + (state.filter ? ' for ' + esc(state.filter) : ' — every car is free') + '</span>' +
+            (d >= today ? '<button class="btn-sms sm btn-outline-custom" onclick="bookDay(\'' + d + '\')">＋ Book</button>' : '') + '</div>') + '</div>';
+      box.appendChild(row);
+    }
+  }
+
+  function isoWeek(monday) {
+    var th = addDays(monday, 3), jan4 = new Date(th.getFullYear(), 0, 4);
+    return 1 + Math.round((th - mondayOf(jan4)) / 604800000);
+  }
+
+  // ── Navigation ──
+  function goTo(date) {
+    var m = mondayOf(date);
+    if (state.monday && ymd(m) === ymd(state.monday)) return;
+    state.monday = m; state.seen = null; state.bookings = [];
+    renderWeek(); load(); remember();
+  }
+  window.goTo = goTo;
+  window.firstWorkday = firstWorkday;
+  window.moveWeek = function (n) { goTo(addDays(state.monday, 7 * n)); };
+
+  function jumpToMonth() {
+    var first = new Date(+document.getElementById('year').value, +document.getElementById('month').value - 1, 1);
+    var dow = (first.getDay() + 6) % 7;   // if the 1st is Fri-Sun, the month really starts the next week
+    goTo(dow >= 4 ? addDays(first, 7 - dow) : first);
+  }
+  document.getElementById('month').addEventListener('change', jumpToMonth);
+  document.getElementById('year').addEventListener('change', jumpToMonth);
+  document.getElementById('filter').addEventListener('change', function () { state.filter = this.value; renderWeek(); remember(); });
+
+  function remember() {
+    var url = new URL(location.href);
+    url.searchParams.set('date', ymd(state.monday));
+    if (state.filter) url.searchParams.set('car', state.filter); else url.searchParams.delete('car');
+    history.replaceState(null, '', url);
+  }
+
+  // ── Search ──
+  var searchTimer, results = document.getElementById('results');
+  document.getElementById('search').addEventListener('input', function () {
+    clearTimeout(searchTimer);
+    var q = this.value.trim();
+    searchTimer = setTimeout(function () { runSearch(q); }, 250);
+  });
+  document.addEventListener('click', function (e) { if (!e.target.closest('.toolbar')) results.classList.remove('show'); });
+  document.getElementById('search').addEventListener('focus', function () { if (results.innerHTML) results.classList.add('show'); });
+
+  function runSearch(q) {
+    state.hits = {};
+    if (!q) { results.classList.remove('show'); results.innerHTML = ''; renderWeek(); return; }
+    fetch(URLS.search + '?q=' + encodeURIComponent(q)).then(function (r) { return r.json(); }).then(function (data) {
+      if (document.getElementById('search').value.trim() !== q) return;
+      data.bookings.forEach(function (b) { state.hits[b.id] = true; });
+      results.innerHTML = data.bookings.length ? data.bookings.map(function (b) {
+        return '<div class="hit" data-date="' + b.start.slice(0, 10) + '">' +
+          '<span class="pill" style="--c:' + carColor(b.car) + '">' + esc(b.car) + '</span>' +
+          '<span class="hwhen">' + esc(dayName(b.start) + ', ' + span(b).replace(dayName(b.start) + ' ', '')) + '</span>' +
+          '<span class="why">' + esc(b.reason) + '</span><span class="who">' + (b.mine ? 'You' : esc(b.booked_by)) + '</span></div>';
+      }).join('') : '<div style="padding:16px;color:var(--muted);font-size:13px">No bookings match “' + esc(q) + '”.</div>';
+      results.classList.add('show');
+      renderWeek();
+    });
+  }
+  results.addEventListener('click', function (e) {
+    var row = e.target.closest('.hit');
+    if (!row) return;
+    results.classList.remove('show');
+    goTo(parse(row.dataset.date));
+  });
+
+  // ── Booking form ──
+  var form = document.getElementById('booking-form');
+  var pickerOpts = {
+    enableTime: true, time_24hr: false, minuteIncrement: 15, minDate: 'today',
+    dateFormat: 'Y-m-d\\TH:i', altInput: true, altFormat: 'D j M Y · h:i K', altInputClass: 'sms-input fp-input',
+    locale: { firstDayOfWeek: 1 }, disableMobile: true
+  };
+  var fpStart = flatpickr('#f-start', Object.assign({}, pickerOpts, { onChange: function () {
+    // Keep the end after the start, holding the same length of booking
+    var s = fpStart.input.value, e = fpEnd.input.value;
+    if (s && (!e || e <= s)) setEnd(addMins(parse(s), 120));
+    check();
+  } }));
+  var fpEnd = flatpickr('#f-end', Object.assign({}, pickerOpts, { onChange: function () { check(); } }));
+  function setStart(d) { fpStart.setDate(d, false); }
+  function setEnd(d) { fpEnd.setDate(d, false); }
+  document.getElementById('f-summary').addEventListener('click', function () { fpStart.open(); });
+
+  function chooseCar(car) {
+    document.getElementById('f-car').value = car;
+    document.querySelectorAll('#car-pick button').forEach(function (b) { b.classList.toggle('on', b.dataset.car === car); });
+    check();
+  }
+  document.getElementById('car-pick').addEventListener('click', function (e) {
+    var b = e.target.closest('button'); if (b) chooseCar(b.dataset.car);
+  });
+
+  document.querySelectorAll('.chip[data-hours], .chip[data-full]').forEach(function (chip) {
+    chip.addEventListener('click', function () {
+      var s = fpStart.input.value ? parse(fpStart.input.value) : nextSlot(new Date());
+      if (chip.dataset.full) {
+        var day = new Date(s.getFullYear(), s.getMonth(), s.getDate());
+        s = new Date(day.getTime()); s.setHours(8);
+        if (s < new Date()) s = nextSlot(new Date());
+        setStart(s); var e = new Date(day.getTime()); e.setHours(17); setEnd(e > s ? e : addMins(s, 60));
+      } else {
+        setStart(s); setEnd(addMins(s, 60 * +chip.dataset.hours));
+      }
+      check();
+    });
+  });
+  document.querySelectorAll('.chip[data-reason]').forEach(function (chip) {
+    chip.addEventListener('click', function () { var r = document.getElementById('f-reason'); r.value = chip.dataset.reason; r.focus(); });
+  });
+
+  // The next quarter hour, moved into working hours (8:00-17:00, Mon-Fri)
+  function nextSlot(from) {
+    var d = new Date(from.getTime()); d.setSeconds(0, 0);
+    d.setMinutes(Math.ceil(d.getMinutes() / 15) * 15);
+    if (d.getHours() < 8) d.setHours(8, 0);
+    if (d.getHours() >= 17) { d = addDays(d, 1); d.setHours(8, 0); }
+    var w = d.getDay();
+    if (w === 6 || w === 0) { d = firstWorkday(d); d.setHours(8, 0); }
+    return d;
+  }
+
+  function openForm(car, start, end, booking) {
+    form.reset();
+    state.editing = booking || null;
+    var earliest = booking && booking.start.slice(0, 10) < ymd(new Date()) ? booking.start.slice(0, 10) : 'today';
+    fpStart.set('minDate', earliest); fpEnd.set('minDate', earliest);
+    document.getElementById('m-title').textContent = booking ? 'Edit booking' : 'Book a car';
+    document.getElementById('m-sub').innerHTML = !booking ? 'Booking as <b>' + esc(ME) + '</b>'
+      : booking.mine ? 'Your booking' : 'Booked by <b>' + esc(booking.booked_by) + '</b> · you’re editing it as a Manager';
+    document.getElementById('f-submit').textContent = booking ? 'Save changes' : 'Confirm booking';
+    document.getElementById('f-delete').style.display = booking ? '' : 'none';
+    if (booking) document.getElementById('f-reason').value = booking.reason;
+    chooseCar(car);
+    setStart(start); setEnd(end);
+    showAvail('', '');
+    modal.show();
+    check();
+    setTimeout(function () { document.getElementById('f-reason').focus(); }, 350);
+  }
+
+  // Car shortcut: that car, from the next free moment, for 2 hours (or until its next booking)
+  window.quickBook = function (car) {
+    var s = state.status[car] || {}, start = nextSlot(new Date());
+    if (s.out_until && parse(s.out_until) > start) start = nextSlot(parse(s.out_until));
+    var end = addMins(start, 120);
+    if (s.next && parse(s.next) > start && parse(s.next) < end) end = parse(s.next);
+    openForm(car, start, end);
+  };
+
+  window.editBooking = function (id) {
+    var b = state.bookings.filter(function (x) { return x.id === id; })[0];
+    if (b && b.can_change) openForm(b.car, parse(b.start), parse(b.end), b);
+  };
+  document.getElementById('f-delete').addEventListener('click', function () {
+    if (state.editing) { modal.hide(); cancelBooking(state.editing.id); }
+  });
+
+  // A day's "Book" button: the first car free at 8:00-10:00 that day (or from now, for today)
+  window.bookDay = function (d) {
+    var start = parse(d + 'T08:00');
+    if (start < new Date()) start = nextSlot(new Date());
+    var end = addMins(start, 120), slot = { start: str(start), end: str(end) };
+    var free = CARS.filter(function (c) { return !state.bookings.some(function (b) { return b.car === c && overlaps(b, slot); }); });
+    openForm(state.filter && free.indexOf(state.filter) >= 0 ? state.filter : (free[0] || CARS[0]), start, end);
+  };
+
+  function showAvail(kind, html) {
+    var el = document.getElementById('f-avail');
+    el.className = 'avail' + (kind ? ' ' + kind : '');
+    el.innerHTML = html;
+  }
+
+  // Look up every car's bookings for the chosen time, mark busy cars, and block a clash before saving
+  var checkSeq = 0;
+  function check() {
+    var car = document.getElementById('f-car').value, start = fpStart.input.value, end = fpEnd.input.value;
+    var summary = document.getElementById('f-summary'), submit = document.getElementById('f-submit');
+    if (!start || !end) { summary.innerHTML = 'Pick when you need the car.'; submit.disabled = true; return; }
+    if (end <= start) { summary.innerHTML = '<span style="color:var(--danger)">The end must be after the start.</span>'; submit.disabled = true; return; }
+    summary.innerHTML = '⏱ <b>' + duration(start, end) + '</b> · ' + esc(span({ start: start, end: end })) + (start.slice(0, 10) === end.slice(0, 10) ? ' on ' + dayName(start, true) : '');
+
+    var seq = ++checkSeq, days = Math.round((parse(end.slice(0, 10)) - parse(start.slice(0, 10))) / 86400000) + 1;
+    fetch(URLS.bookings + '?start=' + start.slice(0, 10) + '&days=' + days).then(function (r) { return r.json(); }).then(function (data) {
+      if (seq !== checkSeq) return;
+      var slot = { start: start, end: end }, busy = {};
+      var self = state.editing && state.editing.id;
+      data.bookings.forEach(function (b) { if (b.id !== self && overlaps(b, slot)) (busy[b.car] = busy[b.car] || []).push(b); });
+      document.querySelectorAll('#car-pick button').forEach(function (btn) {
+        var c = btn.dataset.car;
+        btn.classList.toggle('busy', !!busy[c]);
+        btn.querySelector('.a').textContent = busy[c] ? 'Booked' : 'Free';
+      });
+      if (busy[car]) {
+        var free = CARS.filter(function (c) { return !busy[c]; });
+        showAvail('bad', '<b>' + esc(car) + ' is already booked then:</b>' + busy[car].map(function (b) {
+          return '<div style="margin-top:4px">• ' + esc(span(b)) + ' — ' + (b.mine ? 'You' : esc(b.booked_by)) + ': ' + esc(b.reason) + '</div>';
+        }).join('') + (free.length ? '<div style="margin-top:6px">Free at that time: <b>' + free.map(esc).join(', ') + '</b></div>' : ''));
+        submit.disabled = true;
+      } else {
+        showAvail('ok', '✓ <b>' + esc(car) + '</b> is free for this time.');
+        submit.disabled = false;
+      }
+    });
+  }
+
+  form.addEventListener('submit', function (e) {
+    e.preventDefault();
+    var btn = document.getElementById('f-submit');
+    var editing = state.editing, label = editing ? 'Save changes' : 'Confirm booking';
+    btn.disabled = true; btn.textContent = editing ? 'Saving…' : 'Booking…';
+    fetch(editing ? URLS.edit.replace('/0/', '/' + editing.id + '/') : URLS.book, { method: 'POST', body: new FormData(form), headers: { 'X-CSRFToken': getCsrfToken() } })
+      .then(function (r) { return r.json().then(function (data) { return { ok: r.ok, data: data }; }); })
+      .then(function (res) {
+        if (!res.ok) {
+          showAvail('bad', '<b>' + esc(res.data.error) + '</b>' + (res.data.clashes || []).map(function (b) {
+            return '<div style="margin-top:4px">• ' + esc(span(b)) + ' — ' + esc(b.booked_by) + ': ' + esc(b.reason) + '</div>';
+          }).join(''));
+          return;
+        }
+        modal.hide();
+        goTo(parse(res.data.booking.start));
+        load();
+      })
+      .catch(function () { showAvail('bad', '<b>Couldn’t reach the server.</b> Check your connection and try again.'); })
+      .finally(function () { btn.textContent = label; if (!document.querySelector('#f-avail.bad')) btn.disabled = false; });
+  });
+
+  window.cancelBooking = function (id) {
+    var b = state.bookings.filter(function (x) { return x.id === id; })[0];
+    if (!b || !confirm('Cancel the ' + b.car + ' booking (' + span(b) + ', ' + dayName(b.start) + ')?\n\n' + b.reason)) return;
+    fetch(URLS.cancel.replace('/0/', '/' + id + '/'), { method: 'POST', headers: { 'X-CSRFToken': getCsrfToken() } })
+      .then(function (r) { return r.json().then(function (data) { if (!r.ok) alert(data.error); load(); }); });
+  };
+
+  // ── Start: the week from the link (e.g. a notification), otherwise this working week ──
+  var params = new URLSearchParams(location.search);
+  if (CARS.indexOf(params.get('car')) >= 0) { state.filter = params.get('car'); document.getElementById('filter').value = state.filter; }
+  var linked = params.get('date');
+  goTo(linked && /^\d{4}-\d{2}-\d{2}$/.test(linked) ? parse(linked) : firstWorkday(new Date()));
+
+  setInterval(function () { if (!document.hidden) load(); }, POLL_MS);
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) load(); });
+});
+</script>
+{% endblock %}

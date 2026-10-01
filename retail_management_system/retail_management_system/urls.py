@@ -8,6 +8,7 @@ urlpatterns = [
     path('atlas/', include('retail_atlas.urls')),
     path('', include('fe_orders.urls')),
     path('', include('shops.urls')),
+    path('', include('car_allocations.urls')),
 ]
 
 if settings.DEBUG:

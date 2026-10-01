@@ -154,6 +154,13 @@ def dashboard(request):
 # ══════════════════════════════════════════════════════════════════════════════
 
 SHOP_TERRITORIES = ['EC1', 'EC2', 'EC3', 'LFG', 'VT1', 'VT2', 'VT3', 'WC1', 'WC2', 'WC4']
+EXTRA_CUSTOMER_TYPES = ['Fe Regions']   # offered in the client form even before any client uses them
+
+
+def customer_type_choices():
+    """Every customer type in use (from the client upload) plus the extra ones, for the client form dropdown."""
+    used = Shop.objects.exclude(customer_type='').values_list('customer_type', flat=True).distinct()
+    return sorted(set(used) | set(EXTRA_CUSTOMER_TYPES), key=str.lower)
 
 
 def shop_list(request):
@@ -173,7 +180,8 @@ def shop_list(request):
     elif ctype:
         qs = qs.filter(customer_type=ctype)
     if q:
-        qs = qs.filter(Q(name__icontains=q) | Q(customer_code__iexact=q) | Q(contact_person__icontains=q))
+        qs = qs.filter(Q(name__icontains=q) | Q(customer_code__iexact=q) | Q(contact_person__icontains=q)
+                       | Q(address__icontains=q))
     if territories:
         # "OTHER" catches everything the listed territory checkboxes miss:
         # unlisted codes plus shops with no territory recorded.
@@ -281,7 +289,7 @@ def add_shop(request):
         error = _client_from_post(request.POST, shop)
         if error:
             return render(request, 'shops/shop_form.html', {
-                'error': error, 'action': 'Add', 'client': shop, 'territories': SHOP_TERRITORIES,
+                'error': error, 'action': 'Add', 'client': shop, 'territories': SHOP_TERRITORIES, 'customer_types': customer_type_choices(),
             })
         shop.save()
         # Handle photos with individual labels
@@ -291,7 +299,8 @@ def add_shop(request):
             label = labels[idx] if idx < len(labels) else ''
             ShopPhoto.objects.create(shop=shop, image=img, note=label.strip())
         return redirect('shop_list')
-    return render(request, 'shops/shop_form.html', {'action': 'Add', 'territories': SHOP_TERRITORIES})
+    return render(request, 'shops/shop_form.html', {'action': 'Add', 'territories': SHOP_TERRITORIES,
+                                                    'customer_types': customer_type_choices()})
 
 
 def edit_shop(request, shop_id):
@@ -303,7 +312,7 @@ def edit_shop(request, shop_id):
         error = _client_from_post(request.POST, shop)
         if error:   # show the form again with what was typed
             return render(request, 'shops/shop_form.html', {
-                'error': error, 'action': 'Edit', 'shop': shop, 'client': shop, 'territories': SHOP_TERRITORIES,
+                'error': error, 'action': 'Edit', 'shop': shop, 'client': shop, 'territories': SHOP_TERRITORIES, 'customer_types': customer_type_choices(),
             })
         shop.save()
         # Delete removed photos
@@ -328,7 +337,7 @@ def edit_shop(request, shop_id):
             ShopPhoto.objects.create(shop=shop, image=img, note=label.strip())
         return redirect('shop_detail', shop_id=shop.id)
     return render(request, 'shops/shop_form.html', {'action': 'Edit', 'shop': shop, 'client': shop,
-                                                    'territories': SHOP_TERRITORIES})
+                                                    'territories': SHOP_TERRITORIES, 'customer_types': customer_type_choices()})
 
 
 def delete_shop(request, shop_id):

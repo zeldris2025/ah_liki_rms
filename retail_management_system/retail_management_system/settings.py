@@ -37,12 +37,25 @@ _load_env_file(os.path.join(BASE_DIR, '.env'))
 # See https://docs.djangoproject.com/en/2.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = '(qeyrnli2!j9bl0b!qz^$v@au7nu__*zc2hcbmk%rzj7-(15)%'
+SECRET_KEY = os.environ.get('SECRET_KEY', 'dev-secret-key-change-me')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = os.environ.get('DEBUG', 'True').lower() in ('1', 'true', 'yes', 'on')
 
-ALLOWED_HOSTS = ['*']
+ALLOWED_HOSTS = [
+    host.strip()
+    for host in os.environ.get('ALLOWED_HOSTS', 'localhost,127.0.0.1,0.0.0.0,[::1], 10.10.8.49').split(',')
+    if host.strip()
+]
+
+CSRF_TRUSTED_ORIGINS = [
+    origin.strip()
+    for origin in os.environ.get(
+        'CSRF_TRUSTED_ORIGINS',
+        'http://localhost:8000,http://127.0.0.1:8000,http://0.0.0.0:8000'
+    ).split(',')
+    if origin.strip()
+]
 
 
 # Application definition
@@ -57,6 +70,7 @@ INSTALLED_APPS = [
     'shops',
     'retail_atlas',
     'fe_orders',
+    'car_allocations',
     'import_export',
 ]
 
@@ -101,10 +115,12 @@ WSGI_APPLICATION = 'retail_management_system.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': os.path.join(BASE_DIR, 'db.sqlite3'),
+        'NAME': os.environ.get('DATABASE_PATH', os.path.join(BASE_DIR, 'db.sqlite3')),
     }
 }
 
+
+DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # Password validation
 # https://docs.djangoproject.com/en/2.2/ref/settings/#auth-password-validators
@@ -143,6 +159,7 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/2.2/howto/static-files/
 
 STATIC_URL = '/static/'
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 
 import os
 
@@ -165,6 +182,12 @@ TELEGRAM = {
     'CHAT_ID':   os.environ.get('TELEGRAM_ORDERS_CHAT_ID', ''),   # groups look like -1001234567890
 }
 
+# Where people open the system; used for links in emails, e.g. the 'Open Car Allocations' button.
+SITE_URL = os.environ.get('SITE_URL', 'http://10.10.8.49:8000')
+
+# Car Allocations shows and checks bookings in office time (the rest of the system still uses TIME_ZONE).
+CAR_TIME_ZONE = os.environ.get('CAR_TIME_ZONE', 'Pacific/Apia')
+
 # Microsoft 365 (Office 365) email notifications, sent through Microsoft Graph with an Azure app
 # registration (application permission Mail.Send). Leave blank to turn email off.
 # Send a test with: python manage.py office365 test --to you@yourcompany.com
@@ -175,4 +198,5 @@ OFFICE365 = {
     'SENDER':        os.environ.get('OFFICE365_SENDER', ''),         # the mailbox emails come from, e.g. orders@ahliki.ws
     'ORDER_EMAILS':  os.environ.get('OFFICE365_ORDER_EMAILS', ''),   # comma-separated, who gets new FE orders
     'ISSUE_EMAILS':  os.environ.get('OFFICE365_ISSUE_EMAILS', ''),   # comma-separated, who gets new FE issues
+    'CAR_EMAILS':    os.environ.get('OFFICE365_CAR_EMAILS', ''),     # comma-separated, who gets car bookings (blank = every office user's email)
 }

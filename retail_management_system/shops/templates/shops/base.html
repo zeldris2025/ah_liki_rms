@@ -62,6 +62,8 @@
 
     /* ── Main ── */
     .main-content { flex: 1; padding: 32px; min-width: 0; }
+    .top-actions { display: flex; justify-content: flex-end; margin: -16px 0 8px; }
+    .top-actions:empty { display: none; }
 
     /* ── Stat card ── */
     .stat-card { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 20px 22px; }
@@ -185,6 +187,7 @@
       {% if access.sponsorships %}
       <a href="{% url 'sponsorship_list' %}" class="nav-item-custom {% if n == 'sponsorship_list' or n == 'add_sponsorship' or n == 'edit_sponsorship' %}active{% endif %}"><span class="nav-icon">🤝</span>Sponsorships</a>
       {% endif %}
+      <a href="{% url 'car_allocations' %}"  class="nav-item-custom {% if n == 'car_allocations' %}active{% endif %}"><span class="nav-icon">🚗</span>Car Allocations</a>
 
       <!-- FE Ordering -->
       {% if access.fe_ordering %}
@@ -231,6 +234,7 @@
 
   <!-- Main -->
   <main class="main-content">
+    <div class="top-actions">{% include 'car_allocations/_notifications.html' %}</div>
     {% block content %}{% endblock %}
   </main>
 </div>
