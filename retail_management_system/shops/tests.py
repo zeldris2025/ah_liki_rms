@@ -311,6 +311,29 @@ class CorporateSalesTests(TestCase):
         self.assertLess(html.index('>Ruth<'), html.index('>Judane<'))
         self.assertIn('Ministries', html)
 
+    def test_all_slide_combines_every_stream(self):
+        from .models import MonthlySales, SalesTarget, Shop
+        from . import corporate
+        mof = Shop.objects.create(customer_code='M1', name='Ministry of Finance', customer_type='Ministry')
+        hotel = Shop.objects.create(customer_code='H1', name='Beach Hotel', customer_type='Hotel')
+        MonthlySales.objects.create(shop=mof, month=date(2026, 3, 1), sales=12000)
+        MonthlySales.objects.create(shop=hotel, month=date(2026, 3, 1), sales=5000)
+        SalesTarget.objects.create(manager='ruth', month=date(2026, 3, 1), amount=10000)
+
+        overall = corporate.combined_summary(corporate.year_summary(2026, today=date(2026, 3, 15))[0])
+        self.assertEqual((overall['actual'][2], overall['target'][2], overall['target'][1]), (17000, 10000, None))
+        ytd = {r['key']: r for r in overall['tables'][0]['rows']}
+        self.assertEqual((ytd['ruth']['variance'], ytd['ruth']['variance_pct']), (2000, 20.0))
+        self.assertEqual((ytd['judane']['actual'], ytd['judane']['variance']), (5000, None))   # no target: no variance
+        self.assertNotIn('grace', ytd)   # no sales: left off the table
+        total = overall['tables'][0]['total']
+        self.assertEqual((total['actual'], total['target'], total['variance'], total['variance_pct']), (17000, 10000, 2000, 20.0))
+
+        html = self.client.get(reverse('corporate_sales'), {'year': 2026}).content.decode()
+        self.assertIn('id="slide-all"', html)
+        self.assertIn('Variance %', html)
+        self.assertIn('id="sum-png"', html)
+
     def test_targets_form_saves_clears_and_rejects_bad_input(self):
         from .models import SalesTarget
         url = reverse('corporate_targets') + '?year=2026'
@@ -520,8 +543,9 @@ class CorporateSliderTests(TestCase):
         _manager('office')
         self.client.login(username='office', password='pw')
         html = self.client.get(reverse('corporate_sales')).content.decode()
-        self.assertEqual(html.count('class="cs-slide"'), 4)
-        self.assertEqual(html.count('role="tab"'), 4)
+        self.assertEqual(html.count('class="cs-slide"'), 5)   # All streams, then one per person
+        self.assertEqual(html.count('role="tab"'), 5)
+        self.assertLess(html.index('id="slide-all"'), html.index('id="slide-grace"'))
         for text in ('cs-prev', 'cs-next', 'id="slide-grace"', 'id="slide-ivan"', '"currentMonth"', '"name": "Ruth"'):
             self.assertIn(text, html)
         self.assertLess(html.index('id="slide-grace"'), html.index('id="slide-ruth"'))
@@ -595,7 +619,7 @@ class ProductSalesTests(TestCase):
         self.assertEqual(page.context['row_count'], 7)
         self.assertContains(page, 'to pin it here')
         self.client.post(reverse('product_sales_pin'), {'code': 'TT1', 'next': reverse('product_sales')})
-        links = self.client.get(reverse('product_sales')).context['links']
+        links = self.client.get(reverse('product_sales'), {'lm': 2}).context['links']   # Jan–Feb 2026 vs Jan–Feb 2025
         self.assertEqual([(l['code'], l['total'], l['growth']) for l in links], [('TT1', 400, 33.3)])
         selected = self.client.get(reverse('product_sales'), {'product': 'TT1'})
         self.assertEqual((selected.context['selected_name'], selected.context['row_count']), ('Tip Top Vanilla 2L', 5))
@@ -717,7 +741,7 @@ class ProductTargetColourTests(TestCase):
         self.assertContains(page, 'Sales · Sep 2026')
 
     def test_quick_link_colours(self):
-        page = self.client.get(reverse('product_sales'))
+        page = self.client.get(reverse('product_sales'), {'lm': 9})
         self.assertEqual({l['code']: (l['month_sales'], l['target'], l['pct'], l['status']) for l in page.context['links']},
                          {'G1': (1200, 1000, 120, 'good'), 'O1': (950, 1000, 95, 'close'),
                           'R1': (500, 1000, 50, 'behind'), 'N1': (300, None, None, 'none')})
@@ -752,7 +776,7 @@ class QuickLinksPanelTests(TestCase):
         self.assertEqual(inside.context['matching_groups'], [])   # already in a group: no need to offer it
 
     def test_compact_scrollable_panel(self):
-        html = self.client.get(reverse('product_sales')).content.decode()
+        html = self.client.get(reverse('product_sales'), {'lm': 9}).content.decode()
         for text in ('ps-links-list', 'id="ps-find"', 'of 3.0M', 'Lowest first · 3', '＋ New group'):
             self.assertIn(text, html)
         self.assertNotIn('data-spark', html)
@@ -811,7 +835,7 @@ class QuickLinkTargetTests(TestCase):
         self.url = reverse('quick_link_targets') + '?year=2026'
 
     def links(self):
-        page = self.client.get(reverse('product_sales'))
+        page = self.client.get(reverse('product_sales'), {'lm': 9})
         return page.context['groups'][0], page.context['links'][0], page
 
     def test_blank_uses_last_year_and_manual_overrides(self):
@@ -907,7 +931,7 @@ class QuickLinkOrderTests(TestCase):
     setUp = ProductTargetColourTests.setUp
 
     def test_one_list_lowest_first(self):
-        page = self.client.get(reverse('product_sales'))
+        page = self.client.get(reverse('product_sales'), {'lm': 9})
         order = [(q['kind'], q['name'], q['pct']) for q in page.context['quick']]
         self.assertEqual(order, [('product', 'Red Wine', 50), ('group', 'Drinks', 88), ('product', 'Orange Juice', 95),
                                  ('product', 'Green Tea', 120), ('product', 'New Snack', None)])
@@ -921,12 +945,43 @@ class QuickLinkStatusButtonTests(TestCase):
     setUp = ProductTargetColourTests.setUp   # G1 reached, O1 and Drinks 70–99%, R1 below, N1 no target
 
     def test_buttons_with_counts_and_item_status(self):
-        page = self.client.get(reverse('product_sales'))
+        page = self.client.get(reverse('product_sales'), {'lm': 9})
         self.assertEqual(page.context['status_counts'], {'good': 1, 'close': 2, 'behind': 1})
         html = page.content.decode()
         for text in ('data-status="good" aria-pressed="false"', 'Reached <b>1</b>', '70–99% <b>2</b>', 'Below 70% <b>1</b>',
                      '<div class="ps-item" data-status="behind">', '<div class="ps-item" data-status="none">'):
             self.assertIn(text, html)
+
+
+class QuickLinkMonthTests(TestCase):
+    """The quick links are judged on the current month by default, and any month can be picked."""
+    def setUp(self):
+        from .models import PinnedProduct, ProductSales
+        _manager('office')
+        self.client.login(username='office', password='pw')
+        self.year = date.today().year
+        ProductSales.objects.create(product_code='CK1', product_name='Coke', month=date(self.year - 1, 1, 1), total_sales=1000)
+        ProductSales.objects.create(product_code='CK1', product_name='Coke', month=date(self.year, 1, 1), total_sales=800)
+        PinnedProduct.objects.create(product_code='CK1')
+
+    def test_defaults_to_current_month_even_before_upload(self):
+        from .product_sales import MONTHS
+        page = self.client.get(reverse('product_sales'))
+        this_month = f'{MONTHS[date.today().month - 1]} {self.year}'
+        self.assertEqual(page.context['link_month'], this_month)
+        self.assertEqual(page.context['link_month_i'], date.today().month)
+        if date.today().month != 1:
+            self.assertContains(page, f'no {this_month} sales uploaded yet')
+
+    def test_pick_another_month(self):
+        page = self.client.get(reverse('product_sales'), {'lm': 1, 'category': 'x'})
+        self.assertEqual(page.context['link_month'], f'Jan {self.year}')
+        self.assertIn(('category', 'x'), page.context['link_month_keep'])   # other filters stay
+        self.assertNotIn('sales uploaded yet', page.content.decode())
+        self.assertIn('lm=1', page.context['keep_query'])   # clicking a quick link keeps the month
+        link = self.client.get(reverse('product_sales'), {'lm': 1}).context['links'][0]
+        self.assertEqual((link['month_sales'], link['target'], link['pct']), (800, 1000, 80))
+        self.assertEqual(self.client.get(reverse('product_sales'), {'lm': 'bad'}).context['link_month_i'], date.today().month)
 
 
 class ClientListSalesColumnTests(TestCase):

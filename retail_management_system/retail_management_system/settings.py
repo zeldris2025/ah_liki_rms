@@ -198,5 +198,4 @@ OFFICE365 = {
     'SENDER':        os.environ.get('OFFICE365_SENDER', ''),         # the mailbox emails come from, e.g. orders@ahliki.ws
     'ORDER_EMAILS':  os.environ.get('OFFICE365_ORDER_EMAILS', ''),   # comma-separated, who gets new FE orders
     'ISSUE_EMAILS':  os.environ.get('OFFICE365_ISSUE_EMAILS', ''),   # comma-separated, who gets new FE issues
-    'CAR_EMAILS':    os.environ.get('OFFICE365_CAR_EMAILS', ''),     # comma-separated, who gets car bookings (blank = every office user's email)
 }

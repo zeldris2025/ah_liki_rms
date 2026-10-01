@@ -90,6 +90,37 @@ class CarBookingTests(TestCase):
         to = send.call_args.args[4]
         self.assertEqual(to, ['mele@example.com'])
 
+    @override_settings(OFFICE365={'TENANT_ID': 't', 'CLIENT_ID': 'c', 'CLIENT_SECRET': 's', 'SENDER': 'cars@example.com'})
+    def test_email_comes_from_booker_to_every_group_but_fe_boys(self):
+        fe = User.objects.create_user('semo', email='semo@example.com', password='x')
+        fe.groups.add(Group.objects.get_or_create(name='fe_boys')[0])
+        boss = User.objects.create_user('boss', email='boss@example.com', password='x')
+        boss.groups.add(Group.objects.get_or_create(name='Manager')[0])
+        other = User.objects.create_user('lisi', email='lisi@example.com', password='x')
+        other.groups.add(Group.objects.get_or_create(name='Accounts')[0])   # any group but fe_boys
+        User.objects.create_user('nogroup', email='nogroup@example.com', password='x')
+        with mock.patch('fe_orders.office365._send_later') as send:
+            self.book(self.marketing)
+        self.assertEqual(send.call_args.args[4], ['boss@example.com', 'lisi@example.com', 'sione@example.com'])
+        self.assertEqual(send.call_args.kwargs['sender'], 'mele@example.com')
+
+    @override_settings(OFFICE365={'TENANT_ID': 't', 'CLIENT_ID': 'c', 'CLIENT_SECRET': 's', 'SENDER': 'cars@example.com'})
+    def test_falls_back_to_shared_mailbox_when_booker_cannot_send(self):
+        from fe_orders import office365
+        senders = []
+
+        def fake_send(to, subject, body, sender=None):
+            senders.append(sender)
+            if sender:
+                raise office365.Office365Error('HTTP 404: mailbox not found')
+        # the thread runs inline, so the patches must still be in place when the commit callbacks run
+        with mock.patch('fe_orders.office365.send_mail', fake_send), \
+                mock.patch('threading.Thread', lambda target, daemon: mock.Mock(start=target)), \
+                self.captureOnCommitCallbacks(execute=True):
+            self.book(self.sales)
+        self.assertEqual(senders, ['sione@example.com', None])
+        self.assertTrue(Booking.objects.get().email_status.startswith('Sent from cars@example.com'))
+
     def test_same_car_same_day_different_times(self):
         self.assertEqual(self.book(self.sales, start=self.start, hours=2).status_code, 200)               # 09:00-11:00
         self.assertEqual(self.book(self.marketing, start=self.start + timedelta(hours=3)).status_code, 200)  # 12:00-14:00

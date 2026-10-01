@@ -1,7 +1,7 @@
 """Tell the rest of the office when someone books a car: a notice under everyone's bell, plus an email.
 
-Email goes through Microsoft 365 (fe_orders.office365). It is sent to OFFICE365_CAR_EMAILS when that is
-set, otherwise to the email address on each Sales, Marketing and Manager account.
+Email goes through Microsoft 365 (fe_orders.office365), from the booker's own mailbox (the email address on
+their account), to everyone else in every group except fe_boys, plus admins.
 """
 from django.conf import settings
 from django.contrib.auth import get_user_model
@@ -11,6 +11,8 @@ from django.utils import timezone
 
 from fe_orders import office365
 from shops.access import ROLES
+
+FE_GROUP = 'fe_boys'   # FE staff don't get car booking emails
 
 from .models import Booking, Notification
 
@@ -34,11 +36,13 @@ def _when(booking):
 
 
 def car_recipients(exclude_user):
-    raw = office365._config().get('CAR_EMAILS', '')
-    listed = [a.strip() for a in raw.replace(';', ',').split(',') if a.strip()]
-    if listed:
-        return listed
-    return sorted({u.email for u in office_team().exclude(pk=exclude_user.pk) if u.email})
+    """Email addresses of every active user in any group except fe_boys, plus admins, but not the booker."""
+    User = get_user_model()
+    users = (User.objects.filter(is_active=True)
+             .filter(Q(is_superuser=True) | Q(groups__isnull=False))
+             .exclude(groups__name=FE_GROUP).exclude(pk=exclude_user.pk).exclude(email=''))
+    mine = (exclude_user.email or '').strip().lower()
+    return sorted({u.email.strip() for u in users if u.email.strip().lower() != mine})
 
 
 def email_link(booking):
@@ -69,7 +73,8 @@ def notify_new_booking(booking, url):
         Booking.objects.filter(pk=booking.pk).update(email_status='Not configured')
         return
     subject, body = booking_email(booking, email_link(booking))
-    office365._send_later(Booking, booking.pk, subject, body, to, f'car booking {booking.pk}')
+    office365._send_later(Booking, booking.pk, subject, body, to, f'car booking {booking.pk}',
+                          sender=(booking.booked_by.email or '').strip() or None)
 
 
 def notify_cancelled(booking, by_user, url):

@@ -81,9 +81,11 @@ def access_token():
         return _token['value']
 
 
-def send_mail(to, subject, body_html):
-    """Send an HTML email from the configured mailbox. Raises Office365Error with Microsoft's reason."""
-    sender = _config()['SENDER']
+def send_mail(to, subject, body_html, sender=None):
+    """Send an HTML email from a mailbox in the tenant: `sender` (e.g. the person who booked a car), or the
+    configured OFFICE365_SENDER. Mail.Send as an application permission can send from any mailbox.
+    Raises Office365Error with Microsoft's reason."""
+    sender = sender or _config()['SENDER']
     payload = {'message': {
         'subject': subject,
         'body': {'contentType': 'HTML', 'content': body_html},
@@ -151,17 +153,26 @@ def issue_email(issue, url):
 
 # ── Sending in the background ─────────────────────────────────────────────────
 
-def _send_later(model, pk, subject, body, to, label):
-    """Mark the record 'Sending', then send after the database commit without holding up the page."""
+def _send_later(model, pk, subject, body, to, label, sender=None):
+    """Mark the record 'Sending', then send after the database commit without holding up the page.
+    If `sender`'s mailbox refuses (e.g. the address isn't a mailbox in the tenant), it goes from OFFICE365_SENDER instead."""
     model.objects.filter(pk=pk).update(email_status='Sending')
 
     def send():
         try:
-            send_mail(to, subject, body)
-            status = 'Sent'
+            try:
+                send_mail(to, subject, body, sender)
+                status = 'Sent' + (f' from {sender}' if sender else '')
+            except Office365Error as exc:
+                if not sender or sender.lower() == _config()['SENDER'].lower():
+                    raise
+                log.warning('Office 365 email for %s could not be sent from %s (%s); using the shared mailbox', label, sender, exc)
+                send_mail(to, subject, body)
+                status = f'Sent from {_config()["SENDER"]} ({sender}: {exc})'
         except (Office365Error, urllib.error.URLError, OSError, ValueError, KeyError) as exc:
             log.exception('Office 365 email for %s failed', label)
-            status = f'Failed: {exc}'[:120]
+            status = f'Failed: {exc}'
+        status = status[:120]
         model.objects.filter(pk=pk).update(email_status=status)
 
     transaction.on_commit(lambda: threading.Thread(target=send, daemon=True).start())

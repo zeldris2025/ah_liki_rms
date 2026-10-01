@@ -129,3 +129,46 @@ def year_summary(year, today=None):
     for m in summary:
         m['month_pct'] = round(m['month_actual'] / m['month_target'] * 100) if m['month_target'] else None
     return summary, unmatched
+
+
+def combined_summary(summary):
+    """Every stream together, for the All slide: monthly totals for the graph, and a row per stream for the
+    table of actual against target (year to date and the current month). Like the cards, year to date only
+    counts the months that have a target."""
+    def total(values):
+        values = [v for v in values if v is not None]
+        return sum(values) if values else None
+
+    def row(m, actual, target):
+        variance = actual - target if target else None
+        return {'key': m['key'], 'name': m['name'], 'color': m['color'], 'stream': ' / '.join(m['streams']),
+                'actual': actual, 'target': target, 'variance': variance,
+                'variance_pct': round(variance / target * 100, 1) if target else None}
+
+    def table(rows):
+        rows = [r for r in rows if r['actual']]   # streams with no sales in the period are left off the table
+        # a stream without a target still adds its sales to the total, but not to the variance
+        target = sum(r['target'] or 0 for r in rows) or None
+        variance = sum(r['variance'] for r in rows if r['variance'] is not None) if target else None
+        return rows, {'actual': sum(r['actual'] for r in rows), 'target': target, 'variance': variance,
+                      'variance_pct': round(variance / target * 100, 1) if target else None,
+                      'untargeted': [r['name'] for r in rows if not r['target']]}
+
+    first = summary[0] if summary else {}
+    ytd_rows, ytd_total = table([row(m, m['ytd_actual_on_target'] if m['ytd_target'] else m['ytd_actual'],
+                                     m['ytd_target'] or None) for m in summary])
+    month_rows, month_total = table([row(m, m['month_actual'] or 0, m['month_target'] or None) for m in summary])
+    return {
+        'actual': [total(m['actual'][i] for m in summary) for i in range(12)],
+        'target': [total(m['target'][i] for m in summary) for i in range(12)],
+        'streams': [' / '.join(m['streams']) for m in summary],
+        'client_count': sum(m['client_count'] for m in summary),
+        'month_label': first.get('month_label', ''),
+        'ytd_months': first.get('ytd_months', ''),
+        'missing': [f"{m['name']} ({m['ytd_missing_months']})" for m in summary if m['ytd_target'] and m['ytd_missing_months']],
+        # the table's two periods; year to date shows first
+        'tables': [t for t in (
+            {'key': 'ytd', 'label': f"Year to date · {first.get('ytd_months', '')}", 'rows': ytd_rows, 'total': ytd_total},
+            {'key': 'month', 'label': first.get('month_label', ''), 'rows': month_rows, 'total': month_total},
+        ) if first.get('month_label')],
+    }

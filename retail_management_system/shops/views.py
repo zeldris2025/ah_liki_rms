@@ -521,9 +521,15 @@ def corporate_sales(request):
               'products': {'all': corporate.top_products(m['client_ids'], year),
                            **{str(c['shop_id']): corporate.top_products([c['shop_id']], year) for c in m['top_clients']}}}
              for m in managers]
+    # The All slide puts every stream together; a rep only sees their own stream, so they don't get it
+    overall = None if own else corporate.combined_summary(everyone)
     return render(request, 'shops/corporate_sales.html', {
         'managers': managers, 'year': year, 'years': range(date.today().year + 1, date.today().year - 4, -1),
+        'overall': overall, 'slide_offset': 1 if overall else 0,
         'chart_data': json.dumps({'labels': corporate.MONTH_LABELS, 'managers': chart, 'year': year,
+                                  'all': {'actual': [float(v) if v is not None else None for v in overall['actual']],
+                                          'target': [float(v) if v is not None else None for v in overall['target']]}
+                                         if overall else None,
                                   # the month still in progress gets a lighter bar
                                   'currentMonth': date.today().month - 1 if year == date.today().year else -1}),
         'unmatched_types': [] if own else unmatched,
@@ -1096,7 +1102,7 @@ def product_sales_page(request):
         base.pop(key, None)
     table_total = product_sales.dated(product_sales.product_scope(f), f).count() if f['tq'] else None
     # filters kept when jumping to a quick link (which picks one product and clears the search)
-    keep_query = urlencode({k: request.GET[k] for k in ('year', 'compare', 'from', 'to', 'category') if request.GET.get(k)})
+    keep_query = urlencode({k: request.GET[k] for k in ('year', 'compare', 'from', 'to', 'category', 'lm') if request.GET.get(k)})
     # where ☆ pin buttons come back to: this page, never the live-search fragment
     page_url = request.path + '?' + urlencode([(k, v) for k, vs in request.GET.lists() if k != 'partial' for v in vs])
     pinned = set(PinnedProduct.objects.values_list('product_code', flat=True))
@@ -1116,9 +1122,9 @@ def product_sales_page(request):
         'top': {'labels': [r['name'] for r in a['top']['rows']], 'codes': [r['product_code'] for r in a['top']['rows']],
                 'values': [_num(r['total']) for r in a['top']['rows']]},
     }
-    month_i = product_sales.current_month(f['year'])   # the month the quick-link colours are judged on
-    groups = product_sales.group_links(f['year'], f['compare'])
-    links = product_sales.quick_links(f['year'], f['compare'])
+    month_i = f['link_month']   # the month the quick-link colours are judged on: picked, or the current month
+    groups = product_sales.group_links(f['year'], f['compare'], month_i)
+    links = product_sales.quick_links(f['year'], f['compare'], month_i)
     quick = product_sales.sort_quick_links(groups, links)
     # the search box finds groups too: offer any whose name matches
     matching_groups = [g for g in groups if f['q'] and f['q'].lower() in g['name'].lower()] if not f['group'] else []
@@ -1131,6 +1137,10 @@ def product_sales_page(request):
         'link_month': f"{product_sales.MONTHS[month_i]} {f['year']}" if month_i >= 0 else '',
         'target_month': f"{product_sales.MONTHS[month_i]} {f['compare']}" if month_i >= 0 else '',
         'close_pct': product_sales.CLOSE_PCT,
+        'link_month_i': month_i + 1, 'link_month_choices': list(enumerate(product_sales.MONTHS, start=1)),
+        'link_month_uploaded': month_i >= 0 and ProductSales.objects.filter(month__year=f['year'], month__month=month_i + 1).exists(),
+        # the month picker keeps every other filter and starts again at page 1
+        'link_month_keep': [(k, v) for k, values in request.GET.lists() if k not in ('lm', 'page', 'partial') for v in values],
         'pinned': pinned, 'page_url': page_url,
         'page_obj': page, 'base_query': base.urlencode(), 'query': request.GET.urlencode(),
         # everything except the table search and page, kept as hidden fields in the table's search form

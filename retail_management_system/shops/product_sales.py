@@ -180,6 +180,7 @@ def read_filters(params):
         'start': _month_param(params.get('from', '')),
         'end': _month_param(params.get('to', '')),
         'sort': params.get('sort', ''),
+        'link_month': link_month(year, params.get('lm', '')),   # the month the quick links are judged on
     }
 
 
@@ -238,6 +239,18 @@ def current_month(year):
     """Index (0–11) of the latest month in `year` with any product sales uploaded, or -1."""
     latest = ProductSales.objects.filter(month__year=year).aggregate(m=Max('month'))['m']
     return latest.month - 1 if latest else -1
+
+
+def link_month(year, requested=''):
+    """Index (0–11) of the month the quick links compare against target: the month picked (?lm=1–12),
+    otherwise the current month for this year (even before its sales are uploaded), otherwise the latest
+    month uploaded for that year, or -1."""
+    if str(requested).isdigit() and 1 <= int(requested) <= 12:
+        return int(requested) - 1
+    today = date.today()
+    if year == today.year:
+        return today.month - 1
+    return current_month(year)
 
 
 def short_money(v):
@@ -326,9 +339,10 @@ def _link_figures(rows, year, compare, month, manual=None):
             'pct': pct, 'status': status, 'spark': [float(v) if v is not None else None for v in this]}
 
 
-def quick_links(year, compare):
-    """Pinned products with this month against target, year-to-date change, and a 12-month sparkline."""
-    month = current_month(year)
+def quick_links(year, compare, month=None):
+    """Pinned products with a month (`month` index, default the latest uploaded) against target,
+    year-to-date change, and a 12-month sparkline."""
+    month = current_month(year) if month is None else month
     codes = list(PinnedProduct.objects.values_list('product_code', flat=True))
     if not codes:
         return []
@@ -342,9 +356,9 @@ def quick_links(year, compare):
             for code in codes]
 
 
-def group_links(year, compare):
+def group_links(year, compare, month=None):
     """Product groups with the same figures as pinned products, plus how many products they hold."""
-    month = current_month(year)
+    month = current_month(year) if month is None else month
     manual = {}
     for t in QuickLinkTarget.objects.filter(group__isnull=False, month__year=year):
         manual.setdefault(t.group_id, {})[t.month.month - 1] = t.amount
