@@ -43,6 +43,15 @@ def _parse(value):
     return timezone.make_aware(dt) if timezone.is_naive(dt) else dt
 
 
+def _is_manager(user):
+    return MANAGER in roles_of(user)
+
+
+def _visible(qs, user):
+    """Declined bookings only show to the person who booked them and to Managers."""
+    return qs if _is_manager(user) else qs.exclude(Q(status=Booking.DECLINED) & ~Q(booked_by=user))
+
+
 def _can_change(user, booking):
     """Your own bookings you can edit or cancel; anyone else's only a Manager (or admin) can."""
     return booking.booked_by_id == user.pk or MANAGER in roles_of(user)
@@ -56,6 +65,9 @@ def _json(booking, user):
         'id': booking.pk, 'car': booking.car, 'start': _local(booking.start), 'end': _local(booking.end),
         'reason': booking.reason, 'booked_by': booking.booked_by_name,
         'mine': booking.booked_by_id == user.pk, 'can_change': _can_change(user, booking),
+        'status': booking.status, 'decline_reason': booking.decline_reason,
+        'decided_by': (booking.decided_by.get_full_name() or booking.decided_by.username) if booking.decided_by else '',
+        'can_decide': _is_manager(user),
     }
 
 
@@ -68,6 +80,7 @@ def car_allocations(request):
         'months': list(enumerate(calendar.month_name))[1:],
         'years': range(year - 1, year + 3),
         'me': request.user.get_full_name() or request.user.username,
+        'is_manager': _is_manager(request.user),
     })
 
 
@@ -84,11 +97,11 @@ def car_bookings(request):
         days = 7
     start = timezone.make_aware(datetime.combine(day, datetime.min.time()))
     end = start + timedelta(days=days)
-    qs = Booking.objects.filter(start__lt=end, end__gt=start).select_related('booked_by')
+    qs = _visible(Booking.objects.filter(start__lt=end, end__gt=start), request.user).select_related('booked_by', 'decided_by')
 
     now = timezone.now()
     status = {car: {'out_until': None, 'next': None} for car in CARS}
-    for b in Booking.objects.filter(end__gt=now).order_by('start'):
+    for b in Booking.objects.filter(end__gt=now, status=Booking.APPROVED).order_by('start'):
         s = status.get(b.car)
         if s is None:
             continue
@@ -96,7 +109,12 @@ def car_bookings(request):
             s['out_until'] = _local(b.end)
         elif not s['next']:
             s['next'] = _local(b.start)
-    return JsonResponse({'bookings': [_json(b, request.user) for b in qs], 'status': status, 'now': _local(now)})
+    data = {'bookings': [_json(b, request.user) for b in qs], 'status': status, 'now': _local(now)}
+    if _is_manager(request.user):
+        # every booking still waiting for a decision, whichever week is on screen
+        waiting = Booking.objects.filter(status=Booking.PENDING, end__gt=now).select_related('booked_by').order_by('start')
+        data['pending'] = [_json(b, request.user) for b in waiting]
+    return JsonResponse(data)
 
 
 @login_required
@@ -110,7 +128,7 @@ def car_booking_search(request):
     for word in q.split():
         words &= (Q(reason__icontains=word) | Q(car__iexact=word) | Q(booked_by__username__icontains=word)
                   | Q(booked_by__first_name__icontains=word) | Q(booked_by__last_name__icontains=word))
-    qs = Booking.objects.filter(words).select_related('booked_by').order_by('-start')[:50]
+    qs = _visible(Booking.objects.filter(words), request.user).select_related('booked_by', 'decided_by').order_by('-start')[:50]
     return JsonResponse({'bookings': [_json(b, request.user) for b in qs]})
 
 
@@ -173,6 +191,8 @@ def car_book(request):
     if error:
         return JsonResponse({'error': error}, status=400)
     booking = Booking(car=car, start=start, end=end, reason=reason, booked_by=request.user)
+    if _is_manager(request.user):   # a Manager's own booking needs no approval
+        booking.status, booking.decided_by, booking.decided_at = Booking.APPROVED, request.user, timezone.now()
     clash = _save_without_clash(booking, request.user)
     if clash:
         return clash
@@ -192,7 +212,11 @@ def car_booking_edit(request, booking_id):
     if error:
         return JsonResponse({'error': error}, status=400)
     before = notify.describe(booking)
+    moved = (car, start, end) != (booking.car, booking.start, booking.end)
     booking.car, booking.start, booking.end, booking.reason = car, start, end, reason
+    if not _is_manager(request.user) and (moved or booking.status == Booking.DECLINED):
+        # a new car or time (or another try after a decline) goes back to the Managers
+        booking.status, booking.decline_reason, booking.decided_by, booking.decided_at = Booking.PENDING, '', None, None
     clash = _save_without_clash(booking, request.user)
     if clash:
         return clash
@@ -211,6 +235,36 @@ def car_booking_cancel(request, booking_id):
     notify.notify_cancelled(booking, request.user, url)
     booking.delete()
     return JsonResponse({'ok': True})
+
+
+@login_required
+@office_time
+@require_POST
+def car_booking_decide(request, booking_id, decision):
+    """A Manager approves or declines a booking. Declining needs a comment, which the booker sees."""
+    if not _is_manager(request.user):
+        return JsonResponse({'error': 'Only a Manager can approve or decline bookings.'}, status=403)
+    booking = get_object_or_404(Booking.objects.select_related('booked_by'), pk=booking_id)
+    if decision == 'approve':
+        if booking.status == Booking.APPROVED:
+            return JsonResponse({'booking': _json(booking, request.user)})
+        booking.status, booking.decline_reason = Booking.APPROVED, ''
+    else:
+        comment = request.POST.get('comment', '').strip()
+        if not comment:
+            return JsonResponse({'error': 'Add a comment saying why the booking is declined.'}, status=400)
+        booking.status, booking.decline_reason = Booking.DECLINED, comment[:1000]
+    booking.decided_by, booking.decided_at = request.user, timezone.now()
+    if booking.status == Booking.APPROVED:
+        # approving a booking that was declined takes its slot back, so it must not clash with anything since
+        clash = _save_without_clash(booking, request.user)
+        if clash:
+            return clash
+    else:
+        booking.save()
+    with transaction.atomic():
+        notify.notify_decision(booking, request.user, _week_url(request, booking))
+    return JsonResponse({'booking': _json(booking, request.user)})
 
 
 # ── Notifications (the bell on every page) ────────────────────────────────────

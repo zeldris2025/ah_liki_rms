@@ -170,3 +170,94 @@ class CarBookingTests(TestCase):
             self.book(self.sales)
         body = send.call_args.args[3]
         self.assertIn('href="http://10.10.8.49:8000/car-allocations/?car=81&amp;date=', body)
+
+
+@override_settings(OFFICE365={})
+class BookingApprovalTests(TestCase):
+    def setUp(self):
+        self.sales = User.objects.create_user('sione', first_name='Sione', email='sione@example.com', password='x')
+        self.sales.groups.add(Group.objects.get_or_create(name='Sales')[0])
+        self.marketing = User.objects.create_user('mele', email='mele@example.com', password='x')
+        self.marketing.groups.add(Group.objects.get_or_create(name='Marketing')[0])
+        self.manager = User.objects.create_user('boss', first_name='Boss', email='boss@example.com', password='x')
+        self.manager.groups.add(Group.objects.get_or_create(name='Manager')[0])
+        self.start = (timezone.now() + timedelta(days=1)).replace(hour=9, minute=0, second=0, microsecond=0)
+
+    def book(self, user, car='81', start=None, hours=2):
+        self.client.force_login(user)
+        start = start or self.start
+        return self.client.post(reverse('car_book'), {
+            'car': car, 'start': _fmt(start), 'end': _fmt(start + timedelta(hours=hours)), 'reason': 'Shop visits'})
+
+    def decide(self, user, booking_id, decision, comment=''):
+        self.client.force_login(user)
+        return self.client.post(reverse(f'car_booking_{decision}', args=[booking_id]), {'comment': comment})
+
+    def test_staff_booking_waits_and_managers_are_asked(self):
+        r = self.book(self.sales)
+        self.assertEqual(r.json()['booking']['status'], 'pending')
+        self.assertTrue(Notification.objects.filter(recipient=self.manager, message__startswith='Approval needed').exists())
+        self.assertFalse(Notification.objects.filter(recipient=self.marketing, message__startswith='Approval needed').exists())
+
+    def test_managers_own_booking_is_approved(self):
+        self.assertEqual(self.book(self.manager).json()['booking']['status'], 'approved')
+
+    def test_only_a_manager_can_decide(self):
+        booking_id = self.book(self.sales).json()['booking']['id']
+        self.assertEqual(self.decide(self.marketing, booking_id, 'approve').status_code, 403)
+        self.assertEqual(self.decide(self.sales, booking_id, 'decline', 'no').status_code, 403)
+        self.assertEqual(Booking.objects.get().status, 'pending')
+
+    def test_manager_sees_the_waiting_list_staff_do_not(self):
+        self.book(self.sales)
+        self.client.force_login(self.manager)
+        self.assertEqual(len(self.client.get(reverse('car_bookings')).json()['pending']), 1)
+        self.assertContains(self.client.get(reverse('car_allocations')), 'Waiting for your approval')
+        self.client.force_login(self.marketing)
+        self.assertNotIn('pending', self.client.get(reverse('car_bookings')).json())
+        self.assertNotContains(self.client.get(reverse('car_allocations')), 'Waiting for your approval')
+
+    def test_approve_notifies_the_booker(self):
+        booking_id = self.book(self.sales).json()['booking']['id']
+        self.assertEqual(self.decide(self.manager, booking_id, 'approve').status_code, 200)
+        b = Booking.objects.get()
+        self.assertEqual((b.status, b.decided_by), ('approved', self.manager))
+        self.assertTrue(Notification.objects.filter(recipient=self.sales, message__startswith='Boss approved your 81 booking').exists())
+
+    def test_decline_needs_a_comment_and_sends_it_to_the_booker(self):
+        booking_id = self.book(self.sales).json()['booking']['id']
+        self.assertEqual(self.decide(self.manager, booking_id, 'decline', '  ').status_code, 400)
+        self.assertEqual(self.decide(self.manager, booking_id, 'decline', 'Car is needed for Savaii').status_code, 200)
+        b = Booking.objects.get()
+        self.assertEqual((b.status, b.decline_reason), ('declined', 'Car is needed for Savaii'))
+        n = Notification.objects.get(recipient=self.sales, message__contains='declined')
+        self.assertIn('Car is needed for Savaii', n.message)
+
+    def test_declined_booking_frees_the_slot_and_is_hidden_from_others(self):
+        booking_id = self.book(self.sales).json()['booking']['id']
+        self.assertEqual(self.book(self.marketing).status_code, 409)   # pending holds the car
+        self.decide(self.manager, booking_id, 'decline', 'No')
+        self.client.force_login(self.sales)
+        self.assertEqual(self.client.get(reverse('car_bookings'), {'start': self.start.date().isoformat()}).json()['bookings'][0]['decline_reason'], 'No')
+        self.client.force_login(self.marketing)
+        self.assertEqual(self.client.get(reverse('car_bookings'), {'start': self.start.date().isoformat()}).json()['bookings'], [])
+        self.assertEqual(self.book(self.marketing).status_code, 200)
+        # the old booking can't be approved back over the new one
+        self.assertEqual(self.decide(self.manager, booking_id, 'approve').status_code, 409)
+
+    def test_staff_moving_an_approved_booking_needs_approval_again(self):
+        booking_id = self.book(self.sales).json()['booking']['id']
+        self.decide(self.manager, booking_id, 'approve')
+        self.client.force_login(self.sales)
+        self.client.post(reverse('car_booking_edit', args=[booking_id]), {
+            'car': '81', 'start': _fmt(self.start + timedelta(hours=1)), 'end': _fmt(self.start + timedelta(hours=3)), 'reason': 'Later'})
+        self.assertEqual(Booking.objects.get().status, 'pending')
+
+    @override_settings(OFFICE365={'TENANT_ID': 't', 'CLIENT_ID': 'c', 'CLIENT_SECRET': 's', 'SENDER': 'cars@example.com'})
+    def test_decision_is_emailed_to_the_booker(self):
+        booking_id = self.book(self.sales).json()['booking']['id']
+        with mock.patch('fe_orders.office365._send_later') as send:
+            self.decide(self.manager, booking_id, 'decline', 'Car is in for service')
+        self.assertEqual(send.call_args.args[4], ['sione@example.com'])
+        self.assertIn('declined', send.call_args.args[2])
+        self.assertIn('Car is in for service', send.call_args.args[3])

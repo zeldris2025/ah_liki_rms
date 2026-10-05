@@ -516,6 +516,7 @@ def corporate_sales(request):
                    for m in everyone]
     chart = [{'key': m['key'], 'name': m['name'], 'color': m['color'],
               'actual': [float(v) if v is not None else None for v in m['actual']],
+              'previous': [float(v) if v is not None else None for v in m['previous']],
               'target': [float(v) if v is not None else None for v in m['target']],
               # Top 10 products: all the rep's clients, and each of their top clients (picked by clicking one)
               'products': {'all': corporate.top_products(m['client_ids'], year),
@@ -528,6 +529,7 @@ def corporate_sales(request):
         'overall': overall, 'slide_offset': 1 if overall else 0,
         'chart_data': json.dumps({'labels': corporate.MONTH_LABELS, 'managers': chart, 'year': year,
                                   'all': {'actual': [float(v) if v is not None else None for v in overall['actual']],
+                                          'previous': [float(v) if v is not None else None for v in overall['previous']],
                                           'target': [float(v) if v is not None else None for v in overall['target']]}
                                          if overall else None,
                                   # the month still in progress gets a lighter bar

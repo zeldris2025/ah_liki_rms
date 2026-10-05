@@ -10,7 +10,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from fe_orders import office365
-from shops.access import ROLES
+from shops.access import MANAGER, ROLES
 
 FE_GROUP = 'fe_boys'   # FE staff don't get car booking emails
 
@@ -33,6 +33,12 @@ def _when(booking):
     if start.date() == end.date():
         return f'{start:%a %d %b}, {_time(start)}–{_time(end)}'
     return f'{start:%a %d %b} {_time(start)} – {end:%a %d %b} {_time(end)}'
+
+
+def managers():
+    """Active Managers and admins: the people who approve or decline bookings."""
+    User = get_user_model()
+    return User.objects.filter(is_active=True).filter(Q(is_superuser=True) | Q(groups__name=MANAGER)).distinct()
 
 
 def car_recipients(exclude_user):
@@ -62,9 +68,13 @@ def booking_email(booking, url):
 
 
 def notify_new_booking(booking, url):
+    """Everyone else hears about the booking; while it waits for approval, Managers are asked to decide."""
     message = f'{booking.booked_by_name} booked {booking.car} for {_when(booking)}: {booking.reason}'[:255]
+    pending = booking.status == Booking.PENDING
+    deciders = set(managers().values_list('pk', flat=True)) if pending else set()
+    ask = f'Approval needed: {booking.booked_by_name} booked {booking.car} for {_when(booking)}: {booking.reason}'[:255]
     Notification.objects.bulk_create([
-        Notification(recipient=u, message=message, link=url, booking=booking)
+        Notification(recipient=u, message=ask if u.pk in deciders else message, link=url, booking=booking)
         for u in office_team().exclude(pk=booking.booked_by_id)
     ])
 
@@ -103,3 +113,26 @@ def notify_changed(booking, before, by_user, url):
         notices.append(Notification(recipient=booking.booked_by, link=url, booking=booking,
                                     message=f'{who} (Manager) changed your booking: {change}: {booking.reason}'[:255]))
     Notification.objects.bulk_create(notices)
+
+
+def notify_decision(booking, manager, url):
+    """Tell the booker that a Manager approved or declined their booking (bell + email, with the comment)."""
+    who = manager.get_full_name() or manager.username
+    approved = booking.status == Booking.APPROVED
+    verb = 'approved' if approved else 'declined'
+    message = f'{who} {verb} your {booking.car} booking for {_when(booking)}'
+    if not approved and booking.decline_reason:
+        message += f': {booking.decline_reason}'
+    if booking.booked_by_id != manager.pk:
+        Notification.objects.create(recipient=booking.booked_by, message=message[:255], link=url, booking=booking)
+
+    to = (booking.booked_by.email or '').strip()
+    if not (office365.is_configured() and to) or booking.booked_by_id == manager.pk:
+        return
+    rows = [('Car', booking.car), ('When', _when(booking)), ('Reason', booking.reason), (f'{verb.capitalize()} by', who)]
+    if not approved:
+        rows.append(('Comment', booking.decline_reason))
+    title = f'{"✅" if approved else "❌"} Your car {booking.car} booking was {verb}'
+    body = office365._page(title, office365._details(rows), email_link(booking), 'Open Car Allocations')
+    office365._send_later(Booking, booking.pk, f'Car {booking.car} booking {verb} — {_when(booking)}', body, [to],
+                          f'car booking {booking.pk} {verb}')

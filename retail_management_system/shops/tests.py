@@ -1,3 +1,4 @@
+from decimal import Decimal
 import csv
 from datetime import date, timedelta
 
@@ -235,6 +236,26 @@ class ClientImportTests(TestCase):
         self.assertEqual(totals, {'2026-09': '1400.00', '2026-08': '900.00', '2026-07': '10.00', '2025-09': '-100.00'})
         self.assertEqual(MonthlySales.objects.count(), 4)
 
+    def test_monthly_sales_same_client_twice_in_a_file_adds_up(self):
+        from .models import Shop
+        jane = Shop.objects.create(customer_code='C001', name='Jane Store')
+        text = ('Customer Code,Customer Name,Month,Sales\n'
+                'C001,Jane Store,2025-11,"1,000"\n'
+                'C001,Jane Store - Branch 2,2025-11,250.50\n'
+                'C001,Jane Store,2025-11,(50)\n')
+        result = self.upload(text, 'import_monthly_sales')
+        self.assertEqual((result['created'], result['combined']), (1, 2))
+        self.assertEqual(str(jane.monthly_sales.get().sales), '1200.50')
+        again = self.upload(text, 'import_monthly_sales')   # uploading the same file again still replaces, never doubles
+        self.assertEqual((again['created'], again['unchanged']), (0, 1))
+        self.assertEqual(str(jane.monthly_sales.get().sales), '1200.50')
+
+    def test_rep_keywords_one_per_line(self):
+        from .models import SalesRep
+        rep = SalesRep(key='fono', name='Fono', streams='Fono\nFaavae', customer_types='Fono\r\nFaavae')
+        self.assertEqual((rep.keyword_list(), rep.stream_list()), (['fono', 'faavae'], ['Fono', 'Faavae']))
+        self.assertTrue(rep.matches('Faavae Village'))
+
     def test_sales_pages_and_client_detail(self):
         from .models import MonthlySales, Shop
         jane = Shop.objects.create(customer_code='C001', name='Jane Store', customer_type='Retail', email='j@x.ws')
@@ -334,6 +355,19 @@ class CorporateSalesTests(TestCase):
         self.assertIn('Variance %', html)
         self.assertIn('id="sum-png"', html)
 
+    def test_graph_compares_with_last_year(self):
+        import json as _json
+        from .models import MonthlySales, Shop
+        from . import corporate
+        hotel = Shop.objects.create(customer_code='H1', name='Beach Hotel', customer_type='HORECA')
+        MonthlySales.objects.create(shop=hotel, month=date(2025, 11, 1), sales='2442955.86')
+        MonthlySales.objects.create(shop=hotel, month=date(2026, 3, 1), sales=5000)
+        judane = next(m for m in corporate.year_summary(2026, today=date(2026, 4, 1))[0] if m['key'] == 'judane')
+        self.assertEqual((judane['previous'][10], judane['previous'][2], judane['actual'][2]), (Decimal('2442955.86'), None, 5000))
+        data = _json.loads(self.client.get(reverse('corporate_sales'), {'year': 2026}).context['chart_data'])
+        self.assertEqual(next(m for m in data['managers'] if m['key'] == 'judane')['previous'][10], 2442955.86)
+        self.assertEqual(data['all']['previous'][10], 2442955.86)
+
     def test_targets_form_saves_clears_and_rejects_bad_input(self):
         from .models import SalesTarget
         url = reverse('corporate_targets') + '?year=2026'
@@ -366,6 +400,13 @@ class CorporateManagerPageTests(TestCase):
 
     def names(self, response):
         return [getattr(r, 'name', None) or r.shop.name for r in response.context['page_obj']]
+
+    def test_total_shows_cents_not_rounded(self):
+        from .models import MonthlySales
+        MonthlySales.objects.create(shop=self.quiet, month=date(2025, 11, 1), sales='2442955.86')
+        r = self.client.get(reverse('corporate_manager', args=['ruth']), {'year': 2025, 'month': 11})
+        self.assertContains(r, '2,442,955.86')
+        self.assertNotContains(r, '2,442,956<')
 
     def test_clients_sorted_by_sales_with_filters_and_search(self):
         r = self.get()
@@ -470,9 +511,9 @@ class YearToDateTotalTests(TestCase):
             MonthlySales.objects.create(shop=hotel, month=date(this_year, month, 1), sales=1000)
         SalesTarget.objects.create(manager='judane', month=date(this_year, date.today().month, 1), amount=4000)
         page = self.client.get(reverse('corporate_sales')).content.decode()
-        total = f'{1000 * date.today().month:,}'
+        total = f'{1000 * date.today().month:,}.00'
         self.assertIn(f'<div class="cs-big">{total}</div>', page)   # the big Year to date figure is every month combined
-        self.assertIn('1,000 of 4,000', page)    # the target line only covers the month with a target
+        self.assertIn('1,000.00 of 4,000.00', page)    # the target line only covers the month with a target
 
 
 class ReportsTests(TestCase):

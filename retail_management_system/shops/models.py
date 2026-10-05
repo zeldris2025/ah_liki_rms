@@ -484,10 +484,11 @@ class SalesRep(models.Model):
         return self.name
 
     def stream_list(self):
-        return [s.strip() for s in self.streams.split(',') if s.strip()]
+        return [s.strip() for s in re.split(r'[,\n]', self.streams) if s.strip()]
 
     def keyword_list(self):
-        return [k.strip().lower() for k in self.customer_types.split(',') if k.strip()]
+        # one per line works too, not just comma-separated
+        return [k.strip().lower() for k in re.split(r'[,\n]', self.customer_types) if k.strip()]
 
     def matches(self, customer_type):
         text = (customer_type or '').lower()

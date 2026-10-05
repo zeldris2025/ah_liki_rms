@@ -6,7 +6,11 @@ CARS = ['81', '82', 'Ringo', 'Ranger']
 
 
 class Booking(models.Model):
-    """One car booked by one person for a stretch of time. Bookings for the same car may not overlap."""
+    """One car booked by one person for a stretch of time. Bookings for the same car may not overlap.
+    Staff bookings wait for a Manager to approve or decline them; a declined booking frees the slot."""
+    PENDING, APPROVED, DECLINED = 'pending', 'approved', 'declined'
+    STATUSES = [(PENDING, 'Waiting for approval'), (APPROVED, 'Approved'), (DECLINED, 'Declined')]
+
     car        = models.CharField(max_length=20, choices=[(c, c) for c in CARS])
     start      = models.DateTimeField()
     end        = models.DateTimeField()
@@ -14,6 +18,11 @@ class Booking(models.Model):
     booked_by  = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='car_bookings')
     created_at = models.DateTimeField(auto_now_add=True)
     email_status = models.CharField(max_length=120, blank=True, help_text='Result of the Microsoft 365 email notification')
+    status       = models.CharField(max_length=10, choices=STATUSES, default=PENDING, db_index=True)
+    decline_reason = models.TextField(blank=True, help_text="The Manager's comment when declining")
+    decided_by   = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+                                     related_name='car_bookings_decided')
+    decided_at   = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         ordering = ['start']
@@ -28,8 +37,8 @@ class Booking(models.Model):
 
     @classmethod
     def clashes(cls, car, start, end, exclude_pk=None):
-        """Bookings for this car that overlap start-end (touching end-to-start is fine)."""
-        qs = cls.objects.filter(car=car, start__lt=end, end__gt=start)
+        """Live (pending or approved) bookings for this car that overlap start-end (touching end-to-start is fine)."""
+        qs = cls.objects.filter(car=car, start__lt=end, end__gt=start).exclude(status=cls.DECLINED)
         return qs.exclude(pk=exclude_pk) if exclude_pk else qs
 
 

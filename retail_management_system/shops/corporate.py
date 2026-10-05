@@ -98,6 +98,10 @@ def year_summary(year, today=None):
                 .values('month').annotate(total=Sum('sales')))
         for r in rows:
             actual[r['month'].month - 1] = r['total']
+        previous = [None] * 12   # the same months last year, for the year-on-year comparison on the graph
+        for r in (MonthlySales.objects.filter(month__year=year - 1, shop_id__in=ids[m['key']])
+                  .values('month').annotate(total=Sum('sales'))):
+            previous[r['month'].month - 1] = r['total']
         done = range(current_month)   # months that have started this year
         ytd_actual = sum(actual[i] or 0 for i in done)
         # Compare like with like: only months that have a target count towards the YTD %
@@ -110,6 +114,7 @@ def year_summary(year, today=None):
         summary.append({
             **m,
             'actual': actual,
+            'previous': previous,
             'target': targets[m['key']],
             'client_count': len(ids[m['key']]),
             'client_ids': ids[m['key']],
@@ -160,6 +165,7 @@ def combined_summary(summary):
     month_rows, month_total = table([row(m, m['month_actual'] or 0, m['month_target'] or None) for m in summary])
     return {
         'actual': [total(m['actual'][i] for m in summary) for i in range(12)],
+        'previous': [total(m['previous'][i] for m in summary) for i in range(12)],
         'target': [total(m['target'][i] for m in summary) for i in range(12)],
         'streams': [' / '.join(m['streams']) for m in summary],
         'client_count': sum(m['client_count'] for m in summary),

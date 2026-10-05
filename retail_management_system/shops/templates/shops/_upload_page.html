@@ -20,6 +20,9 @@
     <div class="stat-card" style="flex:1;min-width:120px"><div class="stat-label">Unchanged</div><div class="stat-value" style="color:var(--muted)">{{ result.unchanged }}</div></div>
     <div class="stat-card" style="flex:1;min-width:120px"><div class="stat-label">Skipped</div><div class="stat-value" style="color:{% if result.skipped %}var(--danger){% else %}var(--muted){% endif %}">{{ result.skipped|length }}</div></div>
   </div>
+  {% if result.combined %}
+  <div style="margin-top:14px;font-size:13px;color:var(--text-secondary)">➕ {{ result.combined }} extra row{{ result.combined|pluralize }} for a client already in the file {{ result.combined|pluralize:"was,were" }} added to that client’s total for the month.</div>
+  {% endif %}
   {% if result.renamed %}
   <div style="margin-top:14px;font-weight:600;font-size:13px;color:var(--info)">✎ Renamed ({{ result.renamed|length }}):</div>
   <ul style="margin:6px 0 0;color:var(--text-secondary);font-size:13px;max-height:200px;overflow-y:auto">{% for r in result.renamed %}<li>{{ r }}</li>{% endfor %}</ul>

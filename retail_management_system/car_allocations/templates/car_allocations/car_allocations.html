@@ -132,6 +132,37 @@
   .flatpickr-calendar { border-radius: 12px; box-shadow: 0 16px 40px rgba(15,23,42,.2); }
   .flatpickr-day.selected, .flatpickr-day.selected:hover { background: var(--primary); border-color: var(--primary); }
 
+  /* Approval status */
+  .st { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; padding: 2px 7px; border-radius: 6px; }
+  .st.pending { background: #FEF3C7; color: #92400E; }
+  .st.approved { background: #DCFCE7; color: #166534; }
+  .st.declined { background: #FEE2E2; color: #991B1B; }
+  .bk.pending { border-style: dashed; border-left-style: solid; }
+  .bk.declined { opacity: .7; background: #FEF2F2; }
+  .bk.declined .time { text-decoration: line-through; }
+  .bk .note { font-size: 12px; color: #991B1B; background: #FEF2F2; border-radius: 6px; padding: 6px 8px; margin: -2px 0 8px; }
+  .tl .lane b.pending { opacity: .45; background: repeating-linear-gradient(45deg, var(--c), var(--c) 4px, transparent 4px, transparent 7px); }
+  .decide { display: flex; gap: 6px; margin-top: 8px; }
+  .decide button { flex: 1; border-radius: 7px; padding: 5px 8px; font-size: 12px; font-weight: 700; cursor: pointer; border: 1px solid; }
+  .decide .ok { background: #F0FDF4; border-color: #86EFAC; color: #166534; }
+  .decide .ok:hover { background: #16A34A; color: #fff; }
+  .decide .no { background: #fff; border-color: #FECACA; color: #991B1B; }
+  .decide .no:hover { background: #DC2626; color: #fff; }
+
+  /* Manager: bookings waiting for approval */
+  .approvals { background: var(--card); border: 1px solid #FCD34D; border-radius: var(--radius); box-shadow: var(--shadow); padding: 14px 16px; margin-bottom: 18px; }
+  .approvals h2 { font-size: 15px; font-weight: 800; color: var(--primary); margin: 0 0 10px; display: flex; align-items: center; gap: 8px; }
+  .approvals h2 .count { background: #F59E0B; color: #fff; font-size: 12px; border-radius: 999px; padding: 1px 9px; }
+  .approvals .none { color: var(--muted); font-size: 13px; }
+  .ap { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 10px 0; border-top: 1px solid var(--border); font-size: 13px; }
+  .ap:first-of-type { border-top: none; }
+  .ap .what { min-width: 0; }
+  .ap .what b { color: var(--primary); }
+  .ap .what div { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; }
+  .ap .decide { margin: 0; }
+  .ap .decide button { flex: none; }
+  #decline-modal .modal-content { border: none; border-radius: 18px; box-shadow: 0 24px 64px rgba(15,23,42,.25); }
+
   @media (max-width: 1100px) { .cars { grid-template-columns: repeat(2, minmax(0, 1fr)); } .legend { display: none; } }
   @media (max-width: 640px) {
     .cars { grid-template-columns: 1fr 1fr; gap: 10px; }
@@ -140,6 +171,8 @@
     .tl { display: none; }
     .when { grid-template-columns: 1fr; }
     .car-pick { grid-template-columns: repeat(2, 1fr); }
+    .ap { grid-template-columns: auto minmax(0, 1fr); }
+    .ap .decide { grid-column: 1 / -1; }
   }
 </style>
 
@@ -147,10 +180,17 @@
   <div class="ca-head">
     <div>
       <h1>Car Allocations</h1>
-      <p>Tap a car to book it. Everyone sees new bookings within seconds, and a car can't be double-booked.</p>
+      <p>Tap a car to book it. A Manager approves each booking, and a car can't be double-booked.</p>
     </div>
     <span class="live" id="live"><i></i>Live</span>
   </div>
+
+  {% if is_manager %}
+  <div class="approvals" id="approvals">
+    <h2>Waiting for your approval <span class="count" id="ap-count">0</span></h2>
+    <div id="ap-list"><div class="none">Loading…</div></div>
+  </div>
+  {% endif %}
 
   <div class="section-label">Quick book</div>
   <div class="cars">
@@ -249,6 +289,34 @@
   </div>
 </div>
 
+{% if is_manager %}
+<!-- Manager: decline with a comment -->
+<div class="modal fade" id="decline-modal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered" style="max-width:480px">
+    <form class="modal-content" id="decline-form">
+      <div class="modal-header" style="border:none;padding:22px 24px 4px">
+        <div>
+          <h5 class="m-title">Decline booking</h5>
+          <div class="m-sub" id="d-sub"></div>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body" style="padding:14px 24px 8px">
+        <label class="field-label" for="d-comment">Why is it declined?</label>
+        <textarea class="sms-input" id="d-comment" name="comment" rows="4" maxlength="1000" required
+                  placeholder="e.g. The car is needed for the Savai'i delivery that day. Please book Ringo instead."></textarea>
+        <div class="m-sub" style="margin-top:6px">The person who booked it gets this comment in their notifications and by email.</div>
+        <div class="avail" id="d-error"></div>
+      </div>
+      <div class="modal-footer" style="border-top:1px solid var(--border);padding:14px 24px;justify-content:space-between">
+        <button type="button" class="btn-sms btn-outline-custom" data-bs-dismiss="modal">Back</button>
+        <button type="submit" class="btn-sms btn-primary-custom" id="d-submit" style="background:var(--danger);border-color:var(--danger)">Decline booking</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endif %}
+
 <script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.js"></script>
 <script>
 // Runs once the page has loaded, because base.html loads Bootstrap after this block
@@ -259,8 +327,11 @@ document.addEventListener('DOMContentLoaded', function () {
     search: '{% url "car_booking_search" %}',
     book: '{% url "car_book" %}',
     edit: '{% url "car_booking_edit" 0 %}',
-    cancel: '{% url "car_booking_cancel" 0 %}'
+    cancel: '{% url "car_booking_cancel" 0 %}',
+    approve: '{% url "car_booking_approve" 0 %}',
+    decline: '{% url "car_booking_decline" 0 %}'
   };
+  var IS_MANAGER = {{ is_manager|yesno:"true,false" }};
   var DOW = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
   var MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   var DAY_FROM = 7, DAY_TO = 19;          // hours shown on each day's timeline
@@ -287,6 +358,9 @@ document.addEventListener('DOMContentLoaded', function () {
   function mins(s) { return +s.slice(11, 13) * 60 + +s.slice(14, 16); }
   function esc(s) { var d = document.createElement('div'); d.textContent = s == null ? '' : s; return d.innerHTML; }
   function overlaps(a, b) { return a.start < b.end && a.end > b.start; }
+  function live(b) { return b.status !== 'declined'; }   // declined bookings don't hold the car
+  var STATUS = { pending: 'Awaiting approval', approved: 'Approved', declined: 'Declined' };
+  function badge(b) { return '<span class="st ' + b.status + '">' + STATUS[b.status] + '</span>'; }
   function initials(name) { return name.split(/\s+/).map(function (w) { return w[0]; }).join('').slice(0, 2).toUpperCase(); }
   function carColor(car) { return 'var(--c' + car + ', var(--accent))'; }
   function duration(start, end) {
@@ -308,6 +382,7 @@ document.addEventListener('DOMContentLoaded', function () {
       .then(function (data) {
         state.status = data.status;
         renderCars();
+        if (data.pending) renderApprovals(data.pending);
         if (asked !== ymd(state.monday)) return;   // the week changed while we waited
         var before = state.seen, ids = {};
         data.bookings.forEach(function (b) { ids[b.id] = true; b.fresh = before && !before[b.id] && !b.mine; });
@@ -357,19 +432,19 @@ document.addEventListener('DOMContentLoaded', function () {
       for (var h = DAY_FROM; h <= DAY_TO; h += 2) tl += '<span style="left:' + ((h - DAY_FROM) / (DAY_TO - DAY_FROM) * 100) + '%">' + hourLabel(h) + '</span>';
       tl += '</div>';
       lanes.forEach(function (car) {
-        tl += '<span class="lane-name">' + esc(car) + '</span><div class="lane">' + list.filter(function (b) { return b.car === car; }).map(function (b) {
+        tl += '<span class="lane-name">' + esc(car) + '</span><div class="lane">' + list.filter(function (b) { return b.car === car && live(b); }).map(function (b) {
           var from = b.start < range.start ? 0 : mins(b.start), to = b.end >= range.end ? 1440 : mins(b.end);
           from = Math.max(from, DAY_FROM * 60); to = Math.min(to, DAY_TO * 60);
           if (to <= from) return '';
           var w = (DAY_TO - DAY_FROM) * 60;
-          return '<b style="--c:' + carColor(car) + ';left:' + ((from - DAY_FROM * 60) / w * 100) + '%;width:' + ((to - from) / w * 100) + '%" title="' + esc(span(b) + ' · ' + b.reason) + '"></b>';
+          return '<b class="' + b.status + '" style="--c:' + carColor(car) + ';left:' + ((from - DAY_FROM * 60) / w * 100) + '%;width:' + ((to - from) / w * 100) + '%" title="' + esc(span(b) + ' · ' + b.reason + ' · ' + STATUS[b.status]) + '"></b>';
         }).join('') + '</div>';
       });
       tl += '</div>';
 
       var cards = list.map(function (b) {
         var editable = b.can_change && b.end > nowStr();
-        var cls = 'bk' + (b.mine ? ' mine' : '') + (editable ? ' editable' : '') + (state.hits[b.id] ? ' hit-mark' : '') + (b.fresh ? ' fresh' : '');
+        var cls = 'bk ' + b.status + (b.mine ? ' mine' : '') + (editable ? ' editable' : '') + (state.hits[b.id] ? ' hit-mark' : '') + (b.fresh ? ' fresh' : '');
         // Only your own bookings (or any booking, for a Manager) get Edit and Cancel; the rest are locked
         var actions = b.can_change
           ? '<span class="acts">' + (editable ? '<button type="button" onclick="event.stopPropagation(); editBooking(' + b.id + ')">✎ Edit</button>' : '') +
@@ -377,8 +452,10 @@ document.addEventListener('DOMContentLoaded', function () {
           : '<span class="lock" title="Only ' + esc(b.booked_by) + ' or a Manager can change this booking">🔒</span>';
         return '<div class="' + cls + '" style="--c:' + carColor(b.car) + '"' + (editable ? ' onclick="editBooking(' + b.id + ')" title="Click to edit"' : '') + '>' +
           '<div class="row1"><span class="pill">' + esc(b.car) + '</span><span class="time">' + esc(span(b)) + '</span><span class="dur">' + duration(b.start, b.end) + '</span></div>' +
-          '<div class="why">' + esc(b.reason) + '</div>' +
-          '<div class="who"><span class="avatar">' + esc(initials(b.booked_by)) + '</span>' + (b.mine ? 'You' : esc(b.booked_by)) + actions + '</div></div>';
+          '<div class="why">' + badge(b) + ' ' + esc(b.reason) + '</div>' +
+          (b.status === 'declined' && b.decline_reason ? '<div class="note"><b>' + esc(b.decided_by || 'Manager') + ':</b> ' + esc(b.decline_reason) + '</div>' : '') +
+          '<div class="who"><span class="avatar">' + esc(initials(b.booked_by)) + '</span>' + (b.mine ? 'You' : esc(b.booked_by)) + actions + '</div>' +
+          decideButtons(b) + '</div>';
       }).join('');
       if (d >= today) cards += '<button class="add" onclick="bookDay(\'' + d + '\')">＋ Book a car for ' + DOW[i] + '</button>';
 
@@ -521,7 +598,8 @@ document.addEventListener('DOMContentLoaded', function () {
     fpStart.set('minDate', earliest); fpEnd.set('minDate', earliest);
     document.getElementById('m-title').textContent = booking ? 'Edit booking' : 'Book a car';
     document.getElementById('m-sub').innerHTML = !booking ? 'Booking as <b>' + esc(ME) + '</b>'
-      : booking.mine ? 'Your booking' : 'Booked by <b>' + esc(booking.booked_by) + '</b> · you’re editing it as a Manager';
+      : booking.mine ? 'Your booking · ' + badge(booking) + (IS_MANAGER ? '' : ' · changing the car or time sends it for approval again')
+      : 'Booked by <b>' + esc(booking.booked_by) + '</b> · you’re editing it as a Manager';
     document.getElementById('f-submit').textContent = booking ? 'Save changes' : 'Confirm booking';
     document.getElementById('f-delete').style.display = booking ? '' : 'none';
     if (booking) document.getElementById('f-reason').value = booking.reason;
@@ -555,7 +633,7 @@ document.addEventListener('DOMContentLoaded', function () {
     var start = parse(d + 'T08:00');
     if (start < new Date()) start = nextSlot(new Date());
     var end = addMins(start, 120), slot = { start: str(start), end: str(end) };
-    var free = CARS.filter(function (c) { return !state.bookings.some(function (b) { return b.car === c && overlaps(b, slot); }); });
+    var free = CARS.filter(function (c) { return !state.bookings.some(function (b) { return b.car === c && live(b) && overlaps(b, slot); }); });
     openForm(state.filter && free.indexOf(state.filter) >= 0 ? state.filter : (free[0] || CARS[0]), start, end);
   };
 
@@ -579,7 +657,7 @@ document.addEventListener('DOMContentLoaded', function () {
       if (seq !== checkSeq) return;
       var slot = { start: start, end: end }, busy = {};
       var self = state.editing && state.editing.id;
-      data.bookings.forEach(function (b) { if (b.id !== self && overlaps(b, slot)) (busy[b.car] = busy[b.car] || []).push(b); });
+      data.bookings.forEach(function (b) { if (b.id !== self && live(b) && overlaps(b, slot)) (busy[b.car] = busy[b.car] || []).push(b); });
       document.querySelectorAll('#car-pick button').forEach(function (btn) {
         var c = btn.dataset.car;
         btn.classList.toggle('busy', !!busy[c]);
@@ -612,6 +690,7 @@ document.addEventListener('DOMContentLoaded', function () {
           }).join(''));
           return;
         }
+        if (!editing && res.data.booking.status === 'pending') toast('Booked. A Manager will approve or decline it, and you’ll be notified.');
         modal.hide();
         goTo(parse(res.data.booking.start));
         load();
@@ -626,6 +705,78 @@ document.addEventListener('DOMContentLoaded', function () {
     fetch(URLS.cancel.replace('/0/', '/' + id + '/'), { method: 'POST', headers: { 'X-CSRFToken': getCsrfToken() } })
       .then(function (r) { return r.json().then(function (data) { if (!r.ok) alert(data.error); load(); }); });
   };
+
+  // ── Approvals (Managers only; the server refuses anyone else) ──
+  function toast(msg) {
+    var t = document.createElement('div');
+    t.textContent = msg;
+    t.style.cssText = 'position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#0F172A;color:#fff;padding:12px 18px;border-radius:10px;font-size:14px;z-index:2000;box-shadow:0 12px 32px rgba(15,23,42,.3);max-width:90vw';
+    document.body.appendChild(t);
+    setTimeout(function () { t.remove(); }, 4500);
+  }
+
+  function decideButtons(b) {
+    if (!b.can_decide || b.end <= nowStr()) return '';
+    var ok = b.status !== 'approved' ? '<button type="button" class="ok" onclick="event.stopPropagation(); approveBooking(' + b.id + ')">✓ Approve</button>' : '';
+    var no = b.status !== 'declined' ? '<button type="button" class="no" onclick="event.stopPropagation(); declineBooking(' + b.id + ')">✕ Decline</button>' : '';
+    return '<div class="decide">' + ok + no + '</div>';
+  }
+
+  state.pending = [];
+  function when(b) { return dayName(b.start) + ', ' + span(b).replace(dayName(b.start) + ' ', ''); }
+  function renderApprovals(list) {
+    state.pending = list;
+    document.getElementById('ap-count').textContent = list.length;
+    document.getElementById('ap-list').innerHTML = list.length ? list.map(function (b) {
+      return '<div class="ap"><span class="pill" style="--c:' + carColor(b.car) + '">' + esc(b.car) + '</span>' +
+        '<div class="what"><b>' + esc(b.booked_by) + '</b> · <a href="#" onclick="event.preventDefault(); goTo(parse(\'' + b.start.slice(0, 10) + '\'))">' + esc(when(b)) + '</a>' +
+        '<div title="' + esc(b.reason) + '">' + esc(b.reason) + '</div></div>' + decideButtons(b) + '</div>';
+    }).join('') : '<div class="none">Nothing waiting. New bookings appear here for you to approve or decline.</div>';
+  }
+  window.parse = parse;
+
+  function findBooking(id) {
+    return state.bookings.concat(state.pending).filter(function (x) { return x.id === id; })[0];
+  }
+
+  function decide(url, id, body) {
+    return fetch(url.replace('/0/', '/' + id + '/'), { method: 'POST', body: body, headers: { 'X-CSRFToken': getCsrfToken() } })
+      .then(function (r) { return r.json().then(function (data) { return { ok: r.ok, data: data }; }); });
+  }
+
+  window.approveBooking = function (id) {
+    decide(URLS.approve, id).then(function (res) {
+      if (!res.ok) alert(res.data.error);
+      else toast('Approved. ' + res.data.booking.booked_by + ' has been notified.');
+      load();
+    }).catch(function () { alert('Couldn’t reach the server. Try again.'); });
+  };
+
+  var declineModal = IS_MANAGER ? new bootstrap.Modal(document.getElementById('decline-modal')) : null, declining = null;
+  window.declineBooking = function (id) {
+    var b = findBooking(id);
+    if (!b || !declineModal) return;
+    declining = b;
+    document.getElementById('d-sub').innerHTML = '<b>' + esc(b.car) + '</b> · ' + esc(when(b)) + '<br>Booked by <b>' + esc(b.booked_by) + '</b>: ' + esc(b.reason);
+    document.getElementById('d-comment').value = '';
+    document.getElementById('d-error').className = 'avail';
+    declineModal.show();
+    setTimeout(function () { document.getElementById('d-comment').focus(); }, 350);
+  };
+  if (IS_MANAGER) document.getElementById('decline-form').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var comment = document.getElementById('d-comment').value.trim(), err = document.getElementById('d-error'), btn = document.getElementById('d-submit');
+    if (!comment) { err.className = 'avail bad'; err.textContent = 'Add a comment saying why the booking is declined.'; return; }
+    var body = new FormData(); body.append('comment', comment);
+    btn.disabled = true;
+    decide(URLS.decline, declining.id, body).then(function (res) {
+      if (!res.ok) { err.className = 'avail bad'; err.textContent = res.data.error; return; }
+      declineModal.hide();
+      toast('Declined. ' + res.data.booking.booked_by + ' has been notified with your comment.');
+      load();
+    }).catch(function () { err.className = 'avail bad'; err.textContent = 'Couldn’t reach the server. Try again.'; })
+      .finally(function () { btn.disabled = false; });
+  });
 
   // ── Start: the week from the link (e.g. a notification), otherwise this working week ──
   var params = new URLSearchParams(location.search);

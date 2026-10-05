@@ -30,12 +30,12 @@
 <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-bottom:16px">
   <div class="stat-card">
     <div class="stat-label">Sales · {{ period_label }}</div>
-    <div class="stat-value" style="color:var(--success)">{{ total|floatformat:"0g" }}</div>
+    <div class="stat-value" style="color:var(--success)">{{ total|floatformat:"2g" }}</div>
     <div class="stat-sub">WST</div>
   </div>
   <div class="stat-card">
     <div class="stat-label">Target · {{ period_label }}</div>
-    <div class="stat-value" style="color:var(--primary)">{% if target %}{{ target|floatformat:"0g" }}{% else %}—{% endif %}</div>
+    <div class="stat-value" style="color:var(--primary)">{% if target %}{{ target|floatformat:"2g" }}{% else %}—{% endif %}</div>
     <div class="stat-sub">{% if pct is not None %}<b style="color:{% if pct >= 100 %}var(--success){% else %}#B45309{% endif %}">{{ pct }}% reached</b>{% else %}no target set{% endif %}{% if f.q or f.type or f.territory %} · for all clients{% endif %}</div>
     {% if target_note %}<div class="stat-sub" style="font-size:11px">{{ target_note }}{% if not own_rep %} · <a href="{% url 'corporate_targets' %}?year={{ year }}" style="color:var(--accent)">set the rest</a>{% endif %}</div>{% endif %}
   </div>

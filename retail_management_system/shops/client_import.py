@@ -205,7 +205,8 @@ def import_monthly_sales(uploaded):
         raise ImportFileError(f'The file needs these columns: {", ".join(missing)}. Download the template to see the format.')
 
     shops = {s.customer_code.casefold(): s for s in Shop.objects.exclude(customer_code__isnull=True)}
-    result = {'created': 0, 'updated': 0, 'unchanged': 0, 'skipped': []}
+    result = {'created': 0, 'updated': 0, 'unchanged': 0, 'combined': 0, 'skipped': []}
+    totals = {}   # (shop id, month) → the file's total for that client and month
     with transaction.atomic():
         for number, row in rows:
             code, name = row.get('customer_code', ''), row.get('customer_name', '')
@@ -225,10 +226,17 @@ def import_monthly_sales(uploaded):
             except (InvalidOperation, ValueError):
                 result['skipped'].append(f'{label}: Sales "{row.get("sales", "")}" is not a number.')
                 continue
+            # A client listed more than once for a month (e.g. one row per branch or invoice) is added up,
+            # not overwritten by its last row
+            key = (shop.pk, month)
+            if key in totals:
+                result['combined'] += 1
+            totals[key] = totals.get(key, 0) + amount
 
-            record = MonthlySales.objects.filter(shop=shop, month=month).first()
+        for (shop_id, month), amount in totals.items():
+            record = MonthlySales.objects.filter(shop_id=shop_id, month=month).first()
             if record is None:
-                MonthlySales.objects.create(shop=shop, month=month, sales=amount)
+                MonthlySales.objects.create(shop_id=shop_id, month=month, sales=amount)
                 result['created'] += 1
             elif record.sales != amount:
                 record.sales = amount

@@ -199,3 +199,7 @@ OFFICE365 = {
     'ORDER_EMAILS':  os.environ.get('OFFICE365_ORDER_EMAILS', ''),   # comma-separated, who gets new FE orders
     'ISSUE_EMAILS':  os.environ.get('OFFICE365_ISSUE_EMAILS', ''),   # comma-separated, who gets new FE issues
 }
+
+# Large requests: bulk deletes in the admin post one field per selected row, and big CSV uploads.
+DATA_UPLOAD_MAX_NUMBER_FIELDS = None             # no limit on the number of form fields
+DATA_UPLOAD_MAX_MEMORY_SIZE   = 1024 * 1024 * 1024   # 1 GB request body

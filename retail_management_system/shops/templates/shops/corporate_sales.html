@@ -198,8 +198,8 @@
 
         <div class="cs-chart">
           <div class="cs-chart-top">
-            <div class="cs-chart-title">All streams combined · monthly sales vs target · {{ year }}</div>
-            <div class="cs-legend" style="flex-wrap:wrap">{% for m in managers %}<span><i style="background:{{ m.color }}"></i>{{ m.name }}</span>{% endfor %}<span><i class="line"></i>Target</span></div>
+            <div class="cs-chart-title">All streams combined · {{ year }} vs {{ year|add:-1 }} · monthly sales vs target</div>
+            <div class="cs-legend" style="flex-wrap:wrap">{% for m in managers %}<span><i style="background:{{ m.color }}"></i>{{ m.name }}</span>{% endfor %}<span><i style="background:#CBD5E1"></i>{{ year|add:-1 }} (all)</span><span><i class="line"></i>Target</span></div>
           </div>
           <div class="cs-canvas"><canvas id="chart-all" role="img"
                aria-label="Every stream’s sales stacked by person against the combined target for each month of {{ year }}"></canvas></div>
@@ -225,10 +225,10 @@
                 {% for r in t.rows %}
                 <tr>
                   <td data-color="{{ r.color }}"><span class="sw" style="background:{{ r.color }}"></span>{{ r.stream }}<small>{{ r.name }}</small></td>
-                  <td>{{ r.actual|floatformat:"0g" }}</td>
-                  <td>{% if r.target %}{{ r.target|floatformat:"0g" }}{% else %}—{% endif %}</td>
+                  <td>{{ r.actual|floatformat:"2g" }}</td>
+                  <td>{% if r.target %}{{ r.target|floatformat:"2g" }}{% else %}—{% endif %}</td>
                   {% if r.target %}
-                  <td class="{% if r.variance >= 0 %}up{% else %}down{% endif %}">{% if r.variance > 0 %}+{% endif %}{{ r.variance|floatformat:"0g" }}</td>
+                  <td class="{% if r.variance >= 0 %}up{% else %}down{% endif %}">{% if r.variance > 0 %}+{% endif %}{{ r.variance|floatformat:"2g" }}</td>
                   <td class="{% if r.variance >= 0 %}up{% else %}down{% endif %}">{% if r.variance > 0 %}+{% endif %}{{ r.variance_pct|floatformat:1 }}%</td>
                   {% else %}<td>—</td><td>—</td>{% endif %}
                 </tr>
@@ -239,10 +239,10 @@
               <tfoot>
                 <tr>
                   <td>Total</td>
-                  <td>{{ t.total.actual|floatformat:"0g" }}</td>
-                  <td>{% if t.total.target %}{{ t.total.target|floatformat:"0g" }}{% else %}—{% endif %}</td>
+                  <td>{{ t.total.actual|floatformat:"2g" }}</td>
+                  <td>{% if t.total.target %}{{ t.total.target|floatformat:"2g" }}{% else %}—{% endif %}</td>
                   {% if t.total.target %}
-                  <td class="{% if t.total.variance >= 0 %}up{% else %}down{% endif %}">{% if t.total.variance > 0 %}+{% endif %}{{ t.total.variance|floatformat:"0g" }}</td>
+                  <td class="{% if t.total.variance >= 0 %}up{% else %}down{% endif %}">{% if t.total.variance > 0 %}+{% endif %}{{ t.total.variance|floatformat:"2g" }}</td>
                   <td class="{% if t.total.variance >= 0 %}up{% else %}down{% endif %}">{% if t.total.variance > 0 %}+{% endif %}{{ t.total.variance_pct|floatformat:1 }}%</td>
                   {% else %}<td>—</td><td>—</td>{% endif %}
                 </tr>
@@ -281,8 +281,8 @@
 
         <div class="cs-chart">
           <div class="cs-chart-top">
-            <div class="cs-chart-title">Monthly sales vs target · {{ year }}</div>
-            <div class="cs-legend"><span><i style="background:{{ m.color }}"></i>Actual</span><span><i class="line"></i>Target</span></div>
+            <div class="cs-chart-title">Monthly sales · {{ year }} vs {{ year|add:-1 }} · and target</div>
+            <div class="cs-legend"><span><i style="background:{{ m.color }}"></i>{{ year }}</span><span><i style="background:#CBD5E1"></i>{{ year|add:-1 }}</span><span><i class="line"></i>Target</span></div>
           </div>
           <div class="cs-canvas"><canvas id="chart-{{ m.key }}" role="img"
                aria-label="{{ m.name }}: actual sales against target for each month of {{ year }}"></canvas></div>
@@ -292,8 +292,8 @@
           <div class="cs-stat">
             {% if m.month_label %}
             <div class="cs-label">{{ m.month_label }}</div>
-            <div class="cs-big">{{ m.month_actual|floatformat:"0g" }}</div>
-            <div class="cs-sub">{% if m.month_target %}of {{ m.month_target|floatformat:"0g" }} target · <span class="cs-pct {% if m.month_pct >= 100 %}good{% else %}low{% endif %}">{{ m.month_pct }}%</span>{% else %}no target set{% endif %}</div>
+            <div class="cs-big">{{ m.month_actual|floatformat:"2g" }}</div>
+            <div class="cs-sub">{% if m.month_target %}of {{ m.month_target|floatformat:"2g" }} target · <span class="cs-pct {% if m.month_pct >= 100 %}good{% else %}low{% endif %}">{{ m.month_pct }}%</span>{% else %}no target set{% endif %}</div>
             {% if m.month_target %}<div class="cs-bar"><span style="width:{% if m.month_pct > 100 %}100{% else %}{{ m.month_pct }}{% endif %}%"></span></div>{% endif %}
             {% else %}
             <div class="cs-label">This month</div><div class="cs-sub" style="margin-top:8px">{{ year }} hasn’t started yet.</div>
@@ -301,11 +301,11 @@
           </div>
           <div class="cs-stat">
             <div class="cs-label">Year to date{% if m.ytd_months %} · {{ m.ytd_months }}{% endif %}</div>
-            <div class="cs-big">{{ m.ytd_actual|floatformat:"0g" }}</div>
-            <div class="cs-sub">{% if m.ytd_target and not m.ytd_missing_months %}of {{ m.ytd_target|floatformat:"0g" }} target · <span class="cs-pct {% if m.ytd_pct >= 100 %}good{% else %}low{% endif %}">{{ m.ytd_pct }}%</span>{% elif m.ytd_target %}total sales{% else %}no target set{% endif %}</div>
+            <div class="cs-big">{{ m.ytd_actual|floatformat:"2g" }}</div>
+            <div class="cs-sub">{% if m.ytd_target and not m.ytd_missing_months %}of {{ m.ytd_target|floatformat:"2g" }} target · <span class="cs-pct {% if m.ytd_pct >= 100 %}good{% else %}low{% endif %}">{{ m.ytd_pct }}%</span>{% elif m.ytd_target %}total sales{% else %}no target set{% endif %}</div>
             {% if m.ytd_target %}<div class="cs-bar"><span style="width:{% if m.ytd_pct > 100 %}100{% else %}{{ m.ytd_pct }}{% endif %}%"></span></div>{% endif %}
             {% if m.ytd_target and m.ytd_missing_months %}
-            <div class="cs-note">Target set for {{ m.ytd_target_months }} only: {{ m.ytd_actual_on_target|floatformat:"0g" }} of {{ m.ytd_target|floatformat:"0g" }} ·
+            <div class="cs-note">Target set for {{ m.ytd_target_months }} only: {{ m.ytd_actual_on_target|floatformat:"2g" }} of {{ m.ytd_target|floatformat:"2g" }} ·
               <span class="cs-pct {% if m.ytd_pct >= 100 %}good{% else %}low{% endif %}">{{ m.ytd_pct }}%</span>.
               {% if not own_rep %}<a href="{% url 'corporate_targets' %}?year={{ year }}" style="color:var(--accent)">Add {{ m.ytd_missing_months }}</a>{% endif %}</div>
             {% endif %}
@@ -315,7 +315,7 @@
             {% if m.top_clients %}
             <ul class="cs-top">
               {% for c in m.top_clients %}<li><button type="button" class="cs-pick" data-rep="{{ m.key }}" data-shop="{{ c.shop_id }}" aria-pressed="false"
-                  title="Show {{ c.shop__name }}’s top 10 products">{{ c.shop__name }}</button><span style="font-variant-numeric:tabular-nums;color:var(--text-secondary)">{{ c.total|floatformat:"0g" }}</span><a
+                  title="Show {{ c.shop__name }}’s top 10 products">{{ c.shop__name }}</button><span style="font-variant-numeric:tabular-nums;color:var(--text-secondary)">{{ c.total|floatformat:"2g" }}</span><a
                   class="cs-go" href="{% url 'shop_detail' c.shop_id %}" title="Open {{ c.shop__name }}" aria-label="Open {{ c.shop__name }}">↗</a></li>{% endfor %}
             </ul>
             <div class="cs-note">Click a client to see their top 10 products below.</div>
@@ -381,8 +381,15 @@
     if (a >= 1e3) return (v / 1e3).toFixed(a >= 1e4 ? 0 : 1) + 'k';
     return v;
   }
-  function wst(v) { return 'WST ' + Number(v).toLocaleString(undefined, { maximumFractionDigits: 0 }); }
+  function wst(v) { return 'WST ' + Number(v).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
   var thisMonth = D.currentMonth;   // index of the month in progress, or -1
+  var PREV_COLOR = '#CBD5E1';
+  var hasData = function (arr) { return arr.some(function (v) { return v != null; }); };
+  function yoyLine(a, p) {   // ' +12.3% vs Nov 2025', or nothing when either year is missing
+    if (a == null || !p) return null;
+    var pct = (a - p) / Math.abs(p) * 100;
+    return ' ' + (pct >= 0 ? '+' : '') + pct.toFixed(1) + '% vs ' + (D.year - 1);
+  }
   D.managers.forEach(function (m) {
     new Chart(document.getElementById('chart-' + m.key), {
       data: {
@@ -390,8 +397,11 @@
         datasets: [
           { type: 'line', label: 'Target', data: m.target, borderColor: '#0F172A', borderDash: [6, 5], borderWidth: 2,
             pointRadius: 3, pointBackgroundColor: '#fff', pointBorderColor: '#0F172A', pointBorderWidth: 2, spanGaps: true, order: 0 },
-          { type: 'bar', label: 'Actual', data: m.actual, order: 1, borderRadius: 6, maxBarThickness: 46,
-            backgroundColor: m.actual.map(function (_, i) { return i === thisMonth ? m.color + 'A6' : m.color; }) }
+          { type: 'bar', label: String(D.year), data: m.actual, order: 1, borderRadius: 6, maxBarThickness: 34,
+            backgroundColor: m.actual.map(function (_, i) { return i === thisMonth ? m.color + 'A6' : m.color; }) },
+          // last year's same month, beside this year's, so the trend between years shows
+          { type: 'bar', label: String(D.year - 1), data: m.previous, order: 2, borderRadius: 6, maxBarThickness: 34,
+            backgroundColor: PREV_COLOR, hidden: !hasData(m.previous) }
         ]
       },
       options: {
@@ -403,11 +413,15 @@
           tooltip: {
             padding: 12, backgroundColor: '#0F172A', titleFont: { weight: '700' },
             callbacks: {
-              title: function (items) { return items[0].label + ' ' + D.year + (items[0].dataIndex === thisMonth ? ' (so far)' : ''); },
+              title: function (items) { return items[0].label + (items[0].dataIndex === thisMonth ? ' (' + D.year + ' so far)' : ''); },
               label: function (c) { return ' ' + c.dataset.label + ': ' + (c.parsed.y == null ? '—' : wst(c.parsed.y)); },
               afterBody: function (items) {
-                var a = m.actual[items[0].dataIndex], t = m.target[items[0].dataIndex];
-                return (a != null && t) ? ['', ' ' + Math.round(a / t * 100) + '% of target'] : [];
+                var i = items[0].dataIndex, a = m.actual[i], t = m.target[i];
+                var lines = [];
+                if (a != null && t) lines.push(' ' + Math.round(a / t * 100) + '% of target');
+                var y = yoyLine(a, m.previous[i]);
+                if (y) lines.push(y);
+                return lines.length ? [''].concat(lines) : [];
               }
             }
           }
@@ -430,10 +444,13 @@
           { type: 'line', label: 'Target', data: D.all.target, stack: 'target', borderColor: '#0F172A', borderDash: [6, 5], borderWidth: 2,
             pointRadius: 3, pointBackgroundColor: '#fff', pointBorderColor: '#0F172A', pointBorderWidth: 2, spanGaps: true, order: 0 }
         ].concat(D.managers.map(function (m) {
-          return { type: 'bar', label: m.name, data: m.actual, stack: 'actual', order: 1, maxBarThickness: 46,
+          return { type: 'bar', label: m.name, data: m.actual, stack: 'actual', order: 1, maxBarThickness: 34,
                    borderColor: '#fff', borderWidth: { top: 1 }, borderSkipped: 'bottom',
                    backgroundColor: m.actual.map(function (_, i) { return i === thisMonth ? m.color + 'A6' : m.color; }) };
-        }))
+        })).concat([
+          { type: 'bar', label: (D.year - 1) + ' (all)', data: D.all.previous, stack: 'previous', order: 2, maxBarThickness: 34,
+            borderRadius: 4, backgroundColor: PREV_COLOR, hidden: !hasData(D.all.previous) }
+        ])
       },
       options: {
         responsive: true, maintainAspectRatio: false,
@@ -445,12 +462,14 @@
             padding: 12, backgroundColor: '#0F172A', titleFont: { weight: '700' },
             filter: function (c) { return c.parsed.y != null; },
             callbacks: {
-              title: function (items) { return items[0].label + ' ' + D.year + (items[0].dataIndex === thisMonth ? ' (so far)' : ''); },
+              title: function (items) { return items[0].label + (items[0].dataIndex === thisMonth ? ' (' + D.year + ' so far)' : ''); },
               label: function (c) { return ' ' + c.dataset.label + ': ' + wst(c.parsed.y); },
               afterBody: function (items) {
                 var i = items[0].dataIndex, a = D.all.actual[i], t = D.all.target[i];
-                var lines = ['', ' All streams: ' + (a == null ? '—' : wst(a))];
+                var lines = ['', ' All streams ' + D.year + ': ' + (a == null ? '—' : wst(a))];
                 if (a != null && t) lines.push(' ' + Math.round(a / t * 100) + '% of combined target');
+                var y = yoyLine(a, D.all.previous[i]);
+                if (y) lines.push(y);
                 return lines;
               }
             }
