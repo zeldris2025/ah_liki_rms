@@ -1,4 +1,5 @@
-Django>=4.2,<5.0
+# 5.2.8+ is needed for Python 3.14 (the Azure runtime); 4.2 breaks every admin list page there
+Django>=5.2.8,<6.0
 Pillow>=10.0
 django-import-export>=3.0
 openpyxl>=3.1
