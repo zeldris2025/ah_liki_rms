@@ -4,7 +4,8 @@ import urllib.error
 import os
 import shutil
 import tempfile
-from datetime import date
+from datetime import date, timedelta
+from decimal import Decimal
 from io import BytesIO
 from unittest import mock
 
@@ -18,15 +19,16 @@ from shops.models import Shop
 from .models import Issue, Order, Product
 
 TELEGRAM_ON = {'BOT_TOKEN': '123:tok', 'CHAT_ID': '-1001234'}
+WHATSAPP_ON = {'URL': 'http://waha:3000/', 'API_KEY': 'key', 'SESSION': 'default', 'CHAT_ID': '120363@g.us'}
 
 
 class InlineThread:
     """Run the Telegram send immediately instead of in a background thread."""
-    def __init__(self, target, daemon=None):
-        self.target = target
+    def __init__(self, target, args=(), daemon=None):
+        self.target, self.args = target, args
 
     def start(self):
-        self.target()
+        self.target(*self.args)
 
 
 class FEBase(TestCase):
@@ -35,7 +37,7 @@ class FEBase(TestCase):
         self.export_dir = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, self.export_dir, ignore_errors=True)
         # never send real Telegram messages or emails from tests, whatever is in .env
-        patcher = override_settings(SALES_EXPORT_DIR=self.export_dir, TELEGRAM={}, OFFICE365={})
+        patcher = override_settings(SALES_EXPORT_DIR=self.export_dir, TELEGRAM={}, WHATSAPP={}, OFFICE365={})
         patcher.enable()
         self.addCleanup(patcher.disable)
         self.fe = User.objects.create_user('sione', password='pw')
@@ -146,6 +148,140 @@ class OrderTests(FEBase):
              self.captureOnCommitCallbacks(execute=True):
             self.place([(self.coke, 1)])
         self.assertEqual(Order.objects.get().telegram_status, 'Failed: Bad Request: chat not found')
+
+    @override_settings(WHATSAPP=WHATSAPP_ON)
+    def test_whatsapp_group_message(self):
+        response = mock.MagicMock()
+        response.__enter__.return_value.read.return_value = b'{"id": "true_120363@g.us_ABC"}'
+        with mock.patch('fe_orders.whatsapp.threading.Thread', InlineThread),              mock.patch('fe_orders.whatsapp.urllib.request.urlopen', return_value=response) as urlopen,              self.captureOnCommitCallbacks(execute=True):
+            self.place([(self.coke, 3)], notes='Back *door*')
+        req = urlopen.call_args[0][0]
+        self.assertEqual(req.full_url, 'http://waha:3000/api/sendText')
+        self.assertEqual(req.get_header('X-api-key'), 'key')
+        body = json.loads(req.data)
+        self.assertEqual((body['session'], body['chatId']), ('default', '120363@g.us'))
+        self.assertIn('*Shop:* Jane Store (EC2)', body['text'])
+        self.assertIn('3 × Coke Can 330ml', body['text'])
+        self.assertNotIn('WST', body['text'])   # prices are left out of the group message
+        self.assertIn('*Notes:* Back door', body['text'])
+        self.assertEqual(Order.objects.get().whatsapp_status, 'Sent')
+
+    def test_whatsapp_not_configured(self):
+        self.place([(self.coke, 1)])
+        self.assertEqual(Order.objects.get().whatsapp_status, 'Not configured')
+
+    @override_settings(WHATSAPP=WHATSAPP_ON)
+    def test_whatsapp_error_reason_is_saved_and_resend(self):
+        err = urllib.error.HTTPError('http://waha:3000/api/sendText', 422, 'Unprocessable', {},
+                                     BytesIO(b'{"message": "Session status is not as expected"}'))
+        with mock.patch('fe_orders.whatsapp.threading.Thread', InlineThread),              mock.patch('fe_orders.whatsapp.urllib.request.urlopen', side_effect=err),              self.captureOnCommitCallbacks(execute=True):
+            self.place([(self.coke, 1)])
+        order = Order.objects.get()
+        self.assertEqual(order.whatsapp_status, 'Failed: HTTP 422: Session status is not as expected')
+
+        url = reverse('fe_order_detail', args=[order.pk])
+        self.client.login(username='office', password='pw')
+        self.assertContains(self.client.get(url), 'Resend to WhatsApp')
+        response = mock.MagicMock()
+        response.__enter__.return_value.read.return_value = b'{}'
+        with mock.patch('fe_orders.whatsapp.threading.Thread', InlineThread),              mock.patch('fe_orders.whatsapp.urllib.request.urlopen', return_value=response),              self.captureOnCommitCallbacks(execute=True):
+            self.client.post(url, {'resend_whatsapp': '1'})
+        order.refresh_from_db()
+        self.assertEqual(order.whatsapp_status, 'Sent')
+
+    @override_settings(WHATSAPP=WHATSAPP_ON, SITE_URL='http://rms')
+    def test_failed_whatsapp_is_retried_after_5_minutes(self):
+        from django.utils import timezone
+        from fe_orders import whatsapp
+        with mock.patch('fe_orders.whatsapp.threading.Thread', InlineThread),              mock.patch('fe_orders.whatsapp.urllib.request.urlopen', side_effect=OSError('WAHA down')),              self.captureOnCommitCallbacks(execute=True):
+            self.place([(self.coke, 1)])
+        order = Order.objects.get()
+        self.assertTrue(order.whatsapp_status.startswith('Failed'))
+        wait = order.whatsapp_retry_at - timezone.now()
+        self.assertTrue(timedelta(minutes=4) < wait <= timedelta(minutes=5))
+
+        self.client.login(username='office', password='pw')
+        self.assertContains(self.client.get(reverse('fe_order_list')), '⚠ WhatsApp failed · retry')
+
+        response = mock.MagicMock()
+        response.__enter__.return_value.read.return_value = b'{}'
+        with mock.patch('fe_orders.whatsapp.urllib.request.urlopen', return_value=response) as urlopen:
+            self.assertEqual(whatsapp.retry_due(), (0, 0))          # not due yet
+            Order.objects.update(whatsapp_retry_at=timezone.now())
+            self.assertEqual(whatsapp.retry_due(), (1, 0))
+        self.assertIn(f'http://rms/fe/orders/{order.pk}/', json.loads(urlopen.call_args[0][0].data)['text'])
+        order.refresh_from_db()
+        self.assertEqual((order.whatsapp_status, order.whatsapp_retry_at), ('Sent', None))
+        self.assertContains(self.client.get(reverse('fe_order_list')), '✓ WhatsApp sent')
+
+    @override_settings(WHATSAPP=WHATSAPP_ON)
+    def test_stuck_sending_is_picked_up_and_old_orders_give_up(self):
+        from django.utils import timezone
+        from fe_orders import whatsapp
+        with mock.patch('fe_orders.whatsapp.threading.Thread'):   # the send never runs, like a restart mid-send
+            with self.captureOnCommitCallbacks(execute=True):
+                self.place([(self.coke, 1)])
+        order = Order.objects.get()
+        self.assertEqual(order.whatsapp_status, 'Sending')
+        self.assertIsNotNone(order.whatsapp_retry_at)
+
+        # A day-old order that still fails stops retrying
+        Order.objects.update(created_at=timezone.now() - timedelta(days=1), whatsapp_retry_at=timezone.now())
+        with mock.patch('fe_orders.whatsapp.urllib.request.urlopen', side_effect=OSError('WAHA down')):
+            self.assertEqual(whatsapp.retry_due(), (0, 1))
+        order.refresh_from_db()
+        self.assertTrue(order.whatsapp_status.startswith('Failed'))
+        self.assertIsNone(order.whatsapp_retry_at)
+
+    @override_settings(WHATSAPP=WHATSAPP_ON, OFFICE365={'TENANT_ID': 't', 'CLIENT_ID': 'c', 'CLIENT_SECRET': 's',
+                                                        'SENDER': 'orders@ahliki.ws',
+                                                        'WHATSAPP_ALERT_EMAILS': 'charliea@ahliki.com,ivana@ahliki.com'})
+    def test_failed_whatsapp_emails_staff_once(self):
+        from django.utils import timezone
+        from fe_orders import office365, whatsapp
+        with mock.patch('fe_orders.whatsapp.threading.Thread', InlineThread), \
+             mock.patch('fe_orders.office365.threading.Thread', InlineThread), \
+             mock.patch('fe_orders.whatsapp.urllib.request.urlopen', side_effect=OSError('WAHA down')), \
+             mock.patch('fe_orders.office365.send_mail') as send_mail, \
+             self.captureOnCommitCallbacks(execute=True):
+            self.place([(self.coke, 3)])
+        self.assertEqual(send_mail.call_count, 1)
+        to, subject, body = send_mail.call_args[0]
+        self.assertEqual(to, ['charliea@ahliki.com', 'ivana@ahliki.com'])
+        self.assertEqual(subject, '⚠ WhatsApp failed: FE order ORD-00001 — Jane Store')
+        self.assertIn('Reason: WAHA down', body)
+        self.assertIn('keep trying every 5 minutes', body)
+        self.assertIn('Coke Can 330ml', body)
+
+        # Retries that keep failing don't email again
+        with mock.patch('fe_orders.whatsapp.urllib.request.urlopen', side_effect=OSError('WAHA down')), \
+             mock.patch('fe_orders.office365.send_mail') as send_mail:
+            Order.objects.update(whatsapp_retry_at=timezone.now())
+            whatsapp.retry_due()
+        send_mail.assert_not_called()
+
+        # Once it goes through, a later failure is a new problem and emails again
+        ok = mock.MagicMock()
+        ok.__enter__.return_value.read.return_value = b'{}'
+        with mock.patch('fe_orders.whatsapp.urllib.request.urlopen', return_value=ok):
+            Order.objects.update(whatsapp_retry_at=timezone.now())
+            whatsapp.retry_due()
+        self.assertIsNone(Order.objects.get().whatsapp_alerted_at)
+        order = Order.objects.get()
+        with mock.patch('fe_orders.office365.send_mail', side_effect=office365.Office365Error('HTTP 503')) as send_mail:
+            with mock.patch('fe_orders.whatsapp.urllib.request.urlopen', side_effect=OSError('WAHA down')):
+                whatsapp.deliver(order, 'x', 'http://rms/o/1/')
+        self.assertEqual(send_mail.call_count, 1)
+        self.assertIsNone(Order.objects.get().whatsapp_alerted_at)   # the email failed, so the next retry emails again
+
+    @override_settings(WHATSAPP=WHATSAPP_ON)
+    def test_no_alert_list_no_email(self):
+        with mock.patch('fe_orders.whatsapp.threading.Thread', InlineThread), \
+             mock.patch('fe_orders.whatsapp.urllib.request.urlopen', side_effect=OSError('WAHA down')), \
+             mock.patch('fe_orders.office365.send_mail') as send_mail, \
+             self.captureOnCommitCallbacks(execute=True):
+            self.place([(self.coke, 1)])
+        send_mail.assert_not_called()
 
     @override_settings(TELEGRAM=TELEGRAM_ON)
     def test_office_can_resend_failed_telegram(self):
@@ -428,10 +564,49 @@ class OrderDownloadTests(FEBase):
         self.assertEqual(period_dates('week', wed)[:2], (date(2026, 9, 28), wed))
         self.assertEqual(period_dates('month', wed)[:2], (date(2026, 9, 1), wed))
         self.assertEqual(period_dates('yesterday', wed)[:2], (date(2026, 9, 29), date(2026, 9, 29)))
+        self.assertEqual(period_dates('7days', wed)[:2], (date(2026, 9, 24), wed))
+        self.assertEqual(period_dates('last_month', wed)[:2], (date(2026, 8, 1), date(2026, 8, 31)))
+        self.assertEqual(period_dates('last_month', date(2026, 1, 15))[:2], (date(2025, 12, 1), date(2025, 12, 31)))
 
-    def test_page_offers_quick_downloads_fe_staff_do_not(self):
+    def test_page_filters_and_downloads_fe_staff_do_not(self):
         page = self.client.get(reverse('fe_order_list')).content.decode()
-        for key in ('today', 'yesterday', 'week', 'month', 'all'):
+        for key in ('today', 'yesterday', '7days', 'week', 'month', 'last_month'):
             self.assertIn(f'?period={key}', page)
+        self.assertIn('format=daily', page)
         self.client.login(username='sione', password='pw')
-        self.assertNotIn('?period=today', self.client.get(reverse('fe_order_list')).content.decode())
+        page = self.client.get(reverse('fe_order_list')).content.decode()
+        self.assertIn('?period=7days', page)        # FE staff can filter their own orders...
+        self.assertNotIn('format=daily', page)      # ...but get no downloads
+
+    def test_list_filters_and_totals(self):
+        url = reverse('fe_order_list')
+        r = self.client.get(url, {'period': 'today'})
+        self.assertEqual((r.context['order_count'], r.context['units'], r.context['sales']), (3, 3, Decimal('85.50')))
+        self.assertEqual(self.client.get(url, {'period': 'yesterday'}).context['order_count'], 0)
+        r = self.client.get(url, {'period': '7days', 'status': 'Pending', 'q': 'sam'})
+        self.assertEqual([o.shop.name for o in r.context['orders']], ['Sam Mart'])
+        self.assertIn('href="?q=sam&amp;period=7days">All<', r.content.decode())   # status pills keep the date and search
+        self.assertIn(f'name="from" value="{date.today() - timedelta(days=6):%Y-%m-%d}"', r.content.decode())   # date picker starts on the period
+
+        old = Order.objects.order_by('pk').first()
+        Order.objects.filter(pk=old.pk).update(created_at=old.created_at - timedelta(days=40))
+        today = date.today()
+        r = self.client.get(url, {'from': f'{today - timedelta(days=41):%Y-%m-%d}', 'to': f'{today - timedelta(days=39):%Y-%m-%d}'})
+        self.assertEqual((r.context['period'], r.context['order_count']), ('custom', 1))
+        self.assertEqual(self.client.get(url, {'from': 'bad'}).context['order_count'], 3)   # bad dates show everything
+
+    def test_daily_sales_csv_follows_filters(self):
+        old = Order.objects.order_by('pk').first()
+        Order.objects.filter(pk=old.pk).update(created_at=old.created_at - timedelta(days=2))
+        r = self.client.get(reverse('sales_export'), {'period': '7days', 'format': 'daily'})
+        first = date.today() - timedelta(days=6)
+        self.assertIn(f'fe_daily_sales_{first:%Y-%m-%d}_to_{date.today():%Y-%m-%d}.csv', r['Content-Disposition'])
+        rows = list(csv.reader(r.content.decode('utf-8-sig').splitlines()))
+        self.assertEqual(rows[0], ['Date', 'Day', 'Orders', 'Shops', 'Units', 'Sales (WST)'])
+        self.assertEqual([row[2:] for row in rows[1:]], [['1', '1', '2', '57.00'], ['2', '2', '6', '171.00'], ['3', '2', '8', '228.00']])
+        self.assertEqual(rows[1][0], f'{date.today() - timedelta(days=2):%Y-%m-%d}')
+
+        r = self.client.get(reverse('sales_export'), {'period': 'today', 'format': 'daily', 'skip_cancelled': '1', 'q': 'jane'})
+        self.assertEqual(list(csv.reader(r.content.decode('utf-8-sig').splitlines()))[-1], ['TOTAL', '', '0', '0', '0', '0.00'])
+        r = self.client.get(reverse('sales_export'), {'period': 'today', 'format': 'csv', 'q': 'sam'})
+        self.assertEqual({row['Shop'] for row in csv.DictReader(r.content.decode('utf-8-sig').splitlines())}, {'Sam Mart'})

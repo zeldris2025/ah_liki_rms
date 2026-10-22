@@ -35,9 +35,12 @@ def _config():
     return getattr(settings, 'OFFICE365', {})
 
 
+RECIPIENT_SETTINGS = {'order': 'ORDER_EMAILS', 'issue': 'ISSUE_EMAILS', 'whatsapp_alert': 'WHATSAPP_ALERT_EMAILS'}
+
+
 def recipients(kind):
-    """Addresses for 'order' or 'issue' emails, from the comma-separated setting."""
-    raw = _config().get('ORDER_EMAILS' if kind == 'order' else 'ISSUE_EMAILS', '')
+    """Addresses for 'order', 'issue' or 'whatsapp_alert' emails, from the comma-separated setting."""
+    raw = _config().get(RECIPIENT_SETTINGS[kind], '')
     return [a.strip() for a in raw.replace(';', ',').split(',') if a.strip()]
 
 
@@ -81,9 +84,11 @@ def access_token():
         return _token['value']
 
 
-def send_mail(to, subject, body_html):
-    """Send an HTML email from the configured mailbox. Raises Office365Error with Microsoft's reason."""
-    sender = _config()['SENDER']
+def send_mail(to, subject, body_html, sender=None):
+    """Send an HTML email from a mailbox in the tenant: `sender` (e.g. the person who booked a car), or the
+    configured OFFICE365_SENDER. Mail.Send as an application permission can send from any mailbox.
+    Raises Office365Error with Microsoft's reason."""
+    sender = sender or _config()['SENDER']
     payload = {'message': {
         'subject': subject,
         'body': {'contentType': 'HTML', 'content': body_html},
@@ -103,7 +108,7 @@ def _page(title, rows_html, url, button):
     return (f'<div style="{_STYLE}"><h2 style="margin:0 0 12px;font-size:18px">{e(title)}</h2>{rows_html}'
             f'<p style="margin:18px 0 0"><a href="{e(url)}" style="background:#0F172A;color:#fff;padding:9px 16px;'
             f'border-radius:8px;text-decoration:none;font-weight:600">{e(button)}</a></p>'
-            f'<p style="color:#64748B;font-size:12px;margin-top:18px">Ah Liki Wholesale · Sales &amp; Marketing System</p></div>')
+            f'<p style="color:#64748B;font-size:12px;margin-top:18px">Ah Liki Investment Corp System</p></div>')
 
 
 def _details(pairs):
@@ -113,7 +118,8 @@ def _details(pairs):
     return f'<table style="border-collapse:collapse;margin-bottom:12px">{cells}</table>'
 
 
-def order_email(order, url):
+def _order_summary(order):
+    """The order's details and product table, as HTML."""
     e = html.escape
     shop = order.shop
     items = list(order.items.select_related('product'))
@@ -134,8 +140,27 @@ def order_email(order, url):
         ('Placed by', order.placed_by.get_full_name() or order.placed_by.username),
         ('Notes', order.notes),
     ])
-    subject = f'New FE order {order.number} — {shop.name}'
-    return subject, _page(f'🛒 New FE order {order.number}', details + table, url, 'Open the order')
+    return details + table
+
+
+def order_email(order, url):
+    subject = f'New FE order {order.number} — {order.shop.name}'
+    return subject, _page(f'🛒 New FE order {order.number}', _order_summary(order), url, 'Open the order')
+
+
+def whatsapp_failed_email(order, url, reason, retry_at):
+    """Tell staff an order didn't reach the WhatsApp group, so someone can pass it on by hand."""
+    e = html.escape
+    if retry_at:
+        from django.utils import timezone
+        when = timezone.localtime(retry_at).strftime('%I:%M %p').lstrip('0')
+        nxt = f'The system will keep trying every 5 minutes (next try {e(when)}) and the order page will show “Sent” once it goes through.'
+    else:
+        nxt = 'The system has stopped trying for this order. Use “Resend to WhatsApp” on the order page, or pass it on by hand.'
+    note = (f'<p style="background:#FEF2F2;border-left:3px solid #DC2626;padding:10px 12px;margin:0 0 14px">'
+            f'<b>This order didn’t reach the FE orders WhatsApp group.</b><br>Reason: {e(reason)}<br>{nxt}</p>')
+    subject = f'⚠ WhatsApp failed: FE order {order.number} — {order.shop.name}'
+    return subject, _page(f'⚠️ WhatsApp message failed for {order.number}', note + _order_summary(order), url, 'Open the order')
 
 
 def issue_email(issue, url):
@@ -151,17 +176,26 @@ def issue_email(issue, url):
 
 # ── Sending in the background ─────────────────────────────────────────────────
 
-def _send_later(model, pk, subject, body, to, label):
-    """Mark the record 'Sending', then send after the database commit without holding up the page."""
+def _send_later(model, pk, subject, body, to, label, sender=None):
+    """Mark the record 'Sending', then send after the database commit without holding up the page.
+    If `sender`'s mailbox refuses (e.g. the address isn't a mailbox in the tenant), it goes from OFFICE365_SENDER instead."""
     model.objects.filter(pk=pk).update(email_status='Sending')
 
     def send():
         try:
-            send_mail(to, subject, body)
-            status = 'Sent'
+            try:
+                send_mail(to, subject, body, sender)
+                status = 'Sent' + (f' from {sender}' if sender else '')
+            except Office365Error as exc:
+                if not sender or sender.lower() == _config()['SENDER'].lower():
+                    raise
+                log.warning('Office 365 email for %s could not be sent from %s (%s); using the shared mailbox', label, sender, exc)
+                send_mail(to, subject, body)
+                status = f'Sent from {_config()["SENDER"]} ({sender}: {exc})'
         except (Office365Error, urllib.error.URLError, OSError, ValueError, KeyError) as exc:
             log.exception('Office 365 email for %s failed', label)
-            status = f'Failed: {exc}'[:120]
+            status = f'Failed: {exc}'
+        status = status[:120]
         model.objects.filter(pk=pk).update(email_status=status)
 
     transaction.on_commit(lambda: threading.Thread(target=send, daemon=True).start())

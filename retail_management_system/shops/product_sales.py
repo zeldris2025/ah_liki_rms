@@ -49,38 +49,51 @@ def import_product_sales(uploaded):
         raise client_import.ImportFileError(
             f'The file needs these columns: {", ".join(missing)}. Download the template to see the format.')
 
-    result = {'created': 0, 'updated': 0, 'unchanged': 0, 'skipped': []}
+    result = client_import.new_result()
     existing = {(r.product_code.casefold(), r.month): r for r in ProductSales.objects.all()}
     with transaction.atomic():
         for number, row in rows:
             code, name = row.get('product_code', ''), ' '.join(row.get('product_name', '').split())
-            label = f'Row {number} ({code or name or "blank"})'
+            item = ' · '.join(v for v in (code, name) if v)
             if not code or not name:
-                result['skipped'].append(f'{label}: Product Code and Product Name are both needed.')
+                client_import.skip(result, number, item, 'Product Code and Product Name are both needed.')
                 continue
             try:
                 month = parse_yy_mm(row.get('month', ''))
             except ValueError:
-                result['skipped'].append(f'{label}: "{row.get("month", "")}" is not a month. Use YY-MM, e.g. 26-09.')
+                client_import.skip(result, number, item, f'"{row.get("month", "")}" is not a month. Use YY-MM, e.g. 26-09.')
                 continue
             try:
                 amount = client_import.parse_money(row.get('total_sales', ''))
             except (InvalidOperation, ValueError):
-                result['skipped'].append(f'{label}: Total Sales "{row.get("total_sales", "")}" is not a number.')
+                client_import.skip(result, number, item, f'Total Sales "{row.get("total_sales", "")}" is not a number.')
                 continue
 
+            item += f' · {month:%b %Y}'
             record = existing.get((code.casefold(), month))
             if record is None:
                 existing[(code.casefold(), month)] = ProductSales.objects.create(
                     product_code=code, product_name=name[:255], month=month, total_sales=amount)
                 result['created'] += 1
+                client_import.log(result, 'added', number, item, f'Total Sales {client_import.money(amount)}')
             elif record.total_sales != amount or record.product_name != name[:255]:
+                client_import.log(result, 'updated', number, item, _changes(record, 'total_sales', amount, name[:255]))
                 record.total_sales, record.product_name = amount, name[:255]
                 record.save(update_fields=['total_sales', 'product_name', 'updated_at'])
                 result['updated'] += 1
             else:
                 result['unchanged'] += 1
-    return result
+                client_import.log(result, 'unchanged', number, item, f'Total Sales {client_import.money(amount)}')
+    return client_import.finish(result)
+
+
+def _changes(record, sales_field, amount, name):
+    """'Sales 1,000.00 → 1,200.00; Name: Old → New' for the upload log."""
+    old = getattr(record, sales_field)
+    out = [f'Sales {client_import.money(old)} → {client_import.money(amount)}'] if old != amount else []
+    if record.product_name != name:
+        out.append(f'Name: {record.product_name} → {name}')
+    return '; '.join(out)
 
 
 # ── Customer product sales upload (for the Top 10 products chart on Corporate Sales) ──
@@ -109,42 +122,47 @@ def import_customer_product_sales(uploaded):
             f'The file needs these columns: {", ".join(missing)}. Download the template to see the format.')
 
     shops = {s.customer_code.casefold(): s for s in Shop.objects.exclude(customer_code__isnull=True)}
-    result = {'created': 0, 'updated': 0, 'unchanged': 0, 'skipped': []}
+    result = client_import.new_result()
     with transaction.atomic():
         for number, row in rows:
             ccode = row.get('customer_code', '')
             code, name = row.get('product_code', ''), ' '.join(row.get('product_name', '').split())
-            label = f'Row {number} ({ccode or "blank"} · {code or name or "blank"})'
+            item = f'{ccode or "blank"} · {code or name or "blank"}'
             shop = shops.get(ccode.casefold()) if ccode else None
             if shop is None:
-                result['skipped'].append(f'{label}: no client has Customer Code "{ccode}". Upload it in Import Clients first.'
-                                         if ccode else f'{label}: Customer Code is missing.')
+                client_import.skip(result, number, item,
+                                   f'no client has Customer Code "{ccode}". Upload it in Import Clients first.'
+                                   if ccode else 'Customer Code is missing.')
                 continue
             if not code or not name:
-                result['skipped'].append(f'{label}: Product Code and Product Name are both needed.')
+                client_import.skip(result, number, item, 'Product Code and Product Name are both needed.')
                 continue
             try:
                 month = parse_yy_mm(row.get('month', ''))
             except ValueError:
-                result['skipped'].append(f'{label}: "{row.get("month", "")}" is not a month. Use YY-MM, e.g. 26-09.')
+                client_import.skip(result, number, item, f'"{row.get("month", "")}" is not a month. Use YY-MM, e.g. 26-09.')
                 continue
             try:
                 amount = client_import.parse_money(row.get('sales', ''))
             except (InvalidOperation, ValueError):
-                result['skipped'].append(f'{label}: Sales "{row.get("sales", "")}" is not a number.')
+                client_import.skip(result, number, item, f'Sales "{row.get("sales", "")}" is not a number.')
                 continue
 
+            item = f'{shop.customer_code} · {shop.name} · {code} {name} · {month:%b %Y}'
             record, created = CustomerProductSales.objects.get_or_create(
                 shop=shop, product_code=code, month=month, defaults={'product_name': name[:255], 'sales': amount})
             if created:
                 result['created'] += 1
+                client_import.log(result, 'added', number, item, f'Sales {client_import.money(amount)}')
             elif record.sales != amount or record.product_name != name[:255]:
+                client_import.log(result, 'updated', number, item, _changes(record, 'sales', amount, name[:255]))
                 record.sales, record.product_name = amount, name[:255]
                 record.save(update_fields=['sales', 'product_name', 'updated_at'])
                 result['updated'] += 1
             else:
                 result['unchanged'] += 1
-    return result
+                client_import.log(result, 'unchanged', number, item, f'Sales {client_import.money(amount)}')
+    return client_import.finish(result)
 
 
 # ── Filters ────────────────────────────────────────────────────────────────────
@@ -180,6 +198,7 @@ def read_filters(params):
         'start': _month_param(params.get('from', '')),
         'end': _month_param(params.get('to', '')),
         'sort': params.get('sort', ''),
+        'link_month': link_month(year, params.get('lm', '')),   # the month the quick links are judged on
     }
 
 
@@ -238,6 +257,18 @@ def current_month(year):
     """Index (0–11) of the latest month in `year` with any product sales uploaded, or -1."""
     latest = ProductSales.objects.filter(month__year=year).aggregate(m=Max('month'))['m']
     return latest.month - 1 if latest else -1
+
+
+def link_month(year, requested=''):
+    """Index (0–11) of the month the quick links compare against target: the month picked (?lm=1–12),
+    otherwise the current month for this year (even before its sales are uploaded), otherwise the latest
+    month uploaded for that year, or -1."""
+    if str(requested).isdigit() and 1 <= int(requested) <= 12:
+        return int(requested) - 1
+    today = date.today()
+    if year == today.year:
+        return today.month - 1
+    return current_month(year)
 
 
 def short_money(v):
@@ -326,9 +357,10 @@ def _link_figures(rows, year, compare, month, manual=None):
             'pct': pct, 'status': status, 'spark': [float(v) if v is not None else None for v in this]}
 
 
-def quick_links(year, compare):
-    """Pinned products with this month against target, year-to-date change, and a 12-month sparkline."""
-    month = current_month(year)
+def quick_links(year, compare, month=None):
+    """Pinned products with a month (`month` index, default the latest uploaded) against target,
+    year-to-date change, and a 12-month sparkline."""
+    month = current_month(year) if month is None else month
     codes = list(PinnedProduct.objects.values_list('product_code', flat=True))
     if not codes:
         return []
@@ -342,9 +374,9 @@ def quick_links(year, compare):
             for code in codes]
 
 
-def group_links(year, compare):
+def group_links(year, compare, month=None):
     """Product groups with the same figures as pinned products, plus how many products they hold."""
-    month = current_month(year)
+    month = current_month(year) if month is None else month
     manual = {}
     for t in QuickLinkTarget.objects.filter(group__isnull=False, month__year=year):
         manual.setdefault(t.group_id, {})[t.month.month - 1] = t.amount

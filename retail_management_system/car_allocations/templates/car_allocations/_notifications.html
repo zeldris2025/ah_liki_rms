@@ -1,0 +1,102 @@
+{% if user.is_authenticated and not is_fe %}
+<style>
+  .notif { position: relative; display: inline-block; z-index: 1050; }
+  .notif-btn { width: 42px; height: 42px; border-radius: 50%; border: 1px solid #E2E8F0; background: #fff; font-size: 18px; cursor: pointer; position: relative; box-shadow: 0 2px 8px rgba(15,23,42,.08); }
+  .notif-btn:hover { background: #F1F5F9; }
+  .notif-count { position: absolute; top: -4px; right: -4px; min-width: 19px; height: 19px; padding: 0 5px; border-radius: 999px; background: #DC2626; color: #fff; font-size: 11px; font-weight: 700; line-height: 19px; display: none; }
+  .notif-count.show { display: block; }
+  .notif-panel { position: absolute; right: 0; top: 50px; width: 360px; max-width: calc(100vw - 32px); background: #fff; border: 1px solid #E2E8F0; border-radius: 14px; box-shadow: 0 12px 40px rgba(15,23,42,.18); display: none; overflow: hidden; text-align: left; }
+  .notif-panel.open { display: block; }
+  .notif-head { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; border-bottom: 1px solid #E2E8F0; font-weight: 700; font-size: 14px; color: #0F172A; }
+  .notif-head button { border: none; background: none; color: #0EA5E9; font-size: 12px; font-weight: 600; cursor: pointer; }
+  .notif-list { max-height: 400px; overflow-y: auto; }
+  .notif-item { display: block; padding: 11px 16px; border-bottom: 1px solid #F1F5F9; font-size: 13px; color: #1F2937; text-decoration: none; }
+  .notif-item:hover { background: #F8FAFC; color: #1F2937; }
+  .notif-item.unread { background: #F0F9FF; border-left: 3px solid #0EA5E9; }
+  .notif-item small { display: block; color: #6B7280; font-size: 11px; margin-top: 3px; }
+  .notif-empty { padding: 26px 16px; text-align: center; color: #6B7280; font-size: 13px; }
+  .notif-toast { position: fixed; right: 20px; bottom: 20px; max-width: 340px; background: #0F172A; color: #fff; padding: 12px 16px; border-radius: 12px; font-size: 13px; box-shadow: 0 10px 30px rgba(15,23,42,.35); z-index: 2000; cursor: pointer; display: none; }
+  .notif-toast.show { display: block; }
+</style>
+<div class="notif" id="notif">
+  {% csrf_token %}
+  <button class="notif-btn" id="notif-btn" title="Notifications" aria-label="Notifications">🔔<span class="notif-count" id="notif-count"></span></button>
+  <div class="notif-panel" id="notif-panel">
+    <div class="notif-head">Notifications <button type="button" id="notif-all">Mark all as read</button></div>
+    <div class="notif-list" id="notif-list"><div class="notif-empty">Loading…</div></div>
+  </div>
+</div>
+<div class="notif-toast" id="notif-toast"></div>
+<script>
+(function () {
+  var URL_LIST = '{% url "notifications" %}', URL_READ = '{% url "notifications_read" %}';
+  var btn = document.getElementById('notif-btn'), panel = document.getElementById('notif-panel'),
+      list = document.getElementById('notif-list'), count = document.getElementById('notif-count'),
+      toast = document.getElementById('notif-toast');
+  var newestSeen = null, toastTimer;
+
+  function csrf() {
+    var m = document.cookie.match(/(?:^|;\s*)csrftoken=([^;]+)/);
+    if (m) return decodeURIComponent(m[1]);
+    var input = document.querySelector('input[name="csrfmiddlewaretoken"]');
+    return input ? input.value : '';
+  }
+  function esc(s) { var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+  function ago(iso) {
+    var s = Math.max(0, (Date.now() - new Date(iso)) / 1000);
+    if (s < 60) return 'just now';
+    if (s < 3600) return Math.floor(s / 60) + ' min ago';
+    if (s < 86400) return Math.floor(s / 3600) + ' h ago';
+    return new Date(iso).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+  }
+  function markRead(id) {
+    var body = new FormData();
+    if (id) body.append('id', id);
+    return fetch(URL_READ, { method: 'POST', body: body, headers: { 'X-CSRFToken': csrf() } });
+  }
+
+  function load() {
+    fetch(URL_LIST).then(function (r) { if (!r.ok) throw r; return r.json(); }).then(function (data) {
+      count.textContent = data.unread > 99 ? '99+' : data.unread;
+      count.classList.toggle('show', data.unread > 0);
+      list.innerHTML = data.items.length ? data.items.map(function (n) {
+        return '<a class="notif-item' + (n.read ? '' : ' unread') + '" href="' + esc(n.link || '#') + '" data-id="' + n.id + '">' +
+          esc(n.message) + '<small>' + ago(n.created) + '</small></a>';
+      }).join('') : '<div class="notif-empty">No notifications yet.</div>';
+
+      // Pop up anything new that arrived since the last check
+      var newest = data.items[0];
+      if (newestSeen !== null && newest && newest.id > newestSeen && !newest.read) {
+        toast.textContent = '🔔 ' + newest.message;
+        toast.dataset.link = newest.link || '';
+        toast.dataset.id = newest.id;
+        toast.classList.add('show');
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(function () { toast.classList.remove('show'); }, 8000);
+      }
+      newestSeen = newest ? Math.max(newest.id, newestSeen || 0) : (newestSeen || 0);
+    }).catch(function () {});
+  }
+
+  btn.addEventListener('click', function (e) { e.stopPropagation(); panel.classList.toggle('open'); if (panel.classList.contains('open')) load(); });
+  document.addEventListener('click', function (e) { if (!e.target.closest('#notif')) panel.classList.remove('open'); });
+  document.getElementById('notif-all').addEventListener('click', function () { markRead().then(load); });
+  list.addEventListener('click', function (e) {
+    var a = e.target.closest('.notif-item');
+    if (!a) return;
+    e.preventDefault();
+    var href = a.getAttribute('href');
+    markRead(a.dataset.id).finally(function () { if (href && href !== '#') location.href = href; else load(); });
+  });
+  toast.addEventListener('click', function () {
+    toast.classList.remove('show');
+    var href = toast.dataset.link;
+    markRead(toast.dataset.id).finally(function () { if (href) location.href = href; else load(); });
+  });
+
+  load();
+  setInterval(function () { if (!document.hidden) load(); }, 15000);
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) load(); });
+})();
+</script>
+{% endif %}

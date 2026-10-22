@@ -1,7 +1,7 @@
 {% extends 'shops/base.html' %}
 {% block content %}
 <div style="margin-bottom:26px">
-  <h2 style="color:var(--primary);margin:0;font-size:22px;font-weight:700">Ah Liki Wholesale — Dashboard</h2>
+  <h2 style="color:var(--primary);margin:0;font-size:22px;font-weight:700">Ah Liki Investment Corp — Dashboard</h2>
   <p style="color:var(--muted);margin:6px 0 0;font-size:14px">Overview across Upolu and Savaii</p>
 </div>
 
@@ -68,10 +68,13 @@
 {% endif %}
 </div>
 
-{% if telegram_failed or out_of_stock %}
+{% if telegram_failed or whatsapp_failed or out_of_stock %}
 <div class="dash-alerts">
   {% if telegram_failed %}
   <a href="{% url 'fe_order_list' %}" class="dash-alert red">⚠ {{ telegram_failed }} order{{ telegram_failed|pluralize }} didn’t reach Telegram — open {{ telegram_failed|pluralize:"it,them" }} to resend</a>
+  {% endif %}
+  {% if whatsapp_failed %}
+  <a href="{% url 'fe_order_list' %}" class="dash-alert red">⚠ {{ whatsapp_failed }} order{{ whatsapp_failed|pluralize }} didn’t reach WhatsApp — open {{ whatsapp_failed|pluralize:"it,them" }} to resend</a>
   {% endif %}
   {% if out_of_stock %}
   <a href="{% url 'product_list' %}?availability=0" class="dash-alert amber">📦 {{ out_of_stock }} of {{ product_count }} product{{ product_count|pluralize }} out of stock</a>
@@ -93,6 +96,7 @@
       </div>
       <div style="display:flex;gap:6px;align-items:center;flex-shrink:0">
         {% if 'Failed' in o.telegram_status %}<span title="{{ o.telegram_status }}" style="color:var(--danger);font-size:14px">⚠</span>{% endif %}
+        {% if 'Failed' in o.whatsapp_status %}<span title="WhatsApp {{ o.whatsapp_status }}" style="color:var(--danger);font-size:14px">⚠</span>{% endif %}
         <span class="badge-custom {% if o.status == 'Pending' %}badge-amber{% elif o.status == 'Confirmed' %}badge-blue{% elif o.status == 'Delivered' %}badge-green{% else %}badge-gray{% endif %}">{{ o.status }}</span>
       </div>
     </a>

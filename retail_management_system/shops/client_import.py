@@ -64,6 +64,31 @@ class ImportFileError(Exception):
     """The file as a whole can't be read (wrong encoding, missing key columns)."""
 
 
+def new_result(**extra):
+    """Counts plus a row-by-row log of what happened, shown under the upload."""
+    return {'created': 0, 'updated': 0, 'unchanged': 0, **extra, 'skipped': [], 'log': []}
+
+
+def log(result, status, rows, item, detail=''):
+    """status: added | linked | updated | unchanged | skipped. rows: the file row number(s) behind this entry."""
+    result['log'].append({'status': status, 'rows': rows if isinstance(rows, list) else [rows],
+                          'item': item, 'detail': detail})
+
+
+def skip(result, number, item, reason):
+    result['skipped'].append(f'Row {number} ({item or "blank"}): {reason}')
+    log(result, 'skipped', number, item or 'blank', reason)
+
+
+def finish(result):
+    result['log'].sort(key=lambda e: e['rows'][0])
+    return result
+
+
+def money(amount):
+    return f'{amount:,.2f}'
+
+
 def _key(text):
     return re.sub(r'[^a-z0-9]', '', (text or '').lower())
 
@@ -116,21 +141,21 @@ def import_clients(uploaded):
     if 'customer_code' not in present or 'name' not in present:
         raise ImportFileError('The file needs "Customer Code" and "Name" columns. Download the template to see the format.')
 
-    result = {'created': 0, 'updated': 0, 'unchanged': 0, 'linked': 0, 'skipped': [], 'renamed': []}
+    result = new_result(linked=0, renamed=[])
     editable = [f for f, _ in CLIENT_COLUMNS if f not in ('customer_code', 'name')] + list(FLAG_FIELDS)
     with transaction.atomic():
         for number, row in rows:
             code, name = row.get('customer_code', ''), ' '.join(row.get('name', '').split())[:255]
-            label = f'Row {number} ({code or name or "blank"})'
+            item = ' · '.join(v for v in (code, name) if v)
             if not code:
-                result['skipped'].append(f'{label}: Customer Code is required.')
+                skip(result, number, item, 'Customer Code is required.')
                 continue
 
             # The code is the key: a known code updates that client, including its name
             shop = Shop.objects.filter(customer_code__iexact=code).first()
             linked = False
             if shop is None and not name:
-                result['skipped'].append(f'{label}: new code {code} needs a Name.')
+                skip(result, number, item, f'new code {code} needs a Name.')
                 continue
             if shop is None:
                 # A client from before codes existed: give it this code instead of making a duplicate
@@ -143,11 +168,11 @@ def import_clients(uploaded):
             if is_new or linked:
                 shop.customer_code = code
 
-            changed = False
+            changes = []
             if name and shop.name != name and not is_new:
                 result['renamed'].append(f'{code}: “{shop.name}” → “{name}”')
+                changes.append(f'Name: {shop.name} → {name}')
                 shop.name = name
-                changed = True
             for field in editable:
                 if field not in present or not row.get(field):
                     continue   # blank cell or missing column: keep what's there
@@ -155,20 +180,28 @@ def import_clients(uploaded):
                     value = row[field].upper() in ('TRUE', 'YES', 'Y', '1')
                 else:
                     value = _clean_client_value(field, row[field])[:Shop._meta.get_field(field).max_length]
-                if getattr(shop, field) != value:
+                old = getattr(shop, field)
+                if old != value:
+                    if not is_new:
+                        label = Shop._meta.get_field(field).verbose_name.capitalize()
+                        changes.append(f'{label}: {"blank" if old in (None, "") else old} → {value}')
                     setattr(shop, field, value)
-                    changed = True
 
             shop.save()
+            item = f'{code} · {shop.name}'
             if is_new:
                 result['created'] += 1
+                log(result, 'added', number, item, 'New client')
             elif linked:
                 result['linked'] += 1
-            elif changed:
+                log(result, 'linked', number, item, '; '.join(['Code added to existing client'] + changes))
+            elif changes:
                 result['updated'] += 1
+                log(result, 'updated', number, item, '; '.join(changes))
             else:
                 result['unchanged'] += 1
-    return result
+                log(result, 'unchanged', number, item)
+    return finish(result)
 
 
 # ── Monthly sales ──────────────────────────────────────────────────────────────
@@ -205,35 +238,51 @@ def import_monthly_sales(uploaded):
         raise ImportFileError(f'The file needs these columns: {", ".join(missing)}. Download the template to see the format.')
 
     shops = {s.customer_code.casefold(): s for s in Shop.objects.exclude(customer_code__isnull=True)}
-    result = {'created': 0, 'updated': 0, 'unchanged': 0, 'skipped': []}
+    result = new_result(combined=0)
+    totals = {}   # (shop, month) → the file's total for that client and month
+    lines = {}    # (shop, month) → the file rows that make up that total
     with transaction.atomic():
         for number, row in rows:
             code, name = row.get('customer_code', ''), row.get('customer_name', '')
-            label = f'Row {number} ({code or name or "blank"})'
+            item = ' · '.join(v for v in (code, name) if v)
             shop = shops.get(code.casefold()) if code else None
             if shop is None:
-                result['skipped'].append(f'{label}: no client has Customer Code "{code}". Upload it in Import Clients first.'
-                                         if code else f'{label}: Customer Code is missing.')
+                skip(result, number, item, f'no client has Customer Code "{code}". Upload it in Import Clients first.'
+                                           if code else 'Customer Code is missing.')
                 continue
             try:
                 month = parse_month(row.get('month', ''))
             except ValueError as exc:
-                result['skipped'].append(f'{label}: {exc}')
+                skip(result, number, item, str(exc))
                 continue
             try:
                 amount = parse_money(row.get('sales', ''))
             except (InvalidOperation, ValueError):
-                result['skipped'].append(f'{label}: Sales "{row.get("sales", "")}" is not a number.')
+                skip(result, number, item, f'Sales "{row.get("sales", "")}" is not a number.')
                 continue
+            # A client listed more than once for a month (e.g. one row per branch or invoice) is added up,
+            # not overwritten by its last row
+            key = (shop, month)
+            if key in totals:
+                result['combined'] += 1
+            totals[key] = totals.get(key, 0) + amount
+            lines.setdefault(key, []).append(number)
 
+        for (shop, month), amount in totals.items():
+            numbers = lines[shop, month]
+            item = f'{shop.customer_code} · {shop.name} · {month:%b %Y}'
+            combined = f' (rows {", ".join(map(str, numbers))} added together)' if len(numbers) > 1 else ''
             record = MonthlySales.objects.filter(shop=shop, month=month).first()
             if record is None:
                 MonthlySales.objects.create(shop=shop, month=month, sales=amount)
                 result['created'] += 1
+                log(result, 'added', numbers, item, f'Sales {money(amount)}{combined}')
             elif record.sales != amount:
+                log(result, 'updated', numbers, item, f'Sales {money(record.sales)} → {money(amount)}{combined}')
                 record.sales = amount
                 record.save(update_fields=['sales', 'updated_at'])
                 result['updated'] += 1
             else:
                 result['unchanged'] += 1
-    return result
+                log(result, 'unchanged', numbers, item, f'Sales {money(amount)}{combined}')
+    return finish(result)

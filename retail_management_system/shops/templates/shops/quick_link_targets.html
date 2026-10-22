@@ -29,6 +29,14 @@
 {% if rows %}
 <form method="post" class="sms-card" style="padding:16px;overflow-x:auto">
   {% csrf_token %}
+  <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px;padding:12px 14px;background:#F8FAFC;border:1px solid var(--border);border-radius:10px">
+    <b style="font-size:13px">🧮 Target calculator</b>
+    <span style="color:var(--muted);font-size:12px">Target = {{ year|add:"-1" }} sales for the month +</span>
+    <input id="calc-pct" class="sms-input" type="number" step="0.1" value="15" aria-label="Growth on last year, percent"
+           style="width:80px;padding:6px 8px;text-align:right;font-size:13px"><span style="font-size:13px">%</span>
+    <button type="button" class="btn-sms btn-primary-custom sm" id="calc-all">Calculate all</button>
+    <span style="color:var(--muted);font-size:12px">Fills the boxes only; review, then Save. Months with no {{ year|add:"-1" }} sales are left as they are.</span>
+  </div>
   <table class="sms-table qt-table">
     <thead><tr><th style="width:220px">Quick link</th>{% for m in months %}<th style="text-align:center">{{ m }}</th>{% endfor %}<th></th></tr></thead>
     <tbody>
@@ -40,10 +48,12 @@
         <td><input class="sms-input" name="{{ c.name }}" value="{{ c.value }}" inputmode="decimal"
                    placeholder="{% if c.auto is not None %}{{ c.auto|floatformat:'0' }}{% else %}–{% endif %}"
                    aria-label="{{ r.label }} target, {{ c.label }} {{ year }}"
+                   {% if c.auto is not None %}data-previous="{{ c.auto|stringformat:'s' }}"{% endif %}
                    title="{% if c.auto is not None %}{{ c.label }} {{ year|add:'-1' }}: {{ c.auto|floatformat:'0g' }}{% else %}No {{ c.label }} {{ year|add:'-1' }} sales{% endif %}"></td>
         {% endfor %}
         <td style="white-space:nowrap">
           <button type="button" class="btn-sms btn-outline-custom sm qt-fill" title="Copy January’s target to every month">Fill</button>
+          <button type="button" class="btn-sms btn-outline-custom sm qt-calc" title="Calculate this row from last year’s sales + the calculator %">Calc</button>
           <button type="button" class="btn-sms btn-outline-custom sm qt-clear" title="Clear this row (use last year again)">Clear</button>
         </td>
       </tr>
@@ -51,7 +61,7 @@
     </tbody>
   </table>
   <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:14px;flex-wrap:wrap">
-    <span style="color:var(--muted);font-size:12px">Purple boxes are your targets. <b>Fill</b> copies January across the year; <b>Clear</b> goes back to last year’s figures.</span>
+    <span style="color:var(--muted);font-size:12px">Purple boxes are your targets. <b>Fill</b> copies January across the year; <b>Calc</b> works out the row from last year + the calculator %; <b>Clear</b> goes back to last year’s figures.</span>
     <button class="btn-sms btn-primary-custom">Save Targets</button>
   </div>
 </form>
@@ -64,6 +74,21 @@
 
 {% block extra_js %}
 <script>
+function calcInputs(inputs) {
+  var pct = parseFloat(document.getElementById('calc-pct').value);
+  if (isNaN(pct)) pct = 0;
+  inputs.forEach(function (i) {
+    var prev = parseFloat(i.dataset.previous);
+    if (!isNaN(prev)) i.value = (Math.round(prev * (1 + pct / 100) * 100) / 100).toFixed(2);
+  });
+}
+var calcAll = document.getElementById('calc-all');   // missing when there are no quick links yet
+if (calcAll) calcAll.addEventListener('click', function () {
+  calcInputs(document.querySelectorAll('input[data-previous]'));
+});
+document.querySelectorAll('.qt-calc').forEach(function (b) {
+  b.addEventListener('click', function () { calcInputs(b.closest('tr').querySelectorAll('input[data-previous]')); });
+});
 document.querySelectorAll('.qt-fill').forEach(function (b) {
   b.addEventListener('click', function () {
     var inputs = b.closest('tr').querySelectorAll('input');

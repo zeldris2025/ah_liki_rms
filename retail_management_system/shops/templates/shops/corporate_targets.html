@@ -19,9 +19,17 @@
 
 <form method="post" class="sms-card" style="padding:18px;overflow-x:auto">
   {% csrf_token %}
+  <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px;padding:12px 14px;background:var(--bg, #F8FAFC);border:1px solid var(--border);border-radius:10px">
+    <b style="font-size:13px">🧮 Target calculator</b>
+    <span style="color:var(--muted);font-size:12px">Target = {{ year|add:"-1" }} sales for the month +</span>
+    <input id="calc-pct" class="sms-input" type="number" step="0.1" value="15" aria-label="Growth on last year, percent"
+           style="width:80px;padding:6px 8px;text-align:right;font-size:13px"><span style="font-size:13px">%</span>
+    <button type="button" class="btn-sms btn-primary-custom sm" id="calc-all"{% if not has_previous %} disabled title="No {{ year|add:'-1' }} sales uploaded"{% endif %}>Calculate all</button>
+    <span style="color:var(--muted);font-size:12px">Fills the boxes only; review, then Save. Months with no {{ year|add:"-1" }} sales are left as they are.</span>
+  </div>
   <table class="sms-table" style="min-width:980px">
     <thead>
-      <tr><th style="width:130px">Manager</th>{% for label in months %}<th style="text-align:center">{{ label }}</th>{% endfor %}<th style="width:60px"></th></tr>
+      <tr><th style="width:130px">Manager</th>{% for label in months %}<th style="text-align:center">{{ label }}</th>{% endfor %}<th style="width:120px"></th></tr>
     </thead>
     <tbody>
       {% for r in rows %}
@@ -29,15 +37,19 @@
         <td><b style="color:{{ r.color }}">{{ r.name }}</b><div style="color:var(--muted);font-size:11px">{{ r.streams|join:", " }}</div></td>
         {% for c in r.cells %}
         <td style="padding:6px 4px"><input class="sms-input" name="{{ c.name }}" value="{{ c.value }}" inputmode="decimal"
-               aria-label="{{ r.name }} target, {{ c.label }}" style="padding:7px 6px;text-align:right;font-size:13px;min-width:0"></td>
+               aria-label="{{ r.name }} target, {{ c.label }}" style="padding:7px 6px;text-align:right;font-size:13px;min-width:0"
+               {% if c.previous is not None %}data-previous="{{ c.previous|stringformat:'s' }}"{% endif %}>
+          <div style="color:var(--muted);font-size:10px;text-align:right;margin-top:2px;white-space:nowrap"
+               title="{{ c.label }} {{ year|add:'-1' }} sales">{% if c.previous is not None %}{{ year|add:"-1" }}: {{ c.previous|floatformat:"0g" }}{% else %}&nbsp;{% endif %}</div></td>
         {% endfor %}
-        <td style="padding:6px 4px"><button type="button" class="btn-sms btn-outline-custom sm fill-row" title="Copy January’s target to every month">Fill</button></td>
+        <td style="padding:6px 4px;white-space:nowrap"><button type="button" class="btn-sms btn-outline-custom sm fill-row" title="Copy January’s target to every month">Fill</button>
+          <button type="button" class="btn-sms btn-outline-custom sm calc-row" title="Calculate this row from last year’s sales">Calc</button></td>
       </tr>
       {% endfor %}
     </tbody>
   </table>
   <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:16px;flex-wrap:wrap">
-    <span style="color:var(--muted);font-size:12px">“Fill” copies January’s figure across the year, for a flat monthly target.</span>
+    <span style="color:var(--muted);font-size:12px">“Fill” copies January’s figure across the year, for a flat monthly target. “Calc” works out that row from last year’s sales + the calculator %.</span>
     <button class="btn-sms btn-primary-custom">Save Targets</button>
   </div>
 </form>
@@ -45,6 +57,20 @@
 
 {% block extra_js %}
 <script>
+function calcInputs(inputs) {
+  var pct = parseFloat(document.getElementById('calc-pct').value);
+  if (isNaN(pct)) pct = 0;
+  inputs.forEach(function (i) {
+    var prev = parseFloat(i.dataset.previous);
+    if (!isNaN(prev)) i.value = (Math.round(prev * (1 + pct / 100) * 100) / 100).toFixed(2);
+  });
+}
+document.getElementById('calc-all').addEventListener('click', function () {
+  calcInputs(document.querySelectorAll('input[data-previous]'));
+});
+document.querySelectorAll('.calc-row').forEach(function (btn) {
+  btn.addEventListener('click', function () { calcInputs(btn.closest('tr').querySelectorAll('input[data-previous]')); });
+});
 document.querySelectorAll('.fill-row').forEach(function (btn) {
   btn.addEventListener('click', function () {
     var inputs = btn.closest('tr').querySelectorAll('input');

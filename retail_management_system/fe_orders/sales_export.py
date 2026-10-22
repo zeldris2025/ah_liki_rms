@@ -85,7 +85,8 @@ def refresh_for_order(order):
 
 # ── Downloads from the FE Orders page ─────────────────────────────────────────
 
-PERIODS = [('today', 'Today'), ('yesterday', 'Yesterday'), ('week', 'This week'), ('month', 'This month'), ('all', 'All orders')]
+PERIODS = [('today', 'Today'), ('yesterday', 'Yesterday'), ('7days', 'Last 7 days'), ('week', 'This week'),
+           ('month', 'This month'), ('last_month', 'Last month'), ('all', 'All orders')]
 
 
 def period_dates(key, today=None):
@@ -95,30 +96,69 @@ def period_dates(key, today=None):
     if key == 'yesterday':
         d = today - timedelta(days=1)
         return d, d, f'{d:%d %b %Y}'
+    if key == '7days':
+        start = today - timedelta(days=6)                  # today and the 6 days before it
+        return start, today, f'{start:%d %b} to {today:%d %b %Y}'
     if key == 'week':
         start = today - timedelta(days=today.weekday())   # Monday
         return start, today, f'week of {start:%d %b %Y}'
     if key == 'month':
         return today.replace(day=1), today, f'{today:%B %Y}'
+    if key == 'last_month':
+        end = today.replace(day=1) - timedelta(days=1)
+        return end.replace(day=1), end, f'{end:%B %Y}'
     if key == 'all':
         first = Order.objects.order_by('created_at').values_list('created_at', flat=True).first()
         return (local_day(first) if first else today), today, 'all orders'
     return today, today, f'{today:%d %b %Y}'
 
 
-def orders_between(first_day, last_day, skip_cancelled=False):
-    from .models import Order
-    qs = (Order.objects.filter(created_at__gte=_day_start(first_day), created_at__lt=_day_start(last_day + timedelta(days=1)))
-          .select_related('shop', 'placed_by').prefetch_related('items__product').order_by('created_at'))
-    return qs.exclude(status='Cancelled') if skip_cancelled else qs
+def placed_between(qs, first_day, last_day):
+    """Narrow an Order queryset to orders placed from the start of first_day to the end of last_day (local time)."""
+    return qs.filter(created_at__gte=_day_start(first_day), created_at__lt=_day_start(last_day + timedelta(days=1)))
 
 
-def workbook(first_day, last_day, skip_cancelled=False):
-    """Excel file with every order in the period: Orders, Order lines, By shop and By day sheets."""
+def for_export(orders):
+    """Oldest first, with everything the files need fetched up front."""
+    return orders.select_related('shop', 'placed_by').prefetch_related('items__product').order_by('created_at')
+
+
+def items_of(orders):
+    """The product lines of these orders, in the order they were placed."""
+    return (OrderItem.objects.filter(order__in=orders.values('pk'))
+            .select_related('order', 'order__shop', 'order__placed_by', 'product')
+            .order_by('order__created_at', 'order_id', 'id'))
+
+
+def daily_totals(orders):
+    """[(day, orders, shops, units, total WST)] for each day with orders, oldest first."""
+    by_day = {}
+    for o in orders:
+        d = by_day.setdefault(local_day(o.created_at), {'orders': 0, 'shops': set(), 'units': 0, 'total': 0.0})
+        d['orders'] += 1
+        d['shops'].add(o.shop_id)
+        d['units'] += o.item_count
+        d['total'] += float(o.total)
+    return [(day, d['orders'], len(d['shops']), d['units'], d['total']) for day, d in sorted(by_day.items())]
+
+
+def write_daily_csv(out, orders):
+    """Daily sales: one row per day, then a TOTAL row."""
+    orders = list(for_export(orders))
+    w = csv.writer(out)
+    w.writerow(['Date', 'Day', 'Orders', 'Shops', 'Units', 'Sales (WST)'])
+    for day, n, shops, units, total in daily_totals(orders):
+        w.writerow([f'{day:%Y-%m-%d}', f'{day:%A}', n, shops, units, f'{total:.2f}'])
+    w.writerow(['TOTAL', '', len(orders), len({o.shop_id for o in orders}), sum(o.item_count for o in orders),
+                f'{sum(float(o.total) for o in orders):.2f}'])
+
+
+def workbook(orders):
+    """Excel file with these orders: Orders, Order lines, By shop and By day sheets."""
     from openpyxl import Workbook
     from openpyxl.styles import Alignment, Font, PatternFill
 
-    orders = list(orders_between(first_day, last_day, skip_cancelled))
+    orders = list(for_export(orders))
     wb = Workbook()
     wb.remove(wb.active)
     head_fill, head_font, money = PatternFill('solid', fgColor='0F172A'), Font(bold=True, color='FFFFFF'), '#,##0.00'
@@ -174,15 +214,8 @@ def workbook(first_day, last_day, skip_cancelled=False):
             s['last'].strftime('%Y-%m-%d %H:%M')] for s in sorted(by_shop.values(), key=lambda x: -x['total'])),
           [34, 14, 10, 8, 8, 14, 16], money_cols=(6,))
 
-    by_day = {}
-    for o in orders:
-        d = by_day.setdefault(when(o).date(), {'orders': 0, 'shops': set(), 'units': 0, 'total': 0.0})
-        d['orders'] += 1
-        d['shops'].add(o.shop_id)
-        d['units'] += o.item_count
-        d['total'] += total(o)
     ws = sheet('By day', ['Date', 'Orders', 'Shops', 'Units', 'Total (WST)'],
-               ([f'{day:%Y-%m-%d}', d['orders'], len(d['shops']), d['units'], d['total']] for day, d in sorted(by_day.items())),
+               ([f'{day:%Y-%m-%d}', n, shops, units, t] for day, n, shops, units, t in daily_totals(orders)),
                [12, 8, 8, 8, 14], money_cols=(5,))
     ws.append(['TOTAL', len(orders), len(by_shop), sum(o.item_count for o in orders), sum(total(o) for o in orders)])
     for cell in ws[ws.max_row]:

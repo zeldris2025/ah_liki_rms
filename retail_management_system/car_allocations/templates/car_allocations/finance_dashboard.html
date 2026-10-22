@@ -1,0 +1,92 @@
+{% extends 'shops/base.html' %}
+{% block content %}
+<div style="margin-bottom:26px">
+  <h2 style="color:var(--primary);margin:0;font-size:22px;font-weight:700">Ah Liki Investment Corp — Finance Dashboard</h2>
+  <p style="color:var(--muted);margin:6px 0 0;font-size:14px">{% if is_manager %}The Finance cars and the bookings waiting for your approval{% else %}The Finance cars and your bookings{% endif %}</p>
+</div>
+
+<style>
+  .dash-link { text-decoration:none; color:inherit; transition:border-color .15s, box-shadow .15s; }
+  .dash-link:hover { border-color:var(--accent); box-shadow:0 4px 14px rgba(14,165,233,.12); }
+  .panel-head { display:flex; justify-content:space-between; align-items:baseline; margin-bottom:10px; }
+  .panel-head b { font-size:14px; color:var(--primary); }
+  .panel-head a { font-size:12px; font-weight:600; color:var(--accent); text-decoration:none; }
+  .dash-row { display:flex; justify-content:space-between; align-items:center; gap:12px; padding:10px 0; border-bottom:1px solid var(--border); text-decoration:none; color:inherit; }
+  .dash-row:last-child { border-bottom:none; }
+  .dash-row:hover .dash-title { color:var(--accent); }
+  .dash-title { font-weight:600; font-size:14px; color:var(--primary); }
+  .dash-meta { color:var(--muted); font-size:12px; margin-top:2px; }
+  .dash-empty { color:var(--muted); font-size:13px; padding:18px 0; text-align:center; }
+  @media (max-width: 900px) { .dash-two { grid-template-columns:1fr !important; } }
+</style>
+
+<!-- The Finance cars, then approvals or your bookings, then the Atlas -->
+<div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:26px">
+  {% for car in cars %}
+  <a href="{% url 'car_allocations' %}?car={{ car.name|urlencode }}" class="stat-card dash-link" style="flex:1;min-width:170px">
+    <div class="stat-label">🚗 {{ car.name }}</div>
+    {% if car.out %}
+    <div class="stat-value" style="color:#B45309">Out</div>
+    <div class="stat-sub">{{ car.out.booked_by_name }} until {{ car.out.end|date:"D j M, g:i A" }}</div>
+    {% else %}
+    <div class="stat-value" style="color:var(--success)">Free</div>
+    <div class="stat-sub">{% if car.next %}Next: {{ car.next.start|date:"D j M, g:i A" }}{% else %}Nothing booked{% endif %}</div>
+    {% endif %}
+  </a>
+  {% endfor %}
+  {% if is_manager %}
+  <a href="{% url 'car_allocations' %}" class="stat-card dash-link" style="flex:1;min-width:170px">
+    <div class="stat-label">Waiting for approval</div>
+    <div class="stat-value" style="color:{% if pending %}#B45309{% else %}var(--primary){% endif %}">{{ pending|length }}</div>
+    <div class="stat-sub">Finance car bookings</div>
+  </a>
+  {% endif %}
+  <a href="{% url 'atlas' %}" class="stat-card dash-link" style="flex:1;min-width:170px">
+    <div class="stat-label">Ah Liki Atlas</div>
+    <div class="stat-value" style="color:var(--accent)">{{ shop_count }}</div>
+    <div class="stat-sub">clients on the map · view only</div>
+  </a>
+</div>
+
+<div class="dash-two" style="display:grid;grid-template-columns:1fr 1fr;gap:18px">
+  <div class="sms-card" style="padding:20px">
+    {% if is_manager %}
+    <div class="panel-head"><b>Waiting for your approval</b><a href="{% url 'car_allocations' %}">Approve or decline →</a></div>
+    {% for b in pending %}
+    <a class="dash-row" href="{% url 'car_allocations' %}?car={{ b.car|urlencode }}&date={{ b.start|date:'Y-m-d' }}">
+      <div><div class="dash-title">{{ b.car }} · {{ b.booked_by_name }}</div>
+        <div class="dash-meta">{{ b.start|date:"D j M, g:i A" }} – {{ b.end|date:"D j M, g:i A" }} · {{ b.reason }}</div></div>
+      <span class="badge-custom badge-amber">Waiting</span>
+    </a>
+    {% empty %}
+    <div class="dash-empty">Nothing waiting for approval</div>
+    {% endfor %}
+    {% else %}
+    <div class="panel-head"><b>Your bookings</b><a href="{% url 'car_allocations' %}">Book a car →</a></div>
+    {% for b in my_bookings %}
+    <a class="dash-row" href="{% url 'car_allocations' %}?car={{ b.car|urlencode }}&date={{ b.start|date:'Y-m-d' }}">
+      <div><div class="dash-title">{{ b.car }}</div>
+        <div class="dash-meta">{{ b.start|date:"D j M, g:i A" }} – {{ b.end|date:"D j M, g:i A" }} · {{ b.reason }}</div>
+        {% if b.status == 'declined' and b.decline_reason %}<div class="dash-meta" style="color:#991B1B">{{ b.decline_reason }}</div>{% endif %}</div>
+      <span class="badge-custom {% if b.status == 'pending' %}badge-amber{% elif b.status == 'approved' %}badge-green{% else %}badge-red{% endif %}">{% if b.status == 'pending' %}Waiting{% else %}{{ b.get_status_display }}{% endif %}</span>
+    </a>
+    {% empty %}
+    <div class="dash-empty">You have no upcoming bookings</div>
+    {% endfor %}
+    {% endif %}
+  </div>
+
+  <div class="sms-card" style="padding:20px">
+    <div class="panel-head"><b>Next 7 days</b><a href="{% url 'car_allocations' %}">Car Allocations →</a></div>
+    {% for b in upcoming %}
+    <a class="dash-row" href="{% url 'car_allocations' %}?car={{ b.car|urlencode }}&date={{ b.start|date:'Y-m-d' }}">
+      <div><div class="dash-title">{{ b.car }} · {{ b.booked_by_name }}</div>
+        <div class="dash-meta">{{ b.start|date:"D j M, g:i A" }} – {{ b.end|date:"D j M, g:i A" }} · {{ b.reason }}</div></div>
+      <span class="badge-custom {% if b.status == 'pending' %}badge-amber{% elif b.status == 'approved' %}badge-green{% else %}badge-red{% endif %}">{% if b.status == 'pending' %}Waiting{% else %}{{ b.get_status_display }}{% endif %}</span>
+    </a>
+    {% empty %}
+    <div class="dash-empty">No Finance car bookings this week</div>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

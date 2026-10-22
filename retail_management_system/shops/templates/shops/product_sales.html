@@ -57,6 +57,8 @@
   .ps-links-head { padding:14px 14px 10px; border-bottom:1px solid var(--border); flex-shrink:0; }
   .ps-links h3 { margin:0; font-size:15px; font-weight:700; color:var(--primary); }
   .ps-links-head > p { margin:2px 0 8px; color:var(--muted); font-size:12px; }
+  .ps-lm { display:flex; align-items:center; gap:6px; margin-top:6px; color:var(--muted); font-size:12px; }
+  .ps-lm select { width:auto; padding:3px 8px; font-size:12px; height:auto; }
   .ps-links-list { overflow-y:auto; padding:0 14px 12px; flex:1; min-height:0; overscroll-behavior:contain; scrollbar-width:thin; }
   .ps-links-list::-webkit-scrollbar { width:6px; } .ps-links-list::-webkit-scrollbar-thumb { background:#CBD5E1; border-radius:6px; }
   .ps-sec { position:sticky; top:0; z-index:2; display:flex; justify-content:space-between; align-items:center; margin:0 -14px 6px;
@@ -298,7 +300,14 @@
     <div class="ps-links-head">
       <div style="display:flex;justify-content:space-between;align-items:center"><h3>★ Quick links</h3>
         <a href="{% url 'quick_link_targets' %}?year={{ f.year }}" class="ps-targets" title="Set targets by hand">🎯 Targets</a></div>
-      <p>{{ link_month }} vs target · 🎯 = set by hand, otherwise {{ target_month }}</p>
+      <form method="get" class="ps-lm">
+        {% for k, v in link_month_keep %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endfor %}
+        <select name="lm" class="sms-input" aria-label="Month the quick links are compared on" onchange="this.form.submit()">
+          {% for n, label in link_month_choices %}<option value="{{ n }}" {% if n == link_month_i %}selected{% endif %}>{{ label }} {{ f.year }}</option>{% endfor %}
+        </select>
+        <span>vs target</span>
+      </form>
+      <p>🎯 = set by hand, otherwise {{ target_month }}{% if link_month and not link_month_uploaded %} · <b style="color:#B45309">no {{ link_month }} sales uploaded yet</b>{% endif %}</p>
       <div class="ps-key" role="group" aria-label="Show quick links by target">
         <button type="button" data-status="good" aria-pressed="false"><i class="s-good"></i>Reached <b>{{ status_counts.good }}</b></button>
         <button type="button" data-status="close" aria-pressed="false"><i class="s-close"></i>{{ close_pct }}–99% <b>{{ status_counts.close }}</b></button>
@@ -516,7 +525,7 @@
   function savePng(key) {
     var c = charts[key];
     var before = c.options.plugins.title, pad = c.options.layout.padding;
-    c.options.plugins.title = { display: true, text: [titles[key], 'Ah Liki Wholesale · ' + '{{ filters_text|escapejs }}'],
+    c.options.plugins.title = { display: true, text: [titles[key], 'Ah Liki Investment Corp · ' + '{{ filters_text|escapejs }}'],
                                 color: INK, font: { size: 15, weight: '700' }, padding: { bottom: 14 } };
     c.options.layout.padding = 16;
     c.update('none');

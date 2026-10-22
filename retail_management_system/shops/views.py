@@ -25,9 +25,9 @@ from django.views.decorators.http import require_http_methods, require_POST
 from tablib import Dataset
 
 from .models import Business, BusinessPhoto, Shop, ShopPhoto, Sponsorship, SponsorshipPhoto, Survey, SurveyResponse, MonthlySales, Promotion, SalesTarget, PinnedProduct, ProductGroup, ProductSales, QuickLinkTarget
-from .forms import BusinessCSVImportForm, SponsorshipCSVImportForm, SurveyForm, SurveyResponseForm, BulkSurveyResponseForm
-from . import access, client_import, corporate, product_sales
-from .admin import BusinessResource, SponsorshipResource
+from .forms import BusinessCSVImportForm, SurveyForm, SurveyResponseForm, BulkSurveyResponseForm
+from . import access, client_import, corporate, product_sales, sponsorship_import
+from .admin import BusinessResource
 
 
 # ── helpers ───────────────────────────────────────────────────────────────────
@@ -68,6 +68,9 @@ def user_logout(request):
 
 @login_required(login_url='login')
 def dashboard(request):
+    if getattr(request, 'is_finance', False):
+        from car_allocations.views import finance_dashboard
+        return finance_dashboard(request)
     shops        = Shop.objects.prefetch_related('photos').all()
     businesses   = Business.objects.prefetch_related('photos').all()
     sponsorships = Sponsorship.objects.prefetch_related('photos').all()
@@ -101,6 +104,7 @@ def dashboard(request):
     local_midnight = datetime.now().astimezone().replace(hour=0, minute=0, second=0, microsecond=0)
     recent_orders = list(Order.objects.select_related('shop', 'placed_by').prefetch_related('items')[:6])
     telegram_failed = Order.objects.filter(telegram_status__startswith='Failed').count()
+    whatsapp_failed = Order.objects.filter(whatsapp_status__startswith='Failed').count()
 
     # Promotions: running now first, then the next ones to start
     live_promos = list(Promotion.objects.filter(Promotion.status_q('Active')).order_by('end_date', 'name'))
@@ -124,6 +128,7 @@ def dashboard(request):
         'pending_orders': Order.objects.filter(status='Pending').count(),
         'orders_today': Order.objects.filter(created_at__gte=local_midnight).count(),
         'telegram_failed': telegram_failed,
+        'whatsapp_failed': whatsapp_failed,
         'out_of_stock': Product.objects.filter(available=False).count(),
         'product_count': Product.objects.count(),
         'live_promos': live_promos,
@@ -141,7 +146,7 @@ def dashboard(request):
                        corp_reps=[r for r in reps if r['key'] == own],
                        corporate_clients=len(corporate.client_ids_by_manager()[0].get(own, [])))
     if 'fe_ordering' in blocked:
-        ctx.update(recent_orders=[], pending_orders=0, orders_today=0, telegram_failed=0, out_of_stock=0, product_count=0)
+        ctx.update(recent_orders=[], pending_orders=0, orders_today=0, telegram_failed=0, whatsapp_failed=0, out_of_stock=0, product_count=0)
     if 'promotions' in blocked:
         ctx.update(live_promos=[], upcoming_promos=[], dashboard_promos=[])
     if 'sponsorships' in blocked:
@@ -154,6 +159,13 @@ def dashboard(request):
 # ══════════════════════════════════════════════════════════════════════════════
 
 SHOP_TERRITORIES = ['EC1', 'EC2', 'EC3', 'LFG', 'VT1', 'VT2', 'VT3', 'WC1', 'WC2', 'WC4']
+EXTRA_CUSTOMER_TYPES = ['Fe Regions', 'Inkpro']   # offered in the client form even before any client uses them
+
+
+def customer_type_choices():
+    """Every customer type in use (from the client upload) plus the extra ones, for the client form dropdown."""
+    used = Shop.objects.exclude(customer_type='').values_list('customer_type', flat=True).distinct()
+    return sorted(set(used) | set(EXTRA_CUSTOMER_TYPES), key=str.lower)
 
 
 def shop_list(request):
@@ -173,7 +185,8 @@ def shop_list(request):
     elif ctype:
         qs = qs.filter(customer_type=ctype)
     if q:
-        qs = qs.filter(Q(name__icontains=q) | Q(customer_code__iexact=q) | Q(contact_person__icontains=q))
+        qs = qs.filter(Q(name__icontains=q) | Q(customer_code__iexact=q) | Q(contact_person__icontains=q)
+                       | Q(address__icontains=q))
     if territories:
         # "OTHER" catches everything the listed territory checkboxes miss:
         # unlisted codes plus shops with no territory recorded.
@@ -281,7 +294,7 @@ def add_shop(request):
         error = _client_from_post(request.POST, shop)
         if error:
             return render(request, 'shops/shop_form.html', {
-                'error': error, 'action': 'Add', 'client': shop, 'territories': SHOP_TERRITORIES,
+                'error': error, 'action': 'Add', 'client': shop, 'territories': SHOP_TERRITORIES, 'customer_types': customer_type_choices(),
             })
         shop.save()
         # Handle photos with individual labels
@@ -291,7 +304,8 @@ def add_shop(request):
             label = labels[idx] if idx < len(labels) else ''
             ShopPhoto.objects.create(shop=shop, image=img, note=label.strip())
         return redirect('shop_list')
-    return render(request, 'shops/shop_form.html', {'action': 'Add', 'territories': SHOP_TERRITORIES})
+    return render(request, 'shops/shop_form.html', {'action': 'Add', 'territories': SHOP_TERRITORIES,
+                                                    'customer_types': customer_type_choices()})
 
 
 def edit_shop(request, shop_id):
@@ -303,7 +317,7 @@ def edit_shop(request, shop_id):
         error = _client_from_post(request.POST, shop)
         if error:   # show the form again with what was typed
             return render(request, 'shops/shop_form.html', {
-                'error': error, 'action': 'Edit', 'shop': shop, 'client': shop, 'territories': SHOP_TERRITORIES,
+                'error': error, 'action': 'Edit', 'shop': shop, 'client': shop, 'territories': SHOP_TERRITORIES, 'customer_types': customer_type_choices(),
             })
         shop.save()
         # Delete removed photos
@@ -328,7 +342,7 @@ def edit_shop(request, shop_id):
             ShopPhoto.objects.create(shop=shop, image=img, note=label.strip())
         return redirect('shop_detail', shop_id=shop.id)
     return render(request, 'shops/shop_form.html', {'action': 'Edit', 'shop': shop, 'client': shop,
-                                                    'territories': SHOP_TERRITORIES})
+                                                    'territories': SHOP_TERRITORIES, 'customer_types': customer_type_choices()})
 
 
 def delete_shop(request, shop_id):
@@ -507,19 +521,29 @@ def corporate_sales(request):
                    for m in everyone]
     chart = [{'key': m['key'], 'name': m['name'], 'color': m['color'],
               'actual': [float(v) if v is not None else None for v in m['actual']],
+              'previous': [float(v) if v is not None else None for v in m['previous']],
               'target': [float(v) if v is not None else None for v in m['target']],
               # Top 10 products: all the rep's clients, and each of their top clients (picked by clicking one)
               'products': {'all': corporate.top_products(m['client_ids'], year),
                            **{str(c['shop_id']): corporate.top_products([c['shop_id']], year) for c in m['top_clients']}}}
              for m in managers]
+    # The All slide puts every stream together; a rep only sees their own stream, so they don't get it
+    overall = None if own else corporate.combined_summary(everyone)
     return render(request, 'shops/corporate_sales.html', {
         'managers': managers, 'year': year, 'years': range(date.today().year + 1, date.today().year - 4, -1),
+        'overall': overall, 'slide_offset': 1 if overall else 0,
         'chart_data': json.dumps({'labels': corporate.MONTH_LABELS, 'managers': chart, 'year': year,
+                                  'all': {'actual': [float(v) if v is not None else None for v in overall['actual']],
+                                          'previous': [float(v) if v is not None else None for v in overall['previous']],
+                                          'target': [float(v) if v is not None else None for v in overall['target']]}
+                                         if overall else None,
                                   # the month still in progress gets a lighter bar
                                   'currentMonth': date.today().month - 1 if year == date.today().year else -1}),
         'unmatched_types': [] if own else unmatched,
         'has_targets': any(v is not None for m in managers for v in m['target']),
         'month_cards': month_cards, 'own_rep': own,
+        # when the sales figures last changed, so the team can see how current the page is
+        'updated_as_of': MonthlySales.objects.aggregate(last=Max('updated_at'))['last'],
     })
 
 
@@ -656,12 +680,21 @@ def corporate_targets(request):
         if not errors:
             return redirect(f"{reverse('corporate_sales')}?year={year}")
     saved = {(t.manager, t.month.month): t.amount for t in SalesTarget.objects.filter(month__year=year)}
+    # last year's sales per month, which the calculator grows by a percentage to suggest each target
+    ids, _, _ = corporate.client_ids_by_manager()
+    previous = {}
+    for m in reps:
+        for r in (MonthlySales.objects.filter(month__year=year - 1, shop_id__in=ids[m['key']])
+                  .values('month').annotate(total=Sum('sales'))):
+            previous[(m['key'], r['month'].month)] = r['total']
     rows = [{**m, 'cells': [{'name': f"{m['key']}_{i + 1}", 'label': corporate.MONTH_LABELS[i],
-                             'value': request.POST.get(f"{m['key']}_{i + 1}") if errors else saved.get((m['key'], i + 1), '')}
+                             'value': request.POST.get(f"{m['key']}_{i + 1}") if errors else saved.get((m['key'], i + 1), ''),
+                             'previous': previous.get((m['key'], i + 1))}
                             for i in range(12)]}
             for m in reps]
     return render(request, 'shops/corporate_targets.html', {
         'rows': rows, 'year': year, 'errors': errors, 'months': corporate.MONTH_LABELS,
+        'has_previous': bool(previous),
     })
 
 
@@ -1087,7 +1120,7 @@ def product_sales_page(request):
         base.pop(key, None)
     table_total = product_sales.dated(product_sales.product_scope(f), f).count() if f['tq'] else None
     # filters kept when jumping to a quick link (which picks one product and clears the search)
-    keep_query = urlencode({k: request.GET[k] for k in ('year', 'compare', 'from', 'to', 'category') if request.GET.get(k)})
+    keep_query = urlencode({k: request.GET[k] for k in ('year', 'compare', 'from', 'to', 'category', 'lm') if request.GET.get(k)})
     # where ☆ pin buttons come back to: this page, never the live-search fragment
     page_url = request.path + '?' + urlencode([(k, v) for k, vs in request.GET.lists() if k != 'partial' for v in vs])
     pinned = set(PinnedProduct.objects.values_list('product_code', flat=True))
@@ -1107,9 +1140,9 @@ def product_sales_page(request):
         'top': {'labels': [r['name'] for r in a['top']['rows']], 'codes': [r['product_code'] for r in a['top']['rows']],
                 'values': [_num(r['total']) for r in a['top']['rows']]},
     }
-    month_i = product_sales.current_month(f['year'])   # the month the quick-link colours are judged on
-    groups = product_sales.group_links(f['year'], f['compare'])
-    links = product_sales.quick_links(f['year'], f['compare'])
+    month_i = f['link_month']   # the month the quick-link colours are judged on: picked, or the current month
+    groups = product_sales.group_links(f['year'], f['compare'], month_i)
+    links = product_sales.quick_links(f['year'], f['compare'], month_i)
     quick = product_sales.sort_quick_links(groups, links)
     # the search box finds groups too: offer any whose name matches
     matching_groups = [g for g in groups if f['q'] and f['q'].lower() in g['name'].lower()] if not f['group'] else []
@@ -1122,6 +1155,10 @@ def product_sales_page(request):
         'link_month': f"{product_sales.MONTHS[month_i]} {f['year']}" if month_i >= 0 else '',
         'target_month': f"{product_sales.MONTHS[month_i]} {f['compare']}" if month_i >= 0 else '',
         'close_pct': product_sales.CLOSE_PCT,
+        'link_month_i': month_i + 1, 'link_month_choices': list(enumerate(product_sales.MONTHS, start=1)),
+        'link_month_uploaded': month_i >= 0 and ProductSales.objects.filter(month__year=f['year'], month__month=month_i + 1).exists(),
+        # the month picker keeps every other filter and starts again at page 1
+        'link_month_keep': [(k, v) for k, values in request.GET.lists() if k not in ('lm', 'page', 'partial') for v in values],
         'pinned': pinned, 'page_url': page_url,
         'page_obj': page, 'base_query': base.urlencode(), 'query': request.GET.urlencode(),
         # everything except the table search and page, kept as hidden fields in the table's search form
@@ -1355,41 +1392,9 @@ def import_businesses(request):
 
 @login_required(login_url='login')
 def import_sponsorships(request):
-    """Import sponsorships from CSV file."""
-    if request.method == 'POST':
-        form = SponsorshipCSVImportForm(request.POST, request.FILES)
-        if form.is_valid():
-            csv_file = request.FILES['csv_file']
-            try:
-                # Read and parse CSV
-                dataset = Dataset().load(csv_file.read().decode('utf-8'), 'csv')
-                resource = SponsorshipResource()
-                result = resource.import_data(dataset, dry_run=False)
-
-                error_list = []
-                if result.has_errors():
-                    for error in result.errors:
-                        error_list.append(str(error))
-
-                messages = {
-                    'success': f'Successfully imported {result.total_rows} sponsorships.',
-                    'errors': error_list,
-                    'import_count': result.total_rows,
-                }
-                return render(request, 'shops/import_result.html', {
-                    'model_type': 'Sponsorships',
-                    'messages': messages,
-                    'success': not result.has_errors(),
-                })
-            except Exception as e:
-                return render(request, 'shops/import_sponsorships.html', {
-                    'form': form,
-                    'error': f'Error processing file: {str(e)}'
-                })
-    else:
-        form = SponsorshipCSVImportForm()
-
-    return render(request, 'shops/import_sponsorships.html', {'form': form})
+    """Upload sponsorships. Matches on Customer + Type + Start Date; see shops/sponsorship_import.py for the rules."""
+    return _run_upload(request, sponsorship_import.import_sponsorships, 'shops/import_sponsorships.html',
+                       {'columns': sponsorship_import.COLUMNS})
 
 
 def download_sales_template(request):
@@ -1429,8 +1434,11 @@ def download_sponsorship_template(request):
     response = HttpResponse(content_type='text/csv')
     response['Content-Disposition'] = 'attachment; filename="sponsorship_template.csv"'
     w = csv.writer(response)
-    w.writerow(['customer', 'type', 'sponsorship_type', 'value', 'status', 'start', 'end', 'notes'])
-    w.writerow(['Company Name', 'Signage', 'Cash Value', '5000', 'Active', '2026-01-01', '2026-12-31', 'Annual sponsorship'])
+    w.writerow([h for _, h in sponsorship_import.COLUMNS])
+    w.writerow(['Example Store', 'Signage', 'Cash Value', '5000.00', 'Active', '2026-01-01', '2026-12-31',
+                'Shop front sign, annual'])
+    w.writerow(['Example Hotel', 'Cooler', 'In-Kind Value', '1800.00', 'Pending', '2026-11-01', '',
+                'Two-door cooler on loan'])
     return response
 
 

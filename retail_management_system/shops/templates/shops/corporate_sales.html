@@ -92,10 +92,32 @@
   .cs-mpct.good { color:var(--success); } .cs-mpct.low { color:#B45309; } .cs-mpct.none { color:var(--muted); font-size:14px; font-weight:600; }
   .cs-msub { color:var(--muted); font-size:12px; margin-top:4px; }
 
+  /* ── All streams: summary table ── */
+  .cs-sum { padding:20px 28px 22px; border-top:1px solid var(--border); }
+  .cs-period { display:inline-flex; border:1px solid var(--border); border-radius:999px; padding:2px; background:var(--surface); }
+  .cs-period button { border:none; background:none; font:inherit; font-size:12px; font-weight:600; color:var(--text-secondary);
+                      padding:5px 12px; border-radius:999px; cursor:pointer; }
+  .cs-period button[aria-pressed="true"] { background:var(--primary); color:#fff; }
+  .cs-twrap { overflow-x:auto; }
+  .cs-table { width:100%; border-collapse:collapse; font-size:13px; font-variant-numeric:tabular-nums; }
+  .cs-table th { text-align:center; color:var(--muted); font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.06em;
+                 padding:8px 12px; border-bottom:2px solid var(--border); white-space:nowrap; }
+  .cs-table td { text-align:center; padding:10px 12px; border-bottom:1px solid var(--border); white-space:nowrap; color:var(--text-secondary); }
+  .cs-table th:first-child, .cs-table td:first-child { text-align:left; white-space:normal; }
+  .cs-table td:first-child { color:var(--primary); font-weight:600; }
+  .cs-table td:first-child small { display:block; color:var(--muted); font-weight:500; font-size:11px; margin-left:18px; }
+  .cs-table .sw { display:inline-block; width:10px; height:10px; border-radius:3px; margin-right:8px; }
+  .cs-table tfoot td { font-weight:700; color:var(--primary); border-top:2px solid var(--border); border-bottom:none; }
+  .cs-table .up { color:var(--success); } .cs-table .down { color:#B45309; }
+  /* financial target columns green, commercial target columns yellow */
+  .cs-table .fin { background:#ECFDF5; } .cs-table th.fin { background:#D1FAE5; color:#065F46; }
+  .cs-table .com { background:#FEFCE8; } .cs-table th.com { background:#FEF08A; color:#713F12; }
+  .cs-table .fin-start, .cs-table .com-start { border-left:2px solid #fff; }
+
   @media (max-width: 1260px) { .cs-prev { left:0; } .cs-next { right:0; } .cs-arrow { top:auto; bottom:-62px; transform:none; } }
   @media (max-width: 860px) {
     .cs-stats { grid-template-columns:1fr; } .cs-stat { border-right:none; border-bottom:1px solid var(--border); }
-    .cs-head, .cs-chart, .cs-stat, .cs-foot { padding-left:18px; padding-right:18px; }
+    .cs-head, .cs-chart, .cs-stat, .cs-foot, .cs-sum { padding-left:18px; padding-right:18px; }
     .cs-canvas { height:300px; } .cs-count { display:none; }
   }
   @media (prefers-reduced-motion: reduce) { .cs-track { scroll-behavior:auto; } }
@@ -105,6 +127,7 @@
   <div>
     <h2 class="page-title">Corporate Sales</h2>
     <p class="page-sub">Actual sales against target for each corporate stream · WST</p>
+    <p class="page-sub" style="font-weight:600;color:var(--text-secondary)">📅 Updated as of {% if updated_as_of %}{{ updated_as_of|date:"j F Y" }}{% else %}— no sales uploaded yet{% endif %}</p>
   </div>
   <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
     <form method="get"><select name="year" class="sms-input" style="width:auto" onchange="this.form.submit()" aria-label="Year">
@@ -148,9 +171,14 @@
 
 <!-- Person tabs -->
 <div class="cs-tabs" role="tablist" aria-label="Corporate account managers"{% if own_rep %} style="display:none"{% endif %}>
+  {% if overall %}
+  <button type="button" class="cs-tab" role="tab" id="tab-all" aria-controls="slide-all" aria-selected="true" style="--c:#0F172A">
+    <span class="dot">∑</span>All
+  </button>
+  {% endif %}
   {% for m in managers %}
   <button type="button" class="cs-tab" role="tab" id="tab-{{ m.key }}" aria-controls="slide-{{ m.key }}"
-          aria-selected="{% if forloop.first %}true{% else %}false{% endif %}" data-i="{{ forloop.counter0 }}" style="--c:{{ m.color }}">
+          aria-selected="{% if forloop.first and not overall %}true{% else %}false{% endif %}" style="--c:{{ m.color }}">
     <span class="dot">{{ m.name|slice:":1" }}</span>{{ m.name }}
   </button>
   {% endfor %}
@@ -160,9 +188,106 @@
 <div class="cs-stage">
   <button type="button" class="cs-arrow cs-prev" aria-label="Previous person"{% if own_rep %} style="display:none"{% endif %}>←</button>
   <div class="cs-track" id="cs-track" tabindex="0" aria-roledescription="carousel" aria-label="Corporate sales by person">
+    {% if overall %}
+    <section class="cs-slide" id="slide-all" role="tabpanel" aria-labelledby="tab-all"
+             aria-roledescription="slide" aria-label="1 of {{ managers|length|add:1 }}" style="--c:#0F172A">
+      <div class="cs-card">
+        <div class="cs-head">
+          <div class="cs-avatar">∑</div>
+          <div style="min-width:0">
+            <div class="cs-name">All streams</div>
+            <div class="cs-streams">{% for s in overall.streams %}<span class="cs-stream">{{ s }}</span>{% endfor %}</div>
+          </div>
+          <div class="cs-count"><b>{{ overall.client_count }}</b>client{{ overall.client_count|pluralize }}</div>
+        </div>
+
+        <div class="cs-chart">
+          <div class="cs-chart-top">
+            <div class="cs-chart-title">All streams combined · {{ year }} vs {{ year|add:-1 }} · monthly sales vs target</div>
+            <div class="cs-legend" style="flex-wrap:wrap">{% for m in managers %}<span><i style="background:{{ m.color }}"></i>{{ m.name }}</span>{% endfor %}<span><i style="background:#CBD5E1"></i>{{ year|add:-1 }} (all)</span><span><i class="line"></i>Target</span></div>
+          </div>
+          <div class="cs-canvas"><canvas id="chart-all" role="img"
+               aria-label="Every stream’s sales stacked by person against the combined target for each month of {{ year }}"></canvas></div>
+        </div>
+
+        <div class="cs-sum">
+          <div class="cs-chart-top">
+            <div class="cs-chart-title">Actual vs target by stream</div>
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+              {% if overall.tables|length > 1 %}
+              <div class="cs-period" role="group" aria-label="Period">
+                {% for t in overall.tables %}<button type="button" data-period="{{ t.key }}" aria-pressed="{% if forloop.first %}true{% else %}false{% endif %}">{{ t.label }}</button>{% endfor %}
+              </div>
+              {% endif %}
+              {% if overall.tables %}<button type="button" class="btn-sms btn-accent-custom sm" id="sum-png" title="Download this table as a PNG image">⬇ PNG</button>{% endif %}
+            </div>
+          </div>
+          {% for t in overall.tables %}
+          <div class="cs-twrap" data-table="{{ t.key }}" data-label="{{ t.label }}"{% if not forloop.first %} hidden{% endif %}>
+            <table class="cs-table">
+              <thead><tr><th>Stream</th><th>Actual</th>
+                <th class="fin fin-start">Financial Target</th><th class="fin">Variance</th><th class="fin">Variance %</th>
+                <th class="com com-start">Commercial Target + (15%)</th><th class="com">Variance</th><th class="com">Variance %</th></tr></thead>
+              <tbody>
+                {% for r in t.rows %}
+                <tr>
+                  <td data-color="{{ r.color }}"><span class="sw" style="background:{{ r.color }}"></span>{{ r.stream }}<small>{{ r.name }}</small></td>
+                  <td>{{ r.actual|floatformat:"2g" }}</td>
+                  <td class="fin fin-start">{% if r.financial %}{{ r.financial|floatformat:"2g" }}{% else %}—{% endif %}</td>
+                  {% if r.financial %}
+                  <td class="fin {% if r.fin_variance >= 0 %}up{% else %}down{% endif %}">{% if r.fin_variance > 0 %}+{% endif %}{{ r.fin_variance|floatformat:"2g" }}</td>
+                  <td class="fin {% if r.fin_variance >= 0 %}up{% else %}down{% endif %}">{% if r.fin_variance > 0 %}+{% endif %}{{ r.fin_variance_pct|floatformat:1 }}%</td>
+                  {% else %}<td class="fin">—</td><td class="fin">—</td>{% endif %}
+                  <td class="com com-start">{% if r.target %}{{ r.target|floatformat:"2g" }}{% else %}—{% endif %}</td>
+                  {% if r.target %}
+                  <td class="com {% if r.variance >= 0 %}up{% else %}down{% endif %}">{% if r.variance > 0 %}+{% endif %}{{ r.variance|floatformat:"2g" }}</td>
+                  <td class="com {% if r.variance >= 0 %}up{% else %}down{% endif %}">{% if r.variance > 0 %}+{% endif %}{{ r.variance_pct|floatformat:1 }}%</td>
+                  {% else %}<td class="com">—</td><td class="com">—</td>{% endif %}
+                </tr>
+                {% empty %}
+                <tr><td colspan="8" style="color:var(--muted);font-weight:500">No sales in this period yet.</td></tr>
+                {% endfor %}
+              </tbody>
+              <tfoot>
+                <tr>
+                  <td>Total</td>
+                  <td>{{ t.total.actual|floatformat:"2g" }}</td>
+                  <td class="fin fin-start">{% if t.total.financial %}{{ t.total.financial|floatformat:"2g" }}{% else %}—{% endif %}</td>
+                  {% if t.total.financial %}
+                  <td class="fin {% if t.total.fin_variance >= 0 %}up{% else %}down{% endif %}">{% if t.total.fin_variance > 0 %}+{% endif %}{{ t.total.fin_variance|floatformat:"2g" }}</td>
+                  <td class="fin {% if t.total.fin_variance >= 0 %}up{% else %}down{% endif %}">{% if t.total.fin_variance > 0 %}+{% endif %}{{ t.total.fin_variance_pct|floatformat:1 }}%</td>
+                  {% else %}<td class="fin">—</td><td class="fin">—</td>{% endif %}
+                  <td class="com com-start">{% if t.total.target %}{{ t.total.target|floatformat:"2g" }}{% else %}—{% endif %}</td>
+                  {% if t.total.target %}
+                  <td class="com {% if t.total.variance >= 0 %}up{% else %}down{% endif %}">{% if t.total.variance > 0 %}+{% endif %}{{ t.total.variance|floatformat:"2g" }}</td>
+                  <td class="com {% if t.total.variance >= 0 %}up{% else %}down{% endif %}">{% if t.total.variance > 0 %}+{% endif %}{{ t.total.variance_pct|floatformat:1 }}%</td>
+                  {% else %}<td class="com">—</td><td class="com">—</td>{% endif %}
+                </tr>
+              </tfoot>
+            </table>
+            <div class="cs-note">
+              <span style="color:#065F46">Financial Target</span> = sales for the same period in {{ year|add:-1 }} ·
+              <span style="color:#713F12">Commercial Target</span> = the target set for the month ·
+              Variance = Actual − Target · Variance % = Variance ÷ Target, for each.
+              {% if t.key == 'ytd' and overall.missing %}Where a target is only set for some months, actual counts those months only: {{ overall.missing|join:", " }} have no target.{% endif %}
+              {% if t.total.target and t.total.untargeted %}No target set for {{ t.total.untargeted|join:", " }}, so their sales are in the total actual but not the variance.{% endif %}
+            </div>
+          </div>
+          {% empty %}
+          <div class="cs-sub" style="margin-top:8px">{{ year }} hasn’t started yet.</div>
+          {% endfor %}
+        </div>
+
+        <div class="cs-foot">
+          <span style="color:var(--muted);font-size:12px">Every corporate stream together</span>
+          <a href="{% url 'corporate_manager' 'all' %}?year={{ year }}" class="btn-sms btn-primary-custom cs-open">View all corporate clients &amp; sales →</a>
+        </div>
+      </div>
+    </section>
+    {% endif %}
     {% for m in managers %}
     <section class="cs-slide" id="slide-{{ m.key }}" role="tabpanel" aria-labelledby="tab-{{ m.key }}"
-             aria-roledescription="slide" aria-label="{{ forloop.counter }} of {{ managers|length }}" style="--c:{{ m.color }}">
+             aria-roledescription="slide" aria-label="{{ forloop.counter|add:slide_offset }} of {{ managers|length|add:slide_offset }}" style="--c:{{ m.color }}">
       <div class="cs-card">
         <div class="cs-head">
           <div class="cs-avatar">{{ m.name|slice:":1" }}</div>
@@ -175,8 +300,8 @@
 
         <div class="cs-chart">
           <div class="cs-chart-top">
-            <div class="cs-chart-title">Monthly sales vs target · {{ year }}</div>
-            <div class="cs-legend"><span><i style="background:{{ m.color }}"></i>Actual</span><span><i class="line"></i>Target</span></div>
+            <div class="cs-chart-title">Monthly sales · {{ year }} vs {{ year|add:-1 }} · and target</div>
+            <div class="cs-legend"><span><i style="background:{{ m.color }}"></i>{{ year }}</span><span><i style="background:#CBD5E1"></i>{{ year|add:-1 }}</span><span><i class="line"></i>Target</span></div>
           </div>
           <div class="cs-canvas"><canvas id="chart-{{ m.key }}" role="img"
                aria-label="{{ m.name }}: actual sales against target for each month of {{ year }}"></canvas></div>
@@ -186,8 +311,8 @@
           <div class="cs-stat">
             {% if m.month_label %}
             <div class="cs-label">{{ m.month_label }}</div>
-            <div class="cs-big">{{ m.month_actual|floatformat:"0g" }}</div>
-            <div class="cs-sub">{% if m.month_target %}of {{ m.month_target|floatformat:"0g" }} target · <span class="cs-pct {% if m.month_pct >= 100 %}good{% else %}low{% endif %}">{{ m.month_pct }}%</span>{% else %}no target set{% endif %}</div>
+            <div class="cs-big">{{ m.month_actual|floatformat:"2g" }}</div>
+            <div class="cs-sub">{% if m.month_target %}of {{ m.month_target|floatformat:"2g" }} target · <span class="cs-pct {% if m.month_pct >= 100 %}good{% else %}low{% endif %}">{{ m.month_pct }}%</span>{% else %}no target set{% endif %}</div>
             {% if m.month_target %}<div class="cs-bar"><span style="width:{% if m.month_pct > 100 %}100{% else %}{{ m.month_pct }}{% endif %}%"></span></div>{% endif %}
             {% else %}
             <div class="cs-label">This month</div><div class="cs-sub" style="margin-top:8px">{{ year }} hasn’t started yet.</div>
@@ -195,11 +320,11 @@
           </div>
           <div class="cs-stat">
             <div class="cs-label">Year to date{% if m.ytd_months %} · {{ m.ytd_months }}{% endif %}</div>
-            <div class="cs-big">{{ m.ytd_actual|floatformat:"0g" }}</div>
-            <div class="cs-sub">{% if m.ytd_target and not m.ytd_missing_months %}of {{ m.ytd_target|floatformat:"0g" }} target · <span class="cs-pct {% if m.ytd_pct >= 100 %}good{% else %}low{% endif %}">{{ m.ytd_pct }}%</span>{% elif m.ytd_target %}total sales{% else %}no target set{% endif %}</div>
+            <div class="cs-big">{{ m.ytd_actual|floatformat:"2g" }}</div>
+            <div class="cs-sub">{% if m.ytd_target and not m.ytd_missing_months %}of {{ m.ytd_target|floatformat:"2g" }} target · <span class="cs-pct {% if m.ytd_pct >= 100 %}good{% else %}low{% endif %}">{{ m.ytd_pct }}%</span>{% elif m.ytd_target %}total sales{% else %}no target set{% endif %}</div>
             {% if m.ytd_target %}<div class="cs-bar"><span style="width:{% if m.ytd_pct > 100 %}100{% else %}{{ m.ytd_pct }}{% endif %}%"></span></div>{% endif %}
             {% if m.ytd_target and m.ytd_missing_months %}
-            <div class="cs-note">Target set for {{ m.ytd_target_months }} only: {{ m.ytd_actual_on_target|floatformat:"0g" }} of {{ m.ytd_target|floatformat:"0g" }} ·
+            <div class="cs-note">Target set for {{ m.ytd_target_months }} only: {{ m.ytd_actual_on_target|floatformat:"2g" }} of {{ m.ytd_target|floatformat:"2g" }} ·
               <span class="cs-pct {% if m.ytd_pct >= 100 %}good{% else %}low{% endif %}">{{ m.ytd_pct }}%</span>.
               {% if not own_rep %}<a href="{% url 'corporate_targets' %}?year={{ year }}" style="color:var(--accent)">Add {{ m.ytd_missing_months }}</a>{% endif %}</div>
             {% endif %}
@@ -209,7 +334,7 @@
             {% if m.top_clients %}
             <ul class="cs-top">
               {% for c in m.top_clients %}<li><button type="button" class="cs-pick" data-rep="{{ m.key }}" data-shop="{{ c.shop_id }}" aria-pressed="false"
-                  title="Show {{ c.shop__name }}’s top 10 products">{{ c.shop__name }}</button><span style="font-variant-numeric:tabular-nums;color:var(--text-secondary)">{{ c.total|floatformat:"0g" }}</span><a
+                  title="Show {{ c.shop__name }}’s top 10 products">{{ c.shop__name }}</button><span style="font-variant-numeric:tabular-nums;color:var(--text-secondary)">{{ c.total|floatformat:"2g" }}</span><a
                   class="cs-go" href="{% url 'shop_detail' c.shop_id %}" title="Open {{ c.shop__name }}" aria-label="Open {{ c.shop__name }}">↗</a></li>{% endfor %}
             </ul>
             <div class="cs-note">Click a client to see their top 10 products below.</div>
@@ -243,9 +368,10 @@
 </div>
 
 <div class="cs-dots" aria-hidden="true"{% if own_rep %} style="display:none"{% endif %}>
-  {% for m in managers %}<button type="button" data-i="{{ forloop.counter0 }}" tabindex="-1" {% if forloop.first %}aria-current="true"{% endif %}></button>{% endfor %}
+  {% if overall %}<button type="button" tabindex="-1" aria-current="true"></button>{% endif %}
+  {% for m in managers %}<button type="button" tabindex="-1" {% if forloop.first and not overall %}aria-current="true"{% endif %}></button>{% endfor %}
 </div>
-<div class="cs-counter" id="cs-counter" aria-live="polite"{% if own_rep %} style="display:none"{% endif %}>1 of {{ managers|length }} · swipe or use ← → to see the next person</div>
+<div class="cs-counter" id="cs-counter" aria-live="polite"{% if own_rep %} style="display:none"{% endif %}>1 of {{ managers|length|add:slide_offset }} · swipe or use ← → to see the next person</div>
 
 {% if unmatched_types %}
 <p style="color:var(--muted);font-size:12px;text-align:center;margin-top:18px">Customer types not in any corporate stream: {{ unmatched_types|join:", " }}.</p>
@@ -259,6 +385,7 @@
   var D = {{ chart_data|safe }};
   var keys = D.managers.map(function (m) { return m.key; });
   var names = D.managers.map(function (m) { return m.name; });
+  if (D.all) { keys.unshift('all'); names.unshift('All streams'); }
   var track = document.getElementById('cs-track');
   var slides = track.querySelectorAll('.cs-slide');
   var tabs = document.querySelectorAll('.cs-tab');
@@ -273,8 +400,15 @@
     if (a >= 1e3) return (v / 1e3).toFixed(a >= 1e4 ? 0 : 1) + 'k';
     return v;
   }
-  function wst(v) { return 'WST ' + Number(v).toLocaleString(undefined, { maximumFractionDigits: 0 }); }
+  function wst(v) { return 'WST ' + Number(v).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
   var thisMonth = D.currentMonth;   // index of the month in progress, or -1
+  var PREV_COLOR = '#CBD5E1';
+  var hasData = function (arr) { return arr.some(function (v) { return v != null; }); };
+  function yoyLine(a, p) {   // ' +12.3% vs Nov 2025', or nothing when either year is missing
+    if (a == null || !p) return null;
+    var pct = (a - p) / Math.abs(p) * 100;
+    return ' ' + (pct >= 0 ? '+' : '') + pct.toFixed(1) + '% vs ' + (D.year - 1);
+  }
   D.managers.forEach(function (m) {
     new Chart(document.getElementById('chart-' + m.key), {
       data: {
@@ -282,8 +416,11 @@
         datasets: [
           { type: 'line', label: 'Target', data: m.target, borderColor: '#0F172A', borderDash: [6, 5], borderWidth: 2,
             pointRadius: 3, pointBackgroundColor: '#fff', pointBorderColor: '#0F172A', pointBorderWidth: 2, spanGaps: true, order: 0 },
-          { type: 'bar', label: 'Actual', data: m.actual, order: 1, borderRadius: 6, maxBarThickness: 46,
-            backgroundColor: m.actual.map(function (_, i) { return i === thisMonth ? m.color + 'A6' : m.color; }) }
+          { type: 'bar', label: String(D.year), data: m.actual, order: 1, borderRadius: 6, maxBarThickness: 34,
+            backgroundColor: m.actual.map(function (_, i) { return i === thisMonth ? m.color + 'A6' : m.color; }) },
+          // last year's same month, beside this year's, so the trend between years shows
+          { type: 'bar', label: String(D.year - 1), data: m.previous, order: 2, borderRadius: 6, maxBarThickness: 34,
+            backgroundColor: PREV_COLOR, hidden: !hasData(m.previous) }
         ]
       },
       options: {
@@ -295,11 +432,15 @@
           tooltip: {
             padding: 12, backgroundColor: '#0F172A', titleFont: { weight: '700' },
             callbacks: {
-              title: function (items) { return items[0].label + ' ' + D.year + (items[0].dataIndex === thisMonth ? ' (so far)' : ''); },
+              title: function (items) { return items[0].label + (items[0].dataIndex === thisMonth ? ' (' + D.year + ' so far)' : ''); },
               label: function (c) { return ' ' + c.dataset.label + ': ' + (c.parsed.y == null ? '—' : wst(c.parsed.y)); },
               afterBody: function (items) {
-                var a = m.actual[items[0].dataIndex], t = m.target[items[0].dataIndex];
-                return (a != null && t) ? ['', ' ' + Math.round(a / t * 100) + '% of target'] : [];
+                var i = items[0].dataIndex, a = m.actual[i], t = m.target[i];
+                var lines = [];
+                if (a != null && t) lines.push(' ' + Math.round(a / t * 100) + '% of target');
+                var y = yoyLine(a, m.previous[i]);
+                if (y) lines.push(y);
+                return lines.length ? [''].concat(lines) : [];
               }
             }
           }
@@ -312,6 +453,148 @@
       }
     });
   });
+
+  // ── All streams: each person's sales stacked, against the combined target ──
+  if (D.all) {
+    new Chart(document.getElementById('chart-all'), {
+      data: {
+        labels: D.labels,
+        datasets: [
+          { type: 'line', label: 'Target', data: D.all.target, stack: 'target', borderColor: '#0F172A', borderDash: [6, 5], borderWidth: 2,
+            pointRadius: 3, pointBackgroundColor: '#fff', pointBorderColor: '#0F172A', pointBorderWidth: 2, spanGaps: true, order: 0 }
+        ].concat(D.managers.map(function (m) {
+          return { type: 'bar', label: m.name, data: m.actual, stack: 'actual', order: 1, maxBarThickness: 34,
+                   borderColor: '#fff', borderWidth: { top: 1 }, borderSkipped: 'bottom',
+                   backgroundColor: m.actual.map(function (_, i) { return i === thisMonth ? m.color + 'A6' : m.color; }) };
+        })).concat([
+          { type: 'bar', label: (D.year - 1) + ' (all)', data: D.all.previous, stack: 'previous', order: 2, maxBarThickness: 34,
+            borderRadius: 4, backgroundColor: PREV_COLOR, hidden: !hasData(D.all.previous) }
+        ])
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        interaction: { mode: 'index', intersect: false },
+        layout: { padding: { top: 6 } },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            padding: 12, backgroundColor: '#0F172A', titleFont: { weight: '700' },
+            filter: function (c) { return c.parsed.y != null; },
+            // A month with no sales and no target filters out every item; with nothing to show the tooltip hides
+            // itself, but reading items[0] there would throw on every mouse move and leave the tooltip stuck
+            callbacks: {
+              title: function (items) {
+                if (!items.length) return '';
+                return items[0].label + (items[0].dataIndex === thisMonth ? ' (' + D.year + ' so far)' : '');
+              },
+              label: function (c) { return ' ' + c.dataset.label + ': ' + wst(c.parsed.y); },
+              afterBody: function (items) {
+                if (!items.length) return [];
+                var i = items[0].dataIndex, a = D.all.actual[i], t = D.all.target[i];
+                var lines = ['', ' All streams ' + D.year + ': ' + (a == null ? '—' : wst(a))];
+                if (a != null && t) lines.push(' ' + Math.round(a / t * 100) + '% of combined target');
+                var y = yoyLine(a, D.all.previous[i]);
+                if (y) lines.push(y);
+                return lines;
+              }
+            }
+          }
+        },
+        scales: {
+          x: { stacked: true, grid: { display: false }, ticks: { color: '#64748B', font: { size: 12, weight: '600' } } },
+          y: { stacked: true, beginAtZero: true, border: { display: false }, grid: { color: '#EEF2F7' },
+               ticks: { color: '#94A3B8', callback: money, maxTicksLimit: 6 } }
+        }
+      }
+    });
+    var periodButtons = document.querySelectorAll('.cs-period button');
+    periodButtons.forEach(function (b) {
+      b.addEventListener('click', function () {
+        var key = b.getAttribute('data-period');
+        periodButtons.forEach(function (x) { x.setAttribute('aria-pressed', x === b ? 'true' : 'false'); });
+        document.querySelectorAll('[data-table]').forEach(function (t) { t.hidden = t.getAttribute('data-table') !== key; });
+      });
+    });
+
+    // PNG of the table on screen (whichever period is showing), drawn on a canvas with a title and white background
+    var pngButton = document.getElementById('sum-png');
+    if (pngButton) pngButton.addEventListener('click', function () {
+      var wrap = document.querySelector('[data-table]:not([hidden])');
+      var cols = [{ w: 320, align: 'left' }, { w: 140 }, { w: 160 }, { w: 140 }, { w: 110 }, { w: 220 }, { w: 140 }, { w: 110 }];
+      var pad = 28, headH = 40, rowH = 50, width = pad * 2 + cols.reduce(function (s, c) { return s + c.w; }, 0);
+      var heads = [].map.call(wrap.querySelectorAll('thead th'), function (th) { return th.textContent.trim().toUpperCase(); });
+      var headBg = [].map.call(wrap.querySelectorAll('thead th'), function (th) {
+        return th.classList.contains('fin') ? ['#D1FAE5', '#065F46'] : th.classList.contains('com') ? ['#FEF08A', '#713F12'] : null;
+      });
+      function rowsOf(sel) {
+        return [].map.call(wrap.querySelectorAll(sel), function (tr) {
+          return [].map.call(tr.children, function (td) {
+            var small = td.querySelector('small');
+            return { text: (small ? td.firstChild.nextSibling.textContent : td.textContent).trim(), sub: small ? small.textContent.trim() : '',
+                     color: td.getAttribute('data-color'), bg: td.classList.contains('fin') ? '#ECFDF5' : td.classList.contains('com') ? '#FEFCE8' : '', tone: td.classList.contains('up') ? '#15803D' : td.classList.contains('down') ? '#B45309' : '',
+                     span: +td.getAttribute('colspan') || 1 };
+          });
+        });
+      }
+      var body = rowsOf('tbody tr'), foot = rowsOf('tfoot tr');
+      var top = 96, height = top + headH + rowH * (body.length + foot.length) + 50;
+      var scale = 2, c = document.createElement('canvas');
+      c.width = width * scale; c.height = height * scale;
+      var x = c.getContext('2d');
+      x.scale(scale, scale);
+      x.fillStyle = '#fff'; x.fillRect(0, 0, width, height);
+      var font = 'Segoe UI, Arial, sans-serif';
+      x.textBaseline = 'middle';
+      x.fillStyle = '#0F172A'; x.font = '700 20px ' + font; x.fillText('Actual vs target by stream', pad, 34);
+      x.fillStyle = '#64748B'; x.font = '14px ' + font; x.fillText('All corporate streams · ' + wrap.getAttribute('data-label') + ' · WST', pad, 62);
+      function fit(text, w) {   // shorten text that doesn't fit its column
+        if (x.measureText(text).width <= w) return text;
+        while (text.length > 1 && x.measureText(text + '…').width > w) text = text.slice(0, -1);
+        return text + '…';
+      }
+      function cells(row, y, h, bold) {
+        var cx = pad;
+        row.forEach(function (cell, i) {
+          var w = 0;
+          for (var k = i; k < i + cell.span && k < cols.length; k++) w += cols[k].w;
+          var left = cell.span > 1 || cols[i].align === 'left', tx = cx + 12, maxW = w - 24;
+          if (cell.bg) { x.fillStyle = cell.bg; x.fillRect(cx, y, w, h); }
+          if (cell.color) {
+            x.fillStyle = cell.color; x.beginPath(); x.roundRect ? x.roundRect(tx, y + h / 2 - 13, 10, 10, 3) : x.rect(tx, y + h / 2 - 13, 10, 10); x.fill();
+            tx += 18; maxW -= 18;
+          }
+          x.textAlign = left ? 'left' : 'center';
+          x.fillStyle = cell.tone || (i === 0 ? '#0F172A' : '#334155');
+          x.font = (bold || i === 0 ? '700 ' : '') + '14px ' + font;
+          x.fillText(fit(cell.text, maxW), left ? tx : cx + w / 2, cell.sub ? y + h / 2 - 8 : y + h / 2);
+          if (cell.sub) { x.fillStyle = '#94A3B8'; x.font = '12px ' + font; x.fillText(fit(cell.sub, maxW), tx, y + h / 2 + 11); }
+          cx += w;
+        });
+      }
+      function line(y, w, color) { x.fillStyle = color; x.fillRect(pad, y, width - pad * 2, w); }
+      x.fillStyle = '#F8FAFC'; x.fillRect(pad, top, width - pad * 2, headH);
+      var hx = pad;
+      heads.forEach(function (h, i) {
+        if (headBg[i]) { x.fillStyle = headBg[i][0]; x.fillRect(hx, top, cols[i].w, headH); }
+        x.textAlign = cols[i].align === 'left' ? 'left' : 'center';
+        x.fillStyle = headBg[i] ? headBg[i][1] : '#64748B'; x.font = '700 11px ' + font;
+        x.fillText(h, cols[i].align === 'left' ? hx + 12 : hx + cols[i].w / 2, top + headH / 2);
+        hx += cols[i].w;
+      });
+      line(top + headH - 2, 2, '#E2E8F0');
+      var y = top + headH;
+      body.forEach(function (r) { cells(r, y, rowH); y += rowH; line(y - 1, 1, '#E2E8F0'); });
+      line(y - 1, 2, '#CBD5E1');
+      foot.forEach(function (r) { cells(r, y, rowH, true); y += rowH; });
+      x.textAlign = 'left'; x.fillStyle = '#94A3B8'; x.font = '11px ' + font;
+      x.fillText('Financial Target = same period ' + (D.year - 1) + ' · Commercial Target = target set · Variance = Actual − Target · Variance % = Variance ÷ Target, for each · Ah Liki Investment Corp', pad, height - 22);
+      var a = document.createElement('a');
+      a.href = c.toDataURL('image/png');
+      a.download = 'corporate_sales_by_stream_' + wrap.getAttribute('data-label').toLowerCase()
+        .replace(/year to date/, 'ytd').replace(/\d{4}/g, '').replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '') + '_' + D.year + '.png';
+      document.body.appendChild(a); a.click(); a.remove();
+    });
+  }
 
   // ── Top 10 products: all the rep's clients, or the top client that was clicked ──
   var UPLOAD_URL = {% if access.bulk_import %}'{% url "import_customer_product_sales" %}'{% else %}''{% endif %};
@@ -385,8 +668,8 @@
 
   prev.addEventListener('click', function () { show(current - 1); });
   next.addEventListener('click', function () { show(current + 1); });
-  tabs.forEach(function (t) { t.addEventListener('click', function () { show(+t.getAttribute('data-i')); }); });
-  dots.forEach(function (d) { d.addEventListener('click', function () { show(+d.getAttribute('data-i')); }); });
+  tabs.forEach(function (t, n) { t.addEventListener('click', function () { show(n); }); });
+  dots.forEach(function (d, n) { d.addEventListener('click', function () { show(n); }); });
   document.addEventListener('keydown', function (e) {
     if (/INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName)) return;
     if (e.key === 'ArrowRight') { e.preventDefault(); show(current + 1); }

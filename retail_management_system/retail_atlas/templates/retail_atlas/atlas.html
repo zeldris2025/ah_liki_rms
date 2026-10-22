@@ -120,6 +120,7 @@
     .leaflet-control-layers, .leaflet-bar { border-radius: 10px !important; }
 
     .panel-toggle { display: none; }
+    .leaflet-top.leaflet-right { top: 58px; }   /* room for the notification bell */
     @media (max-width: 760px) {
       :root { --panel-w: 0px; }
       .panel { width: 280px; transform: translateX(-100%); transition: transform .2s; }
@@ -131,6 +132,7 @@
   </style>
 </head>
 <body>
+<div style="position:fixed;top:16px;right:16px;z-index:1100">{% include 'car_allocations/_notifications.html' %}</div>
 
 <div id="map"></div>
 
@@ -154,7 +156,7 @@
     <div id="territories"></div>
     <details class="unmapped" id="unmapped">
       <summary><span class="section-label" id="unmapped-label"></span></summary>
-      <div class="unmapped-hint">These shops have no recognisable village in their address. Click <b>Place</b>, then click the map to pin them.</div>
+      <div class="unmapped-hint">These shops have no recognisable village in their address.{% if not is_finance %} Click <b>Place</b>, then click the map to pin them.{% endif %}</div>
       <div id="unmapped-list"></div>
     </details>
   </div>
@@ -261,12 +263,12 @@
       (s.owner ? '<div class="pp-row">👤 ' + esc(s.owner) + '</div>' : '') +
       (s.phone ? '<div class="pp-row">📞 ' + esc(s.phone) + '</div>' : '') +
       (badges ? '<div class="pp-badges">' + badges + '</div>' : '') +
-      '<div class="pp-actions">' +
+      (DATA.read_only ? '' : '<div class="pp-actions">' +
         '<a class="primary" href="' + DATA.order_url + '?shop=' + s.id + '">🛒 Place order</a>' +
         (DATA.is_fe ? '' : '<a href="' + s.url + '">Open shop →</a>') +
         '<button data-act="move" data-id="' + s.id + '">📍 Move pin</button>' +
         (s.manual ? '<button data-act="reset" data-id="' + s.id + '">↺ Use village</button>' : '') +
-      '</div>' +
+      '</div>') +
       '<div class="pp-note">' + (s.manual ? 'Pinned by hand' : 'Approximate — placed at village centre') + '</div>';
   }
 
@@ -313,7 +315,7 @@
     document.getElementById('unmapped').style.display = um.length ? '' : 'none';
     document.getElementById('unmapped-list').innerHTML = um.map(function (s) {
       return '<div class="um-row"><span class="um-name" title="' + esc(s.name) + '">' + esc(s.name) + '</span>' +
-             '<button data-place="' + s.id + '">Place</button></div>';
+             (DATA.read_only ? '' : '<button data-place="' + s.id + '">Place</button>') + '</div>';
     }).join('');
 
     var scope = document.getElementById('search-scope');
@@ -393,7 +395,7 @@
   function choose(s) {
     resultsEl.style.display = 'none';
     input.blur();
-    if (s.lat == null) { startPlacing(s.id); return; }
+    if (s.lat == null) { if (!DATA.read_only) startPlacing(s.id); return; }
     cluster.zoomToShowLayer(markers[s.id], function () {
       map.setView([s.lat, s.lng], Math.max(map.getZoom(), 15));
       markers[s.id].openPopup();
@@ -444,6 +446,7 @@
     banner.style.display = 'none';
   }
   function startPlacing(id) {
+    if (DATA.read_only) return;
     var s = shopsById[id];
     map.closePopup();
     state.placing = id;

@@ -1,3 +1,4 @@
+from decimal import Decimal
 import csv
 from datetime import date, timedelta
 
@@ -194,6 +195,30 @@ class ClientImportTests(TestCase):
         self.assertContains(page, 'Renamed (1)')
         self.assertContains(page, 'C001: “Old Name” → “New Name”')
 
+    def test_log_lists_every_row_and_shows_on_the_page(self):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        from .models import Shop
+        Shop.objects.create(customer_code='C001', name='Jane Store', phone='111')
+        Shop.objects.create(customer_code='C003', name='Same Shop')
+        result = self.upload(self.HEADER +
+                             'C001,Jane Store,,,,,222,,\n'
+                             ',No Code,,,,,,,\n'
+                             'C002,Sam Mart,,,,,,,\n'
+                             'C003,Same Shop,,,,,,,\n')
+        self.assertEqual([(e['rows'], e['status']) for e in result['log']],
+                         [([2], 'updated'), ([3], 'skipped'), ([4], 'added'), ([5], 'unchanged')])
+        self.assertIn('111 → 222', result['log'][0]['detail'])
+        self.assertEqual(result['log'][2]['item'], 'C002 · Sam Mart')
+
+        sales = self.upload('Customer Code,Month,Sales\nC001,2026-09,100\nC001,2026-09,50\n', 'import_monthly_sales')
+        self.assertEqual([(e['rows'], e['status']) for e in sales['log']], [([2, 3], 'added')])
+        self.assertIn('Sales 150.00 (rows 2, 3 added together)', sales['log'][0]['detail'])
+
+        f = SimpleUploadedFile('c.csv', (self.HEADER + 'C002,Sam Mart,,,,,999,,\n').encode())
+        page = self.client.post(reverse('import_shops'), {'csv_file': f})
+        self.assertContains(page, 'Import log')
+        self.assertContains(page, 'Phone')
+
     def test_existing_clients_without_code_get_linked_not_duplicated(self):
         from .models import Shop
         old = Shop.objects.create(name='ELINA STORE', contact_person='Elina')
@@ -234,6 +259,26 @@ class ClientImportTests(TestCase):
         totals = {f'{r.month:%Y-%m}': str(r.sales) for r in jane.monthly_sales.all()}
         self.assertEqual(totals, {'2026-09': '1400.00', '2026-08': '900.00', '2026-07': '10.00', '2025-09': '-100.00'})
         self.assertEqual(MonthlySales.objects.count(), 4)
+
+    def test_monthly_sales_same_client_twice_in_a_file_adds_up(self):
+        from .models import Shop
+        jane = Shop.objects.create(customer_code='C001', name='Jane Store')
+        text = ('Customer Code,Customer Name,Month,Sales\n'
+                'C001,Jane Store,2025-11,"1,000"\n'
+                'C001,Jane Store - Branch 2,2025-11,250.50\n'
+                'C001,Jane Store,2025-11,(50)\n')
+        result = self.upload(text, 'import_monthly_sales')
+        self.assertEqual((result['created'], result['combined']), (1, 2))
+        self.assertEqual(str(jane.monthly_sales.get().sales), '1200.50')
+        again = self.upload(text, 'import_monthly_sales')   # uploading the same file again still replaces, never doubles
+        self.assertEqual((again['created'], again['unchanged']), (0, 1))
+        self.assertEqual(str(jane.monthly_sales.get().sales), '1200.50')
+
+    def test_rep_keywords_one_per_line(self):
+        from .models import SalesRep
+        rep = SalesRep(key='fono', name='Fono', streams='Fono\nFaavae', customer_types='Fono\r\nFaavae')
+        self.assertEqual((rep.keyword_list(), rep.stream_list()), (['fono', 'faavae'], ['Fono', 'Faavae']))
+        self.assertTrue(rep.matches('Faavae Village'))
 
     def test_sales_pages_and_client_detail(self):
         from .models import MonthlySales, Shop
@@ -311,6 +356,42 @@ class CorporateSalesTests(TestCase):
         self.assertLess(html.index('>Ruth<'), html.index('>Judane<'))
         self.assertIn('Ministries', html)
 
+    def test_all_slide_combines_every_stream(self):
+        from .models import MonthlySales, SalesTarget, Shop
+        from . import corporate
+        mof = Shop.objects.create(customer_code='M1', name='Ministry of Finance', customer_type='Ministry')
+        hotel = Shop.objects.create(customer_code='H1', name='Beach Hotel', customer_type='Hotel')
+        MonthlySales.objects.create(shop=mof, month=date(2026, 3, 1), sales=12000)
+        MonthlySales.objects.create(shop=hotel, month=date(2026, 3, 1), sales=5000)
+        SalesTarget.objects.create(manager='ruth', month=date(2026, 3, 1), amount=10000)
+
+        overall = corporate.combined_summary(corporate.year_summary(2026, today=date(2026, 3, 15))[0])
+        self.assertEqual((overall['actual'][2], overall['target'][2], overall['target'][1]), (17000, 10000, None))
+        ytd = {r['key']: r for r in overall['tables'][0]['rows']}
+        self.assertEqual((ytd['ruth']['variance'], ytd['ruth']['variance_pct']), (2000, 20.0))
+        self.assertEqual((ytd['judane']['actual'], ytd['judane']['variance']), (5000, None))   # no target: no variance
+        self.assertNotIn('grace', ytd)   # no sales: left off the table
+        total = overall['tables'][0]['total']
+        self.assertEqual((total['actual'], total['target'], total['variance'], total['variance_pct']), (17000, 10000, 2000, 20.0))
+
+        html = self.client.get(reverse('corporate_sales'), {'year': 2026}).content.decode()
+        self.assertIn('id="slide-all"', html)
+        self.assertIn('Variance %', html)
+        self.assertIn('id="sum-png"', html)
+
+    def test_graph_compares_with_last_year(self):
+        import json as _json
+        from .models import MonthlySales, Shop
+        from . import corporate
+        hotel = Shop.objects.create(customer_code='H1', name='Beach Hotel', customer_type='HORECA')
+        MonthlySales.objects.create(shop=hotel, month=date(2025, 11, 1), sales='2442955.86')
+        MonthlySales.objects.create(shop=hotel, month=date(2026, 3, 1), sales=5000)
+        judane = next(m for m in corporate.year_summary(2026, today=date(2026, 4, 1))[0] if m['key'] == 'judane')
+        self.assertEqual((judane['previous'][10], judane['previous'][2], judane['actual'][2]), (Decimal('2442955.86'), None, 5000))
+        data = _json.loads(self.client.get(reverse('corporate_sales'), {'year': 2026}).context['chart_data'])
+        self.assertEqual(next(m for m in data['managers'] if m['key'] == 'judane')['previous'][10], 2442955.86)
+        self.assertEqual(data['all']['previous'][10], 2442955.86)
+
     def test_targets_form_saves_clears_and_rejects_bad_input(self):
         from .models import SalesTarget
         url = reverse('corporate_targets') + '?year=2026'
@@ -343,6 +424,13 @@ class CorporateManagerPageTests(TestCase):
 
     def names(self, response):
         return [getattr(r, 'name', None) or r.shop.name for r in response.context['page_obj']]
+
+    def test_total_shows_cents_not_rounded(self):
+        from .models import MonthlySales
+        MonthlySales.objects.create(shop=self.quiet, month=date(2025, 11, 1), sales='2442955.86')
+        r = self.client.get(reverse('corporate_manager', args=['ruth']), {'year': 2025, 'month': 11})
+        self.assertContains(r, '2,442,955.86')
+        self.assertNotContains(r, '2,442,956<')
 
     def test_clients_sorted_by_sales_with_filters_and_search(self):
         r = self.get()
@@ -447,9 +535,9 @@ class YearToDateTotalTests(TestCase):
             MonthlySales.objects.create(shop=hotel, month=date(this_year, month, 1), sales=1000)
         SalesTarget.objects.create(manager='judane', month=date(this_year, date.today().month, 1), amount=4000)
         page = self.client.get(reverse('corporate_sales')).content.decode()
-        total = f'{1000 * date.today().month:,}'
+        total = f'{1000 * date.today().month:,}.00'
         self.assertIn(f'<div class="cs-big">{total}</div>', page)   # the big Year to date figure is every month combined
-        self.assertIn('1,000 of 4,000', page)    # the target line only covers the month with a target
+        self.assertIn('1,000.00 of 4,000.00', page)    # the target line only covers the month with a target
 
 
 class ReportsTests(TestCase):
@@ -520,8 +608,9 @@ class CorporateSliderTests(TestCase):
         _manager('office')
         self.client.login(username='office', password='pw')
         html = self.client.get(reverse('corporate_sales')).content.decode()
-        self.assertEqual(html.count('class="cs-slide"'), 4)
-        self.assertEqual(html.count('role="tab"'), 4)
+        self.assertEqual(html.count('class="cs-slide"'), 5)   # All streams, then one per person
+        self.assertEqual(html.count('role="tab"'), 5)
+        self.assertLess(html.index('id="slide-all"'), html.index('id="slide-grace"'))
         for text in ('cs-prev', 'cs-next', 'id="slide-grace"', 'id="slide-ivan"', '"currentMonth"', '"name": "Ruth"'):
             self.assertIn(text, html)
         self.assertLess(html.index('id="slide-grace"'), html.index('id="slide-ruth"'))
@@ -595,7 +684,7 @@ class ProductSalesTests(TestCase):
         self.assertEqual(page.context['row_count'], 7)
         self.assertContains(page, 'to pin it here')
         self.client.post(reverse('product_sales_pin'), {'code': 'TT1', 'next': reverse('product_sales')})
-        links = self.client.get(reverse('product_sales')).context['links']
+        links = self.client.get(reverse('product_sales'), {'lm': 2}).context['links']   # Jan–Feb 2026 vs Jan–Feb 2025
         self.assertEqual([(l['code'], l['total'], l['growth']) for l in links], [('TT1', 400, 33.3)])
         selected = self.client.get(reverse('product_sales'), {'product': 'TT1'})
         self.assertEqual((selected.context['selected_name'], selected.context['row_count']), ('Tip Top Vanilla 2L', 5))
@@ -717,7 +806,7 @@ class ProductTargetColourTests(TestCase):
         self.assertContains(page, 'Sales · Sep 2026')
 
     def test_quick_link_colours(self):
-        page = self.client.get(reverse('product_sales'))
+        page = self.client.get(reverse('product_sales'), {'lm': 9})
         self.assertEqual({l['code']: (l['month_sales'], l['target'], l['pct'], l['status']) for l in page.context['links']},
                          {'G1': (1200, 1000, 120, 'good'), 'O1': (950, 1000, 95, 'close'),
                           'R1': (500, 1000, 50, 'behind'), 'N1': (300, None, None, 'none')})
@@ -752,7 +841,7 @@ class QuickLinksPanelTests(TestCase):
         self.assertEqual(inside.context['matching_groups'], [])   # already in a group: no need to offer it
 
     def test_compact_scrollable_panel(self):
-        html = self.client.get(reverse('product_sales')).content.decode()
+        html = self.client.get(reverse('product_sales'), {'lm': 9}).content.decode()
         for text in ('ps-links-list', 'id="ps-find"', 'of 3.0M', 'Lowest first · 3', '＋ New group'):
             self.assertIn(text, html)
         self.assertNotIn('data-spark', html)
@@ -811,7 +900,7 @@ class QuickLinkTargetTests(TestCase):
         self.url = reverse('quick_link_targets') + '?year=2026'
 
     def links(self):
-        page = self.client.get(reverse('product_sales'))
+        page = self.client.get(reverse('product_sales'), {'lm': 9})
         return page.context['groups'][0], page.context['links'][0], page
 
     def test_blank_uses_last_year_and_manual_overrides(self):
@@ -907,7 +996,7 @@ class QuickLinkOrderTests(TestCase):
     setUp = ProductTargetColourTests.setUp
 
     def test_one_list_lowest_first(self):
-        page = self.client.get(reverse('product_sales'))
+        page = self.client.get(reverse('product_sales'), {'lm': 9})
         order = [(q['kind'], q['name'], q['pct']) for q in page.context['quick']]
         self.assertEqual(order, [('product', 'Red Wine', 50), ('group', 'Drinks', 88), ('product', 'Orange Juice', 95),
                                  ('product', 'Green Tea', 120), ('product', 'New Snack', None)])
@@ -921,12 +1010,43 @@ class QuickLinkStatusButtonTests(TestCase):
     setUp = ProductTargetColourTests.setUp   # G1 reached, O1 and Drinks 70–99%, R1 below, N1 no target
 
     def test_buttons_with_counts_and_item_status(self):
-        page = self.client.get(reverse('product_sales'))
+        page = self.client.get(reverse('product_sales'), {'lm': 9})
         self.assertEqual(page.context['status_counts'], {'good': 1, 'close': 2, 'behind': 1})
         html = page.content.decode()
         for text in ('data-status="good" aria-pressed="false"', 'Reached <b>1</b>', '70–99% <b>2</b>', 'Below 70% <b>1</b>',
                      '<div class="ps-item" data-status="behind">', '<div class="ps-item" data-status="none">'):
             self.assertIn(text, html)
+
+
+class QuickLinkMonthTests(TestCase):
+    """The quick links are judged on the current month by default, and any month can be picked."""
+    def setUp(self):
+        from .models import PinnedProduct, ProductSales
+        _manager('office')
+        self.client.login(username='office', password='pw')
+        self.year = date.today().year
+        ProductSales.objects.create(product_code='CK1', product_name='Coke', month=date(self.year - 1, 1, 1), total_sales=1000)
+        ProductSales.objects.create(product_code='CK1', product_name='Coke', month=date(self.year, 1, 1), total_sales=800)
+        PinnedProduct.objects.create(product_code='CK1')
+
+    def test_defaults_to_current_month_even_before_upload(self):
+        from .product_sales import MONTHS
+        page = self.client.get(reverse('product_sales'))
+        this_month = f'{MONTHS[date.today().month - 1]} {self.year}'
+        self.assertEqual(page.context['link_month'], this_month)
+        self.assertEqual(page.context['link_month_i'], date.today().month)
+        if date.today().month != 1:
+            self.assertContains(page, f'no {this_month} sales uploaded yet')
+
+    def test_pick_another_month(self):
+        page = self.client.get(reverse('product_sales'), {'lm': 1, 'category': 'x'})
+        self.assertEqual(page.context['link_month'], f'Jan {self.year}')
+        self.assertIn(('category', 'x'), page.context['link_month_keep'])   # other filters stay
+        self.assertNotIn('sales uploaded yet', page.content.decode())
+        self.assertIn('lm=1', page.context['keep_query'])   # clicking a quick link keeps the month
+        link = self.client.get(reverse('product_sales'), {'lm': 1}).context['links'][0]
+        self.assertEqual((link['month_sales'], link['target'], link['pct']), (800, 1000, 80))
+        self.assertEqual(self.client.get(reverse('product_sales'), {'lm': 'bad'}).context['link_month_i'], date.today().month)
 
 
 class ClientListSalesColumnTests(TestCase):
@@ -1067,12 +1187,25 @@ class AccessLevelTests(TestCase):
         self.assertEqual(self.status('import_surveys'), 200)
         self.assertEqual(self.status('import_survey_responses', survey.pk), 200)
         self.assertEqual(self.status('download_survey_template'), 403)
-        for name in ('import_shops', 'import_businesses', 'import_sponsorships', 'import_product_sales'):
+        for name in ('import_shops', 'import_businesses', 'import_product_sales'):
             self.assertEqual(self.status(name), 403, name)
         self.assertContains(self.client.get(reverse('survey_list')), reverse('import_surveys'))
         page = self.client.get(reverse('import_surveys')).content.decode()
         self.assertIn('<th>Customer/Shop</th>', page)
         self.assertNotIn(reverse('download_survey_template'), page)
+
+    def test_marketing_can_import_sponsorships(self):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        from .models import Sponsorship
+        self.login_as('Marketing')
+        self.assertContains(self.client.get(reverse('sponsorship_list')), reverse('import_sponsorships'))
+        page = self.client.get(reverse('import_sponsorships'))
+        self.assertEqual(page.status_code, 200)
+        self.assertNotContains(page, reverse('download_sponsorship_template'))
+        self.assertEqual(self.status('download_sponsorship_template'), 403)
+        f = SimpleUploadedFile('s.csv', b'Customer,Type,Value\nJane Store,Cooler,900\n')
+        self.client.post(reverse('import_sponsorships'), {'csv_file': f})
+        self.assertEqual(Sponsorship.objects.get().type, 'Cooler')
 
     def test_sales_cannot_import_surveys(self):
         self.login_as('Sales')
@@ -1307,3 +1440,56 @@ class SurveyDeleteTests(TestCase):
         self.assertRedirects(self.client.post(reverse('delete_survey', args=[survey.pk])), reverse('survey_list'))
         self.assertFalse(Survey.objects.exists())
         self.assertFalse(SurveyResponse.objects.exists())
+
+
+class SponsorshipImportTests(TestCase):
+    HEADER = 'Customer,Type,Sponsorship Type,Value (WST),Status,Start Date,End Date,Notes\n'
+
+    def setUp(self):
+        _manager('office')
+        self.client.login(username='office', password='pw')
+
+    def upload(self, text):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        f = SimpleUploadedFile('s.csv', text.encode('utf-8-sig'), content_type='text/csv')
+        response = self.client.post(reverse('import_sponsorships'), {'csv_file': f})
+        return response.context.get('result') or response.context.get('error')
+
+    def test_same_file_again_updates_instead_of_duplicating(self):
+        from .models import Shop, Sponsorship
+        Shop.objects.create(name='Jane Store')
+        text = (self.HEADER +
+                'jane store,cooler,in kind,"1,800",pending,01/11/2026,,Two-door cooler\n'
+                'Sam Hotel,Signage,Cash Value,5000,Active,2026-01-01,2026-12-31,\n')
+        first = self.upload(text)
+        self.assertEqual((first['created'], first['updated'], first['unchanged'], first['skipped']), (2, 0, 0, []))
+        jane = Sponsorship.objects.get(customer='Jane Store')   # saved with the client's spelling
+        self.assertEqual((jane.type, jane.sponsorship_type, jane.value, jane.status, jane.start),
+                         ('Cooler', 'In-Kind Value', Decimal('1800'), 'Pending', date(2026, 11, 1)))
+
+        again = self.upload(text.replace('pending', 'Active'))
+        self.assertEqual((again['created'], again['updated'], again['unchanged']), (0, 1, 1))
+        self.assertIn('Status: Pending → Active', again['log'][0]['detail'])
+        self.assertEqual(Sponsorship.objects.count(), 2)
+
+    def test_bad_rows_are_skipped_and_listed(self):
+        from .models import Sponsorship
+        result = self.upload(self.HEADER +
+                             ',Signage,,100,,,,\n'
+                             'A,Billboard,,100,,,,\n'
+                             'B,,,lots,,,,\n'
+                             'C,,,,,2026-02-01,2026-01-01,\n'
+                             'D,,,,,,,\n')
+        self.assertEqual((result['created'], len(result['skipped'])), (1, 4))
+        self.assertIn('Customer is required', result['skipped'][0])
+        self.assertIn('Type "Billboard" must be one of', result['skipped'][1])
+        self.assertIn('Value "lots" is not a number', result['skipped'][2])
+        self.assertIn('End Date is before Start Date', result['skipped'][3])
+        d = Sponsorship.objects.get()
+        self.assertEqual((d.customer, d.type, d.sponsorship_type, d.status), ('D', 'Signage', 'Cash Value', 'Active'))
+
+    def test_missing_customer_column_and_template(self):
+        self.assertIn('needs a "Customer" column', self.upload('Type,Value\nSignage,1\n'))
+        template = self.client.get(reverse('download_sponsorship_template')).content.decode()
+        self.assertEqual(self.upload(template)['created'], 2)
+        self.assertContains(self.client.get(reverse('sponsorship_list')), reverse('import_sponsorships'))

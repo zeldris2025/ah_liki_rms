@@ -7,7 +7,7 @@ from import_export.widgets import DateWidget
 from django import forms
 
 from .models import (Shop, ShopPhoto, Business, BusinessPhoto, Sponsorship, SponsorshipPhoto, MonthlySales, Promotion,
-                     SalesTarget, SalesRep, CustomerProductSales)
+                     SalesTarget, SalesRep, ProductSales, CustomerProductSales)
 
 
 # ── Import/Export Resources ───────────────────────────────────────────────────
@@ -173,21 +173,103 @@ class SponsorshipAdmin(ImportExportModelAdmin):
     photo_count.short_description = "Photos"
 
 
+@admin.action(description='Delete selected %(verbose_name_plural)s', permissions=['delete'])
+def fast_delete(modeladmin, request, queryset):
+    """Bulk delete for big sales tables. Django's built-in delete lists every row on the confirm page and
+    writes one history entry per row, which crawls for thousands of rows. This confirms with a count per
+    month and removes everything in one DELETE query."""
+    from django.contrib import messages
+    from django.contrib.admin import helpers
+    from django.db import transaction
+    from django.db.models import Count
+    from django.template.response import TemplateResponse
+
+    opts = modeladmin.model._meta
+    if request.POST.get('post') == 'yes':
+        with transaction.atomic():
+            deleted, _ = queryset.delete()
+        modeladmin.message_user(request, f'Deleted {deleted:,} {opts.verbose_name_plural}.', messages.SUCCESS)
+        return None
+
+    by_month = [{'month': m['month'], 'rows': f"{m['rows']:,}"} for m in
+                queryset.order_by().values('month').annotate(rows=Count('pk')).order_by('-month')]
+    return TemplateResponse(request, 'admin/shops/fast_delete_confirmation.html', {
+        **modeladmin.admin_site.each_context(request),
+        'title': 'Are you sure?',
+        'opts': opts,
+        'total': f"{queryset.count():,}",
+        'by_month': by_month,
+        'select_across': request.POST.get('select_across', '0'),
+        'selected': request.POST.getlist(helpers.ACTION_CHECKBOX_NAME),
+        'action_checkbox_name': helpers.ACTION_CHECKBOX_NAME,
+    })
+
+
+class FastDeleteMixin:
+    actions = [fast_delete]
+
+    def get_actions(self, request):
+        actions = super().get_actions(request)
+        actions.pop('delete_selected', None)   # replaced by fast_delete
+        return actions
+
+
+class YearFilter(admin.SimpleListFilter):
+    """Filter by the year of the `month` field, listing only years that have data."""
+    title = 'year'
+    parameter_name = 'year'
+
+    def lookups(self, request, model_admin):
+        years = model_admin.get_queryset(request).dates('month', 'year', order='DESC')
+        return [(d.year, d.year) for d in years]
+
+    def queryset(self, request, queryset):
+        if self.value():
+            return queryset.filter(month__year=self.value())
+        return queryset
+
+
+class MonthFilter(admin.SimpleListFilter):
+    """Filter by calendar month (Jan–Dec); combine with the year filter for a single month."""
+    title = 'month'
+    parameter_name = 'month_no'
+
+    def lookups(self, request, model_admin):
+        import calendar
+        return [(m, calendar.month_name[m]) for m in range(1, 13)]
+
+    def queryset(self, request, queryset):
+        if self.value():
+            return queryset.filter(month__month=self.value())
+        return queryset
+
+
+@admin.register(ProductSales)
+class ProductSalesAdmin(FastDeleteMixin, admin.ModelAdmin):
+    list_display  = ('product_code', 'product_name', 'month', 'total_sales', 'updated_at')
+    list_filter   = (YearFilter, MonthFilter)
+    search_fields = ('product_code', 'product_name')
+    date_hierarchy = 'month'
+    list_per_page = 100
+
+
 @admin.register(CustomerProductSales)
-class CustomerProductSalesAdmin(admin.ModelAdmin):
+class CustomerProductSalesAdmin(FastDeleteMixin, admin.ModelAdmin):
     list_display  = ('shop', 'product_code', 'product_name', 'month', 'sales', 'updated_at')
-    list_filter   = ('month',)
+    list_filter   = (YearFilter, MonthFilter)
     search_fields = ('shop__customer_code', 'shop__name', 'product_code', 'product_name')
     raw_id_fields = ('shop',)
+    list_select_related = ('shop',)
     date_hierarchy = 'month'
 
 
 @admin.register(MonthlySales)
-class MonthlySalesAdmin(admin.ModelAdmin):
+class MonthlySalesAdmin(FastDeleteMixin, admin.ModelAdmin):
     list_display  = ('customer_code', 'customer_name', 'month', 'sales', 'updated_at')
     list_filter   = ('month',)
     search_fields = ('shop__customer_code', 'shop__name')
     raw_id_fields = ('shop',)
+    list_select_related = ('shop',)
     date_hierarchy = 'month'
 
     @admin.display(ordering='shop__customer_code')
@@ -303,6 +385,6 @@ class PromotionAdmin(ImportExportModelAdmin):
     search_fields = ('name', 'details', 'prizes')
 
 
-admin.site.site_header = "Retail Management System"
-admin.site.site_title = "Retail Management Admin"
-admin.site.index_title = "Retail Management Admin"
+admin.site.site_header = "Sales and Marketing Management System"
+admin.site.site_title = "Sales and Marketing Management Admin"
+admin.site.index_title = "Sales and Marketing Management Admin"

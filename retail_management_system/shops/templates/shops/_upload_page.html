@@ -20,6 +20,9 @@
     <div class="stat-card" style="flex:1;min-width:120px"><div class="stat-label">Unchanged</div><div class="stat-value" style="color:var(--muted)">{{ result.unchanged }}</div></div>
     <div class="stat-card" style="flex:1;min-width:120px"><div class="stat-label">Skipped</div><div class="stat-value" style="color:{% if result.skipped %}var(--danger){% else %}var(--muted){% endif %}">{{ result.skipped|length }}</div></div>
   </div>
+  {% if result.combined %}
+  <div style="margin-top:14px;font-size:13px;color:var(--text-secondary)">➕ {{ result.combined }} extra row{{ result.combined|pluralize }} for a client already in the file {{ result.combined|pluralize:"was,were" }} added to that client’s total for the month.</div>
+  {% endif %}
   {% if result.renamed %}
   <div style="margin-top:14px;font-weight:600;font-size:13px;color:var(--info)">✎ Renamed ({{ result.renamed|length }}):</div>
   <ul style="margin:6px 0 0;color:var(--text-secondary);font-size:13px;max-height:200px;overflow-y:auto">{% for r in result.renamed %}<li>{{ r }}</li>{% endfor %}</ul>
@@ -29,6 +32,70 @@
   <ul style="margin:6px 0 0;color:var(--danger);font-size:13px;max-height:260px;overflow-y:auto">{% for e in result.skipped %}<li>{{ e }}</li>{% endfor %}</ul>
   {% endif %}
 </div>
+
+{% if result.log %}
+<div class="sms-card import-log" style="padding:20px;margin-bottom:18px">
+  <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px">
+    <div class="form-section-title" style="margin:0">Import log</div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap">
+      <button type="button" class="btn-sms btn-outline-custom sm log-filter active" data-status="">All ({{ result.log|length }})</button>
+      <button type="button" class="btn-sms btn-outline-custom sm log-filter" data-status="added">Added</button>
+      {% if result.linked is not None %}<button type="button" class="btn-sms btn-outline-custom sm log-filter" data-status="linked">Code added</button>{% endif %}
+      <button type="button" class="btn-sms btn-outline-custom sm log-filter" data-status="updated">Updated</button>
+      <button type="button" class="btn-sms btn-outline-custom sm log-filter" data-status="unchanged">Unchanged</button>
+      <button type="button" class="btn-sms btn-outline-custom sm log-filter" data-status="skipped">Skipped</button>
+      <button type="button" class="btn-sms btn-primary-custom sm" id="log-download">⬇ Download log</button>
+    </div>
+  </div>
+  <div style="max-height:420px;overflow:auto">
+    <table class="sms-table" id="import-log" style="font-size:13px">
+      <thead><tr><th>Row</th><th>Result</th><th>Item</th><th>Details</th></tr></thead>
+      <tbody>
+      {% for e in result.log %}
+        <tr data-status="{{ e.status }}">
+          <td style="white-space:nowrap">{{ e.rows|join:", " }}</td>
+          <td><span class="log-badge log-{{ e.status }}">{% if e.status == 'linked' %}code added{% else %}{{ e.status }}{% endif %}</span></td>
+          <td>{{ e.item }}</td>
+          <td style="color:var(--text-secondary)">{{ e.detail }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+<style>
+  .log-badge { display:inline-block;padding:2px 8px;border-radius:999px;font-size:12px;font-weight:600;text-transform:capitalize;white-space:nowrap }
+  .log-added { background:rgba(22,163,74,.12);color:var(--success) }
+  .log-linked { background:rgba(124,58,237,.12);color:#7C3AED }
+  .log-updated { background:rgba(37,99,235,.12);color:var(--info) }
+  .log-unchanged { background:rgba(100,116,139,.12);color:var(--muted) }
+  .log-skipped { background:rgba(220,38,38,.12);color:var(--danger) }
+  .log-filter.active { background:var(--info);color:#fff;border-color:var(--info) }
+</style>
+<script>
+(function () {
+  var rows = document.querySelectorAll('#import-log tbody tr');
+  document.querySelectorAll('.log-filter').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      document.querySelectorAll('.log-filter').forEach(function (b) { b.classList.toggle('active', b === btn); });
+      rows.forEach(function (r) { r.style.display = !btn.dataset.status || r.dataset.status === btn.dataset.status ? '' : 'none'; });
+    });
+  });
+  document.getElementById('log-download').addEventListener('click', function () {
+    var cell = function (t) { return '"' + t.trim().replace(/"/g, '""') + '"'; };
+    var lines = ['Row,Result,Item,Details'];
+    rows.forEach(function (r) {
+      if (r.style.display === 'none') return;
+      lines.push(Array.prototype.map.call(r.cells, function (c) { return cell(c.textContent); }).join(','));
+    });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob(['﻿' + lines.join('\r\n')], {type: 'text/csv'}));
+    a.download = 'import_log.csv';
+    a.click();
+  });
+})();
+</script>
+{% endif %}
 {% endif %}
 
 <div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.3fr);gap:18px" class="upload-grid">
@@ -42,7 +109,7 @@
   <div class="sms-card" style="padding:22px">
     <div class="form-section-title">CSV columns</div>
     <table class="sms-table">{% block column_rows %}{% endblock %}</table>
-    <div style="margin-top:14px"><a href="{% block template_url %}{% endblock %}" class="btn-sms btn-outline-custom sm">⬇ Download template</a></div>
+    {% if can_export %}<div style="margin-top:14px"><a href="{% block template_url %}{% endblock %}" class="btn-sms btn-outline-custom sm">⬇ Download template</a></div>{% endif %}
   </div>
 </div>
 <style>@media (max-width: 900px) { .upload-grid { grid-template-columns:1fr !important; } }</style>

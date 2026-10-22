@@ -1,0 +1,25 @@
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.sqlite3
+.git/
+.gitignore
+.env
+.env.*
+venv/
+.venv/
+.idea/
+.vscode/
+.pytest_cache/
+__init__.pyc
+.DS_Store
+# WAHA WhatsApp login data (mounted into the waha container, never part of the web image)
+sessions/
+# Live data is mounted into the containers, never baked into the image
+db.sqlite3
+data/
+media/
+exports/
+staticfiles/
+docker-compose*.yml

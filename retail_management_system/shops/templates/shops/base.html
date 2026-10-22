@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Ah Liki Wholesale — SMS</title>
+  <title>Ah Liki Investment Corp — SMS</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
   <style>
     :root {
@@ -62,6 +62,8 @@
 
     /* ── Main ── */
     .main-content { flex: 1; padding: 32px; min-width: 0; }
+    .top-actions { display: flex; justify-content: flex-end; margin: -16px 0 8px; }
+    .top-actions:empty { display: none; }
 
     /* ── Stat card ── */
     .stat-card { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 20px 22px; }
@@ -149,14 +151,15 @@
   <!-- Sidebar -->
   <aside class="sidebar">
     <div class="sidebar-brand">
-      <div class="label">Ah Liki Wholesale</div>
-      <div class="title">Sales and Marketing</div>
+      <div class="label">Ah Liki Investment Corp</div>
+      <div class="title">{% if is_finance %}Finance{% else %}Sales and Marketing{% endif %}</div>
     </div>
     <nav>
       {% with n=request.resolver_match.url_name %}
       <!-- Main -->
       <a href="{% url 'dashboard' %}"        class="nav-item-custom {% if n == 'dashboard' %}active{% endif %}"><span class="nav-icon">📊</span>Dashboard</a>
       <a href="{% url 'atlas' %}"            class="nav-item-custom {% if n == 'atlas' %}active{% endif %}"><span class="nav-icon">🗺️</span>Ah Liki Atlas</a>
+      {% if not is_finance %}
       <a href="{% url 'shop_list' %}"        class="nav-item-custom {% if n == 'shop_list' or n == 'shop_detail' or n == 'add_shop' or n == 'edit_shop' %}active{% endif %}"><span class="nav-icon">🏪</span>All Clients</a>
       <details class="nav-group" {% if n == 'territory_shops' %}open{% endif %}>
         <summary>Sales Territories</summary>
@@ -173,6 +176,7 @@
           <a href="{% url 'territory_shops' territory='WC4' %}" class="nav-item-custom nav-small {% if n == 'territory_shops' and request.resolver_match.kwargs.territory == 'WC4' %}active{% endif %}">WC4</a>
         </div>
       </details>
+      {% endif %}
       {% if access.corporate_sales %}
       <a href="{% url 'corporate_sales' %}"  class="nav-item-custom {% if n == 'corporate_sales' or n == 'corporate_targets' or n == 'business_list' or n == 'add_business' or n == 'edit_business' %}active{% endif %}"><span class="nav-icon">🏢</span>Corporate Sales</a>
       {% endif %}
@@ -185,6 +189,7 @@
       {% if access.sponsorships %}
       <a href="{% url 'sponsorship_list' %}" class="nav-item-custom {% if n == 'sponsorship_list' or n == 'add_sponsorship' or n == 'edit_sponsorship' %}active{% endif %}"><span class="nav-icon">🤝</span>Sponsorships</a>
       {% endif %}
+      <a href="{% url 'car_allocations' %}"  class="nav-item-custom {% if n == 'car_allocations' %}active{% endif %}"><span class="nav-icon">🚗</span>Car Allocations</a>
 
       <!-- FE Ordering -->
       {% if access.fe_ordering %}
@@ -225,12 +230,13 @@
         {% if not is_fe %}<div style="color:rgba(255,255,255,.45);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;margin-top:3px">{{ user_role }}</div>{% endif %}
       </div>
       <a href="{% url 'logout' %}" class="nav-item-custom" style="font-size:12px;margin:0;background:rgba(255,255,255,.1)"><span class="nav-icon">🚪</span>Logout</a>
-      <div style="color:rgba(255,255,255,.4);font-size:10px;text-align:center;margin-top:12px">© 2025 Ah Liki Wholesale</div>
+      <div style="color:rgba(255,255,255,.4);font-size:10px;text-align:center;margin-top:12px">© 2026 Ah Liki Investment Corp - C.A</div>
     </div>
   </aside>
 
   <!-- Main -->
   <main class="main-content">
+    <div class="top-actions">{% include 'car_allocations/_notifications.html' %}</div>
     {% block content %}{% endblock %}
   </main>
 </div>

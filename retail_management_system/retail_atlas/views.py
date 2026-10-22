@@ -58,6 +58,7 @@ def atlas(request):
             'savaii':      SAVAII_CENTER,
             'bounds':      SAMOA_BOUNDS,
             'is_fe':       request.is_fe,
+            'read_only':   getattr(request, 'is_finance', False),   # Finance look but don't touch
             'order_url':   reverse('fe_place_order'),
         },
     })
