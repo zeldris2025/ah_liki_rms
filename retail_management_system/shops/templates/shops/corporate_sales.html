@@ -100,15 +100,19 @@
   .cs-period button[aria-pressed="true"] { background:var(--primary); color:#fff; }
   .cs-twrap { overflow-x:auto; }
   .cs-table { width:100%; border-collapse:collapse; font-size:13px; font-variant-numeric:tabular-nums; }
-  .cs-table th { text-align:right; color:var(--muted); font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.06em;
+  .cs-table th { text-align:center; color:var(--muted); font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.06em;
                  padding:8px 12px; border-bottom:2px solid var(--border); white-space:nowrap; }
-  .cs-table td { text-align:right; padding:10px 12px; border-bottom:1px solid var(--border); white-space:nowrap; color:var(--text-secondary); }
+  .cs-table td { text-align:center; padding:10px 12px; border-bottom:1px solid var(--border); white-space:nowrap; color:var(--text-secondary); }
   .cs-table th:first-child, .cs-table td:first-child { text-align:left; white-space:normal; }
   .cs-table td:first-child { color:var(--primary); font-weight:600; }
   .cs-table td:first-child small { display:block; color:var(--muted); font-weight:500; font-size:11px; margin-left:18px; }
   .cs-table .sw { display:inline-block; width:10px; height:10px; border-radius:3px; margin-right:8px; }
   .cs-table tfoot td { font-weight:700; color:var(--primary); border-top:2px solid var(--border); border-bottom:none; }
   .cs-table .up { color:var(--success); } .cs-table .down { color:#B45309; }
+  /* financial target columns green, commercial target columns yellow */
+  .cs-table .fin { background:#ECFDF5; } .cs-table th.fin { background:#D1FAE5; color:#065F46; }
+  .cs-table .com { background:#FEFCE8; } .cs-table th.com { background:#FEF08A; color:#713F12; }
+  .cs-table .fin-start, .cs-table .com-start { border-left:2px solid #fff; }
 
   @media (max-width: 1260px) { .cs-prev { left:0; } .cs-next { right:0; } .cs-arrow { top:auto; bottom:-62px; transform:none; } }
   @media (max-width: 860px) {
@@ -123,6 +127,7 @@
   <div>
     <h2 class="page-title">Corporate Sales</h2>
     <p class="page-sub">Actual sales against target for each corporate stream · WST</p>
+    <p class="page-sub" style="font-weight:600;color:var(--text-secondary)">📅 Updated as of {% if updated_as_of %}{{ updated_as_of|date:"j F Y" }}{% else %}— no sales uploaded yet{% endif %}</p>
   </div>
   <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
     <form method="get"><select name="year" class="sms-input" style="width:auto" onchange="this.form.submit()" aria-label="Year">
@@ -220,36 +225,50 @@
           {% for t in overall.tables %}
           <div class="cs-twrap" data-table="{{ t.key }}" data-label="{{ t.label }}"{% if not forloop.first %} hidden{% endif %}>
             <table class="cs-table">
-              <thead><tr><th>Stream</th><th>Actual</th><th>Target</th><th>Variance</th><th>Variance %</th></tr></thead>
+              <thead><tr><th>Stream</th><th>Actual</th>
+                <th class="fin fin-start">Financial Target</th><th class="fin">Variance</th><th class="fin">Variance %</th>
+                <th class="com com-start">Commercial Target + (15%)</th><th class="com">Variance</th><th class="com">Variance %</th></tr></thead>
               <tbody>
                 {% for r in t.rows %}
                 <tr>
                   <td data-color="{{ r.color }}"><span class="sw" style="background:{{ r.color }}"></span>{{ r.stream }}<small>{{ r.name }}</small></td>
                   <td>{{ r.actual|floatformat:"2g" }}</td>
-                  <td>{% if r.target %}{{ r.target|floatformat:"2g" }}{% else %}—{% endif %}</td>
+                  <td class="fin fin-start">{% if r.financial %}{{ r.financial|floatformat:"2g" }}{% else %}—{% endif %}</td>
+                  {% if r.financial %}
+                  <td class="fin {% if r.fin_variance >= 0 %}up{% else %}down{% endif %}">{% if r.fin_variance > 0 %}+{% endif %}{{ r.fin_variance|floatformat:"2g" }}</td>
+                  <td class="fin {% if r.fin_variance >= 0 %}up{% else %}down{% endif %}">{% if r.fin_variance > 0 %}+{% endif %}{{ r.fin_variance_pct|floatformat:1 }}%</td>
+                  {% else %}<td class="fin">—</td><td class="fin">—</td>{% endif %}
+                  <td class="com com-start">{% if r.target %}{{ r.target|floatformat:"2g" }}{% else %}—{% endif %}</td>
                   {% if r.target %}
-                  <td class="{% if r.variance >= 0 %}up{% else %}down{% endif %}">{% if r.variance > 0 %}+{% endif %}{{ r.variance|floatformat:"2g" }}</td>
-                  <td class="{% if r.variance >= 0 %}up{% else %}down{% endif %}">{% if r.variance > 0 %}+{% endif %}{{ r.variance_pct|floatformat:1 }}%</td>
-                  {% else %}<td>—</td><td>—</td>{% endif %}
+                  <td class="com {% if r.variance >= 0 %}up{% else %}down{% endif %}">{% if r.variance > 0 %}+{% endif %}{{ r.variance|floatformat:"2g" }}</td>
+                  <td class="com {% if r.variance >= 0 %}up{% else %}down{% endif %}">{% if r.variance > 0 %}+{% endif %}{{ r.variance_pct|floatformat:1 }}%</td>
+                  {% else %}<td class="com">—</td><td class="com">—</td>{% endif %}
                 </tr>
                 {% empty %}
-                <tr><td colspan="5" style="color:var(--muted);font-weight:500">No sales in this period yet.</td></tr>
+                <tr><td colspan="8" style="color:var(--muted);font-weight:500">No sales in this period yet.</td></tr>
                 {% endfor %}
               </tbody>
               <tfoot>
                 <tr>
                   <td>Total</td>
                   <td>{{ t.total.actual|floatformat:"2g" }}</td>
-                  <td>{% if t.total.target %}{{ t.total.target|floatformat:"2g" }}{% else %}—{% endif %}</td>
+                  <td class="fin fin-start">{% if t.total.financial %}{{ t.total.financial|floatformat:"2g" }}{% else %}—{% endif %}</td>
+                  {% if t.total.financial %}
+                  <td class="fin {% if t.total.fin_variance >= 0 %}up{% else %}down{% endif %}">{% if t.total.fin_variance > 0 %}+{% endif %}{{ t.total.fin_variance|floatformat:"2g" }}</td>
+                  <td class="fin {% if t.total.fin_variance >= 0 %}up{% else %}down{% endif %}">{% if t.total.fin_variance > 0 %}+{% endif %}{{ t.total.fin_variance_pct|floatformat:1 }}%</td>
+                  {% else %}<td class="fin">—</td><td class="fin">—</td>{% endif %}
+                  <td class="com com-start">{% if t.total.target %}{{ t.total.target|floatformat:"2g" }}{% else %}—{% endif %}</td>
                   {% if t.total.target %}
-                  <td class="{% if t.total.variance >= 0 %}up{% else %}down{% endif %}">{% if t.total.variance > 0 %}+{% endif %}{{ t.total.variance|floatformat:"2g" }}</td>
-                  <td class="{% if t.total.variance >= 0 %}up{% else %}down{% endif %}">{% if t.total.variance > 0 %}+{% endif %}{{ t.total.variance_pct|floatformat:1 }}%</td>
-                  {% else %}<td>—</td><td>—</td>{% endif %}
+                  <td class="com {% if t.total.variance >= 0 %}up{% else %}down{% endif %}">{% if t.total.variance > 0 %}+{% endif %}{{ t.total.variance|floatformat:"2g" }}</td>
+                  <td class="com {% if t.total.variance >= 0 %}up{% else %}down{% endif %}">{% if t.total.variance > 0 %}+{% endif %}{{ t.total.variance_pct|floatformat:1 }}%</td>
+                  {% else %}<td class="com">—</td><td class="com">—</td>{% endif %}
                 </tr>
               </tfoot>
             </table>
             <div class="cs-note">
-              Variance = Actual − Target · Variance % = Variance ÷ Target.
+              <span style="color:#065F46">Financial Target</span> = sales for the same period in {{ year|add:-1 }} ·
+              <span style="color:#713F12">Commercial Target</span> = the target set for the month ·
+              Variance = Actual − Target · Variance % = Variance ÷ Target, for each.
               {% if t.key == 'ytd' and overall.missing %}Where a target is only set for some months, actual counts those months only: {{ overall.missing|join:", " }} have no target.{% endif %}
               {% if t.total.target and t.total.untargeted %}No target set for {{ t.total.untargeted|join:", " }}, so their sales are in the total actual but not the variance.{% endif %}
             </div>
@@ -461,10 +480,16 @@
           tooltip: {
             padding: 12, backgroundColor: '#0F172A', titleFont: { weight: '700' },
             filter: function (c) { return c.parsed.y != null; },
+            // A month with no sales and no target filters out every item; with nothing to show the tooltip hides
+            // itself, but reading items[0] there would throw on every mouse move and leave the tooltip stuck
             callbacks: {
-              title: function (items) { return items[0].label + (items[0].dataIndex === thisMonth ? ' (' + D.year + ' so far)' : ''); },
+              title: function (items) {
+                if (!items.length) return '';
+                return items[0].label + (items[0].dataIndex === thisMonth ? ' (' + D.year + ' so far)' : '');
+              },
               label: function (c) { return ' ' + c.dataset.label + ': ' + wst(c.parsed.y); },
               afterBody: function (items) {
+                if (!items.length) return [];
                 var i = items[0].dataIndex, a = D.all.actual[i], t = D.all.target[i];
                 var lines = ['', ' All streams ' + D.year + ': ' + (a == null ? '—' : wst(a))];
                 if (a != null && t) lines.push(' ' + Math.round(a / t * 100) + '% of combined target');
@@ -495,15 +520,18 @@
     var pngButton = document.getElementById('sum-png');
     if (pngButton) pngButton.addEventListener('click', function () {
       var wrap = document.querySelector('[data-table]:not([hidden])');
-      var cols = [{ w: 380, align: 'left' }, { w: 140 }, { w: 140 }, { w: 140 }, { w: 120 }];
+      var cols = [{ w: 320, align: 'left' }, { w: 140 }, { w: 160 }, { w: 140 }, { w: 110 }, { w: 220 }, { w: 140 }, { w: 110 }];
       var pad = 28, headH = 40, rowH = 50, width = pad * 2 + cols.reduce(function (s, c) { return s + c.w; }, 0);
       var heads = [].map.call(wrap.querySelectorAll('thead th'), function (th) { return th.textContent.trim().toUpperCase(); });
+      var headBg = [].map.call(wrap.querySelectorAll('thead th'), function (th) {
+        return th.classList.contains('fin') ? ['#D1FAE5', '#065F46'] : th.classList.contains('com') ? ['#FEF08A', '#713F12'] : null;
+      });
       function rowsOf(sel) {
         return [].map.call(wrap.querySelectorAll(sel), function (tr) {
           return [].map.call(tr.children, function (td) {
             var small = td.querySelector('small');
             return { text: (small ? td.firstChild.nextSibling.textContent : td.textContent).trim(), sub: small ? small.textContent.trim() : '',
-                     color: td.getAttribute('data-color'), tone: td.classList.contains('up') ? '#15803D' : td.classList.contains('down') ? '#B45309' : '',
+                     color: td.getAttribute('data-color'), bg: td.classList.contains('fin') ? '#ECFDF5' : td.classList.contains('com') ? '#FEFCE8' : '', tone: td.classList.contains('up') ? '#15803D' : td.classList.contains('down') ? '#B45309' : '',
                      span: +td.getAttribute('colspan') || 1 };
           });
         });
@@ -530,14 +558,15 @@
           var w = 0;
           for (var k = i; k < i + cell.span && k < cols.length; k++) w += cols[k].w;
           var left = cell.span > 1 || cols[i].align === 'left', tx = cx + 12, maxW = w - 24;
+          if (cell.bg) { x.fillStyle = cell.bg; x.fillRect(cx, y, w, h); }
           if (cell.color) {
             x.fillStyle = cell.color; x.beginPath(); x.roundRect ? x.roundRect(tx, y + h / 2 - 13, 10, 10, 3) : x.rect(tx, y + h / 2 - 13, 10, 10); x.fill();
             tx += 18; maxW -= 18;
           }
-          x.textAlign = left ? 'left' : 'right';
+          x.textAlign = left ? 'left' : 'center';
           x.fillStyle = cell.tone || (i === 0 ? '#0F172A' : '#334155');
           x.font = (bold || i === 0 ? '700 ' : '') + '14px ' + font;
-          x.fillText(fit(cell.text, maxW), left ? tx : cx + w - 12, cell.sub ? y + h / 2 - 8 : y + h / 2);
+          x.fillText(fit(cell.text, maxW), left ? tx : cx + w / 2, cell.sub ? y + h / 2 - 8 : y + h / 2);
           if (cell.sub) { x.fillStyle = '#94A3B8'; x.font = '12px ' + font; x.fillText(fit(cell.sub, maxW), tx, y + h / 2 + 11); }
           cx += w;
         });
@@ -546,9 +575,10 @@
       x.fillStyle = '#F8FAFC'; x.fillRect(pad, top, width - pad * 2, headH);
       var hx = pad;
       heads.forEach(function (h, i) {
-        x.textAlign = cols[i].align === 'left' ? 'left' : 'right';
-        x.fillStyle = '#64748B'; x.font = '700 11px ' + font;
-        x.fillText(h, cols[i].align === 'left' ? hx + 12 : hx + cols[i].w - 12, top + headH / 2);
+        if (headBg[i]) { x.fillStyle = headBg[i][0]; x.fillRect(hx, top, cols[i].w, headH); }
+        x.textAlign = cols[i].align === 'left' ? 'left' : 'center';
+        x.fillStyle = headBg[i] ? headBg[i][1] : '#64748B'; x.font = '700 11px ' + font;
+        x.fillText(h, cols[i].align === 'left' ? hx + 12 : hx + cols[i].w / 2, top + headH / 2);
         hx += cols[i].w;
       });
       line(top + headH - 2, 2, '#E2E8F0');
@@ -557,7 +587,7 @@
       line(y - 1, 2, '#CBD5E1');
       foot.forEach(function (r) { cells(r, y, rowH, true); y += rowH; });
       x.textAlign = 'left'; x.fillStyle = '#94A3B8'; x.font = '11px ' + font;
-      x.fillText('Variance = Actual − Target · Variance % = Variance ÷ Target · Ah Liki Wholesale', pad, height - 22);
+      x.fillText('Financial Target = same period ' + (D.year - 1) + ' · Commercial Target = target set · Variance = Actual − Target · Variance % = Variance ÷ Target, for each · Ah Liki Investment Corp', pad, height - 22);
       var a = document.createElement('a');
       a.href = c.toDataURL('image/png');
       a.download = 'corporate_sales_by_stream_' + wrap.getAttribute('data-label').toLowerCase()

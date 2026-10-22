@@ -525,7 +525,7 @@
   function savePng(key) {
     var c = charts[key];
     var before = c.options.plugins.title, pad = c.options.layout.padding;
-    c.options.plugins.title = { display: true, text: [titles[key], 'Ah Liki Wholesale · ' + '{{ filters_text|escapejs }}'],
+    c.options.plugins.title = { display: true, text: [titles[key], 'Ah Liki Investment Corp · ' + '{{ filters_text|escapejs }}'],
                                 color: INK, font: { size: 15, weight: '700' }, padding: { bottom: 14 } };
     c.options.layout.padding = 16;
     c.update('none');

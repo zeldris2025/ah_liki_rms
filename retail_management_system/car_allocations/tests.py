@@ -7,6 +7,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from .models import Booking, Notification
+from .notify import car_recipients as notify_recipients
 
 
 def _fmt(dt):
@@ -261,3 +262,121 @@ class BookingApprovalTests(TestCase):
         self.assertEqual(send.call_args.args[4], ['sione@example.com'])
         self.assertIn('declined', send.call_args.args[2])
         self.assertIn('Car is in for service', send.call_args.args[3])
+
+
+@override_settings(OFFICE365={})
+class FinanceTests(TestCase):
+    """Financial Controller and Finance Staff: their own dashboard, a read-only Atlas, and the Finance cars."""
+    def setUp(self):
+        def user(name, group):
+            u = User.objects.create_user(name, first_name=name.capitalize(), email=f'{name}@example.com', password='x')
+            u.groups.add(Group.objects.get_or_create(name=group)[0])
+            return u
+        self.staff = user('lagi', 'Finance Staff')
+        self.fin_manager = user('tina', 'Financial Controller')
+        self.sales = user('sione', 'Sales')
+        self.manager = user('boss', 'Manager')
+        self.start = (timezone.now() + timedelta(days=1)).replace(hour=9, minute=0, second=0, microsecond=0)
+
+    def book(self, user, car='Raize 18', hours=2):
+        self.client.force_login(user)
+        return self.client.post(reverse('car_book'), {
+            'car': car, 'start': _fmt(self.start), 'end': _fmt(self.start + timedelta(hours=hours)), 'reason': 'Bank run'})
+
+    def decide(self, user, booking_id, decision='approve', comment=''):
+        self.client.force_login(user)
+        return self.client.post(reverse(f'car_booking_{decision}', args=[booking_id]), {'comment': comment})
+
+    def test_finance_get_the_finance_dashboard(self):
+        self.client.force_login(self.staff)
+        r = self.client.get(reverse('dashboard'))
+        self.assertContains(r, 'Finance Dashboard')
+        self.assertContains(r, 'Raize 17')
+        self.assertContains(r, 'Finance Staff')
+        self.assertNotContains(r, 'All Clients')
+        self.client.force_login(self.fin_manager)
+        self.assertContains(self.client.get(reverse('dashboard')), 'Waiting for your approval')
+
+    def test_finance_only_open_dashboard_atlas_and_cars(self):
+        self.client.force_login(self.staff)
+        for name in ('shop_list', 'corporate_sales', 'promotion_list', 'reports', 'fe_order_list'):
+            self.assertEqual(self.client.get(reverse(name)).status_code, 403, name)
+        self.assertEqual(self.client.get('/admin/').status_code, 403)
+        for name in ('atlas', 'car_allocations', 'notifications'):
+            self.assertEqual(self.client.get(reverse(name)).status_code, 200, name)
+
+    def test_atlas_is_read_only(self):
+        self.client.force_login(self.fin_manager)
+        r = self.client.get(reverse('atlas'))
+        self.assertTrue(r.context['atlas_data']['read_only'])
+        r = self.client.post(reverse('atlas_shop_location', args=[1]), '{"reset": true}', content_type='application/json')
+        self.assertEqual(r.status_code, 403)
+
+    def test_finance_book_only_the_finance_cars(self):
+        self.client.force_login(self.staff)
+        r = self.client.get(reverse('car_allocations'))
+        self.assertEqual(r.context['cars'], ['Raize 18', 'Raize 17'])
+        self.assertContains(r, 'A Financial Controller approves each booking')
+        self.assertEqual(self.book(self.staff, car='81').status_code, 400)
+        self.assertEqual(self.book(self.sales, car='Raize 18').status_code, 400)
+        self.assertEqual(self.book(self.staff).json()['booking']['status'], 'pending')
+
+    def test_finance_manager_approves_finance_cars_only(self):
+        raize = self.book(self.staff).json()['booking']['id']
+        office = self.book(self.sales, car='81').json()['booking']['id']
+        self.assertEqual(self.decide(self.staff, raize).status_code, 403)
+        self.assertEqual(self.decide(self.manager, raize).status_code, 403)
+        self.assertEqual(self.decide(self.fin_manager, office).status_code, 403)
+        self.assertEqual(self.decide(self.fin_manager, raize).status_code, 200)
+        self.assertEqual(Booking.objects.get(pk=raize).status, 'approved')
+        self.assertEqual(Booking.objects.get(pk=office).status, 'pending')
+        self.assertTrue(Notification.objects.filter(recipient=self.staff, message__startswith='Tina approved your Raize 18').exists())
+
+    def test_finance_managers_own_booking_is_approved(self):
+        self.assertEqual(self.book(self.fin_manager).json()['booking']['status'], 'approved')
+
+    def test_each_team_sees_only_its_own_cars(self):
+        self.book(self.staff)
+        self.book(self.sales, car='81')
+        day = {'start': self.start.date().isoformat()}
+        self.client.force_login(self.fin_manager)
+        data = self.client.get(reverse('car_bookings'), day).json()
+        self.assertEqual([b['car'] for b in data['bookings']], ['Raize 18'])
+        self.assertEqual([b['car'] for b in data['pending']], ['Raize 18'])
+        self.assertEqual(sorted(data['status']), ['Raize 17', 'Raize 18'])
+        self.client.force_login(self.manager)
+        data = self.client.get(reverse('car_bookings'), day).json()
+        self.assertEqual([b['car'] for b in data['bookings']], ['81'])
+        self.assertEqual([b['car'] for b in data['pending']], ['81'])
+
+    def test_notices_stay_within_each_team(self):
+        self.book(self.staff)
+        self.assertTrue(Notification.objects.filter(recipient=self.fin_manager, message__startswith='Approval needed').exists())
+        self.assertFalse(Notification.objects.filter(recipient__in=[self.sales, self.manager]).exists())
+        Notification.objects.all().delete()
+        self.book(self.sales, car='81')
+        self.assertFalse(Notification.objects.filter(recipient__in=[self.staff, self.fin_manager]).exists())
+        self.assertTrue(Notification.objects.filter(recipient=self.manager, message__startswith='Approval needed').exists())
+
+    def test_email_recipients_follow_the_car(self):
+        from . import notify
+        self.assertEqual(notify.car_recipients('Raize 18', self.staff), ['tina@example.com'])
+        self.assertEqual(notify.car_recipients('81', self.sales), ['boss@example.com'])
+
+    def test_admins_cannot_see_book_or_approve_finance_cars(self):
+        admin = User.objects.create_superuser('admin', 'admin@example.com', 'x')
+        raize = self.book(self.staff).json()['booking']['id']
+        self.assertFalse(Notification.objects.filter(recipient=admin).exists())
+        self.assertEqual(self.decide(admin, raize).status_code, 403)
+        self.client.force_login(admin)
+        self.assertEqual(self.client.get(reverse('car_allocations')).context['cars'], ['81', '82', 'Ringo', 'Ranger'])
+        data = self.client.get(reverse('car_bookings'), {'start': self.start.date().isoformat()}).json()
+        self.assertEqual((data['bookings'], data['pending']), ([], []))
+        self.assertEqual(self.book(admin).status_code, 400)
+        self.assertEqual(notify_recipients('Raize 18', self.staff), ['tina@example.com'])
+
+    def test_only_the_financial_controller_hears_about_finance_bookings(self):
+        other = User.objects.create_user('ana', email='ana@example.com', password='x')
+        other.groups.add(Group.objects.get(name='Finance Staff'))
+        self.book(self.staff)
+        self.assertEqual(list(Notification.objects.values_list('recipient__username', flat=True)), ['tina'])

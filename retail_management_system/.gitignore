@@ -2,3 +2,7 @@
 .env
 # Daily sales files (business data, not code)
 exports/
+# WAHA WhatsApp login data: logs into your WhatsApp number, never commit it
+sessions/
+# Production database on the server (docker-compose.prod.yml)
+data/

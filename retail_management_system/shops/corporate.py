@@ -108,6 +108,8 @@ def year_summary(year, today=None):
         targeted = [i for i in done if targets[m['key']][i] is not None]
         ytd_target = sum(targets[m['key']][i] for i in targeted)
         ytd_actual_on_target = sum(actual[i] or 0 for i in targeted)
+        # last year's sales over the same months the YTD actual counts, the financial target on the All table
+        ytd_previous = sum(previous[i] or 0 for i in (targeted if ytd_target else done))
         month_i = current_month - 1
         top = (MonthlySales.objects.filter(month__year=year, shop_id__in=ids[m['key']])
                .values('shop_id', 'shop__name').annotate(total=Sum('sales')).order_by('-total')[:5])
@@ -122,12 +124,14 @@ def year_summary(year, today=None):
             'ytd_actual': ytd_actual,
             'ytd_target': ytd_target,
             'ytd_actual_on_target': ytd_actual_on_target,
+            'ytd_previous': ytd_previous,
             'ytd_pct': round(ytd_actual_on_target / ytd_target * 100) if ytd_target else None,
             'ytd_target_months': month_span(targeted),
             'ytd_missing_months': month_span([i for i in done if i not in targeted]),
             'ytd_months': month_span(list(done)),
             'month_label': f'{MONTH_LABELS[month_i]} {year}' if month_i >= 0 else '',
             'month_actual': actual[month_i] or 0 if month_i >= 0 else 0,
+            'month_previous': previous[month_i] or 0 if month_i >= 0 else 0,
             'month_target': targets[m['key']][month_i] if month_i >= 0 else None,
             'top_clients': list(top),
         })
@@ -144,25 +148,34 @@ def combined_summary(summary):
         values = [v for v in values if v is not None]
         return sum(values) if values else None
 
-    def row(m, actual, target):
+    def row(m, actual, financial, target):
         variance = actual - target if target else None
+        fin_variance = actual - financial if financial else None
         return {'key': m['key'], 'name': m['name'], 'color': m['color'], 'stream': ' / '.join(m['streams']),
-                'actual': actual, 'target': target, 'variance': variance,
-                'variance_pct': round(variance / target * 100, 1) if target else None}
+                'actual': actual, 'financial': financial, 'target': target, 'variance': variance,
+                'variance_pct': round(variance / target * 100, 1) if target else None,
+                'fin_variance': fin_variance,
+                'fin_variance_pct': round(fin_variance / financial * 100, 1) if financial else None}
 
     def table(rows):
         rows = [r for r in rows if r['actual']]   # streams with no sales in the period are left off the table
         # a stream without a target still adds its sales to the total, but not to the variance
         target = sum(r['target'] or 0 for r in rows) or None
         variance = sum(r['variance'] for r in rows if r['variance'] is not None) if target else None
-        return rows, {'actual': sum(r['actual'] for r in rows), 'target': target, 'variance': variance,
+        # the financial target (last year's sales) works the same way: streams with no sales last year are left out
+        financial = sum(r['financial'] or 0 for r in rows) or None
+        fin_variance = sum(r['fin_variance'] for r in rows if r['fin_variance'] is not None) if financial else None
+        return rows, {'actual': sum(r['actual'] for r in rows), 'financial': financial,
+                      'fin_variance': fin_variance,
+                      'fin_variance_pct': round(fin_variance / financial * 100, 1) if financial else None,
+                      'target': target, 'variance': variance,
                       'variance_pct': round(variance / target * 100, 1) if target else None,
                       'untargeted': [r['name'] for r in rows if not r['target']]}
 
     first = summary[0] if summary else {}
     ytd_rows, ytd_total = table([row(m, m['ytd_actual_on_target'] if m['ytd_target'] else m['ytd_actual'],
-                                     m['ytd_target'] or None) for m in summary])
-    month_rows, month_total = table([row(m, m['month_actual'] or 0, m['month_target'] or None) for m in summary])
+                                     m['ytd_previous'], m['ytd_target'] or None) for m in summary])
+    month_rows, month_total = table([row(m, m['month_actual'] or 0, m['month_previous'], m['month_target'] or None) for m in summary])
     return {
         'actual': [total(m['actual'][i] for m in summary) for i in range(12)],
         'previous': [total(m['previous'][i] for m in summary) for i in range(12)],

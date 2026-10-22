@@ -4,12 +4,13 @@ import re
 from datetime import date
 from decimal import Decimal, InvalidOperation
 from io import StringIO
+from urllib.parse import urlencode
 
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
-from django.db.models import Count, Q
+from django.db.models import Count, DecimalField, ExpressionWrapper, F, Q, Sum
 from django.http import Http404, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -17,7 +18,7 @@ from django.views.decorators.http import require_POST
 
 from shops.models import Shop
 
-from . import office365, sales_export, telegram
+from . import office365, sales_export, telegram, whatsapp
 from .models import Issue, Order, OrderItem, Product
 
 
@@ -66,6 +67,7 @@ def fe_place_order(request):
             order = error
             detail = reverse('fe_order_detail', args=[order.pk])
             telegram.notify_new_order(order, request.build_absolute_uri(detail))
+            whatsapp.notify_new_order(order, request.build_absolute_uri(detail))
             office365.notify_new_order(order, request.build_absolute_uri(detail))
             transaction.on_commit(lambda: sales_export.refresh_for_order(order))
             messages.success(request, f'Order {order.number} placed for {order.shop.name}.')
@@ -131,55 +133,101 @@ def _visible_orders(request):
     return qs.filter(placed_by=request.user) if request.is_fe else qs
 
 
-@login_required(login_url='login')
-def fe_order_list(request):
-    qs = _visible_orders(request)
-    status = request.GET.get('status', '')
-    q = request.GET.get('q', '').strip()
+def _filter_orders(request, qs):
+    """Apply the order list's filters: ?period= (or ?from=&to=), ?status= and ?q=.
+    Returns the narrowed queryset and the filters, so the list and its downloads always match."""
+    get = request.GET
+    period, first, last = get.get('period', ''), None, None
+    if period in dict(sales_export.PERIODS):
+        if period != 'all':
+            first, last, _ = sales_export.period_dates(period)
+    elif get.get('from') or get.get('to'):
+        try:
+            first = date.fromisoformat(get.get('from') or get['to'])
+            last = date.fromisoformat(get.get('to') or get['from'])
+        except ValueError:
+            first = last = None
+        else:
+            period = 'custom'
+            if last < first:
+                first, last = last, first
+    if period not in dict(sales_export.PERIODS) and period != 'custom':
+        period = 'all'
+    if first:
+        qs = sales_export.placed_between(qs, first, last)
+    status = get.get('status', '')
+    q = get.get('q', '').strip()
     if status:
         qs = qs.filter(status=status)
     if q:
         qs = qs.filter(Q(shop__name__icontains=q) | Q(notes__icontains=q))
+    return qs, {'period': period, 'first': first, 'last': last, 'status': status, 'q': q}
+
+
+def _filter_query(f, **changes):
+    """The list's query string with some filters changed, e.g. _filter_query(f, status='Pending')."""
+    f = {**f, **changes}
+    params = {'status': f['status'], 'q': f['q']}
+    if f['period'] == 'custom':
+        params.update({'from': f'{f["first"]:%Y-%m-%d}', 'to': f'{f["last"]:%Y-%m-%d}'})
+    elif f['period'] != 'all':
+        params['period'] = f['period']
+    return urlencode({k: v for k, v in params.items() if v})
+
+
+@login_required(login_url='login')
+def fe_order_list(request):
+    qs, f = _filter_orders(request, _visible_orders(request))
+    sums = (OrderItem.objects.filter(order__in=qs.exclude(status='Cancelled').values('pk'))
+            .aggregate(units=Sum('quantity'),
+                       sales=Sum(ExpressionWrapper(F('quantity') * F('unit_price'),
+                                                   output_field=DecimalField(max_digits=14, decimal_places=2)))))
+    if f['period'] == 'custom':
+        period_label = f'{f["first"]:%d %b %Y}' + ('' if f['first'] == f['last'] else f' – {f["last"]:%d %b %Y}')
+    else:
+        period_label = dict(sales_export.PERIODS)[f['period']]
     return render(request, 'fe_orders/order_list.html', {
-        'orders': qs[:200], 'status': status, 'q': q, 'statuses': Order.STATUS_CHOICES,
+        'orders': qs[:200], 'order_count': qs.count(), 'cancelled_count': qs.filter(status='Cancelled').count(),
+        'units': sums['units'] or 0, 'sales': sums['sales'] or 0,
+        'status': f['status'], 'q': f['q'], 'period': f['period'], 'period_label': period_label,
+        'from_day': f['first'], 'to_day': f['last'],
+        'pick_from': f['first'] or date.today(), 'pick_to': f['last'] or date.today(), 'statuses': Order.STATUS_CHOICES,
+        'status_links': [('', 'All', _filter_query(f, status=''))]
+                        + [(v, label, _filter_query(f, status=v)) for v, label in Order.STATUS_CHOICES],
+        'period_links': [(k, label, _filter_query(f, period=k)) for k, label in sales_export.PERIODS],
+        'query': _filter_query(f),
         'today': date.today(), 'export_dir': settings.SALES_EXPORT_DIR,
-        'export_periods': sales_export.PERIODS,
     })
 
 
 @login_required(login_url='login')
 def sales_export_download(request):
-    """Office only: download FE orders for a quick period (today, this week, all…) or a date range,
-    as an Excel workbook (orders, lines, by shop, by day) or a CSV of product lines."""
+    """Office only: download the orders the list is showing (same ?period= / ?from=&to=, ?status=, ?q=) as
+    an Excel workbook (orders, lines, by shop, by day), a CSV of product lines (?format=csv),
+    or a daily sales CSV with one row per day (?format=daily)."""
     _office_only(request)
-    period = request.GET.get('period', '')
-    if period in dict(sales_export.PERIODS):
-        first, last, label = sales_export.period_dates(period)
+    orders, f = _filter_orders(request, Order.objects.all())
+    if request.GET.get('skip_cancelled') == '1':
+        orders = orders.exclude(status='Cancelled')
+    if f['first']:
+        name = f'fe_orders_{f["first"]:%Y-%m-%d}' + ('' if f['first'] == f['last'] else f'_to_{f["last"]:%Y-%m-%d}')
     else:
-        today = date.today()
-        try:
-            first = date.fromisoformat(request.GET.get('from') or str(today))
-            last = date.fromisoformat(request.GET.get('to') or str(first))
-        except ValueError:
-            messages.error(request, 'Choose valid dates to export.')
-            return redirect('fe_order_list')
-        if last < first:
-            first, last = last, first
-        label = ''
-    skip_cancelled = request.GET.get('skip_cancelled') == '1'
-    name = 'fe_orders_' + ('all' if period == 'all' else f'{first:%Y-%m-%d}' + ('' if first == last else f'_to_{last:%Y-%m-%d}'))
+        name = 'fe_orders_all'
+    fmt = request.GET.get('format')
 
-    if request.GET.get('format') == 'csv':
+    if fmt in ('csv', 'daily'):
+        if fmt == 'daily':
+            name = name.replace('fe_orders_', 'fe_daily_sales_')
         response = HttpResponse(content_type='text/csv; charset=utf-8')
         response['Content-Disposition'] = f'attachment; filename="{name}.csv"'
-        response.write('\ufeff')   # BOM so Excel reads the file as UTF-8
-        items = sales_export.items_between(first, last)
-        if skip_cancelled:
-            items = items.exclude(order__status='Cancelled')
-        sales_export.write_csv(response, items)
+        response.write('﻿')   # BOM so Excel reads the file as UTF-8
+        if fmt == 'daily':
+            sales_export.write_daily_csv(response, orders)
+        else:
+            sales_export.write_csv(response, sales_export.items_of(orders))
         return response
 
-    content, _ = sales_export.workbook(first, last, skip_cancelled)
+    content, _ = sales_export.workbook(orders)
     response = HttpResponse(content, content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
     response['Content-Disposition'] = f'attachment; filename="{name}.xlsx"'
     return response
@@ -203,6 +251,13 @@ def fe_order_detail(request, order_id):
                 messages.success(request, f'{order.number} is being sent to the Telegram group again.')
             else:
                 messages.error(request, 'Telegram isn’t set up yet: add the bot token and chat ID to the .env file.')
+            return redirect('fe_order_detail', order_id=order.pk)
+        if 'resend_whatsapp' in request.POST:
+            if whatsapp.is_configured():
+                whatsapp.notify_new_order(order, request.build_absolute_uri(request.path))
+                messages.success(request, f'{order.number} is being sent to the WhatsApp group again.')
+            else:
+                messages.error(request, 'WhatsApp isn’t set up yet: add the WAHA address and group chat ID to the .env file.')
             return redirect('fe_order_detail', order_id=order.pk)
         new = request.POST.get('status')
         if new in dict(Order.STATUS_CHOICES):

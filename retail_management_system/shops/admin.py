@@ -385,6 +385,6 @@ class PromotionAdmin(ImportExportModelAdmin):
     search_fields = ('name', 'details', 'prizes')
 
 
-admin.site.site_header = "Retail Management System"
-admin.site.site_title = "Retail Management Admin"
-admin.site.index_title = "Retail Management Admin"
+admin.site.site_header = "Sales and Marketing Management System"
+admin.site.site_title = "Sales and Marketing Management Admin"
+admin.site.index_title = "Sales and Marketing Management Admin"

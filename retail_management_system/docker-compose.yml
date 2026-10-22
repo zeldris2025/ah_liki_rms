@@ -5,7 +5,7 @@ services:
       dockerfile: Dockerfile
     container_name: retail-management-system
     restart: unless-stopped
-    command: ["./entrypoint.sh", "python", "manage.py", "runserver", "0.0.0.0:8000"]
+    command: ["python", "manage.py", "runserver", "0.0.0.0:8000"]   # after entrypoint.sh (migrate, static)
     environment:
       DEBUG: "True"
       SECRET_KEY: "dev-secret-key-change-me"
@@ -18,6 +18,47 @@ services:
       - .:/app
       - sqlite_data:/data
     working_dir: /app
+    depends_on:
+      - waha
+
+  # Resends FE order WhatsApp messages that failed, every 5 minutes (checks once a minute)
+  notifier:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: retail-notifier
+    restart: unless-stopped
+    entrypoint: []   # the web service runs the migrations
+    command: ["python", "manage.py", "whatsapp", "retry", "--loop"]
+    environment:
+      DATABASE_PATH: "/data/db.sqlite3"
+      PYTHONUNBUFFERED: "1"
+    volumes:
+      - .:/app
+      - sqlite_data:/data
+    working_dir: /app
+    depends_on:
+      - web
+      - waha
+
+  # WhatsApp HTTP API for FE order notifications. Credentials come from .env, so they stay the same on every restart.
+  # The WhatsApp login lives in ./sessions: keep that folder, or you'll have to scan the QR code again.
+  waha:
+    image: devlikeapro/waha
+    container_name: waha
+    restart: unless-stopped
+    environment:
+      WAHA_API_KEY: ${WAHA_API_KEY:?Set WAHA_API_KEY in .env}
+      WAHA_DASHBOARD_USERNAME: ${WAHA_DASHBOARD_USERNAME:-admin}
+      WAHA_DASHBOARD_PASSWORD: ${WAHA_DASHBOARD_PASSWORD:?Set WAHA_DASHBOARD_PASSWORD in .env}
+      WHATSAPP_SWAGGER_USERNAME: ${WAHA_DASHBOARD_USERNAME:-admin}
+      WHATSAPP_SWAGGER_PASSWORD: ${WAHA_DASHBOARD_PASSWORD:?Set WAHA_DASHBOARD_PASSWORD in .env}
+      WHATSAPP_DEFAULT_ENGINE: WEBJS
+      WHATSAPP_RESTART_ALL_SESSIONS: "True"
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./sessions:/app/.sessions
 
 volumes:
   sqlite_data:

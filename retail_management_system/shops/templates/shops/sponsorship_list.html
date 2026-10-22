@@ -7,6 +7,7 @@
   </div>
   <div style="display:flex;gap:10px">
     {% if can_export %}<a href="{% url 'reports' %}?type=sponsorships" class="btn-sms btn-accent-custom">⬇ Export CSV</a>{% endif %}
+    <a href="{% url 'import_sponsorships' %}" class="btn-sms btn-outline-custom">⬆ Import CSV</a>
     <a href="{% url 'add_sponsorship' %}" class="btn-sms btn-primary-custom">+ Add Sponsorship</a>
   </div>
 </div>

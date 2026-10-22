@@ -3,15 +3,20 @@ from django.db import models
 
 # The company cars Sales and Marketing can book, in the order their buttons appear.
 CARS = ['81', '82', 'Ringo', 'Ranger']
+# Finance's own cars: only Finance see and book them, and only a Financial Controller is told about and
+# approves them (never admins or Managers).
+FINANCE_CARS = ['Raize 18', 'Raize 17']
+ALL_CARS = CARS + FINANCE_CARS
 
 
 class Booking(models.Model):
     """One car booked by one person for a stretch of time. Bookings for the same car may not overlap.
-    Staff bookings wait for a Manager to approve or decline them; a declined booking frees the slot."""
+    Staff bookings wait for a Manager (a Financial Controller, for the Finance cars) to approve or decline them;
+    a declined booking frees the slot."""
     PENDING, APPROVED, DECLINED = 'pending', 'approved', 'declined'
     STATUSES = [(PENDING, 'Waiting for approval'), (APPROVED, 'Approved'), (DECLINED, 'Declined')]
 
-    car        = models.CharField(max_length=20, choices=[(c, c) for c in CARS])
+    car        = models.CharField(max_length=20, choices=[(c, c) for c in ALL_CARS])
     start      = models.DateTimeField()
     end        = models.DateTimeField()
     reason     = models.CharField(max_length=255)

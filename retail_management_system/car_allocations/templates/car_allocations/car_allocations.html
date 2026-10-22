@@ -2,7 +2,7 @@
 {% block content %}
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.css">
 <style>
-  .ca, #booking-modal { --c81: #2563EB; --c82: #7C3AED; --cRingo: #D97706; --cRanger: #059669; --radius: 14px; --shadow: 0 1px 2px rgba(15,23,42,.04), 0 4px 16px rgba(15,23,42,.05); }
+  .ca, #booking-modal { --c81: #2563EB; --c82: #7C3AED; --cRingo: #D97706; --cRanger: #059669; --cRaize18: #DC2626; --cRaize17: #0891B2; --radius: 14px; --shadow: 0 1px 2px rgba(15,23,42,.04), 0 4px 16px rgba(15,23,42,.05); }
   .ca .section-label { font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .1em; margin: 0 0 10px; }
 
   /* Header */
@@ -180,7 +180,7 @@
   <div class="ca-head">
     <div>
       <h1>Car Allocations</h1>
-      <p>Tap a car to book it. A Manager approves each booking, and a car can't be double-booked.</p>
+      <p>Tap a car to book it. A {{ approver }} approves each booking, and a car can't be double-booked.</p>
     </div>
     <span class="live" id="live"><i></i>Live</span>
   </div>
@@ -195,7 +195,7 @@
   <div class="section-label">Quick book</div>
   <div class="cars">
     {% for car in cars %}
-    <button type="button" class="car" data-car="{{ car }}" style="--c: var(--c{{ car }})" onclick="quickBook('{{ car|escapejs }}')">
+    <button type="button" class="car" data-car="{{ car }}" style="--c: var(--c{{ car|cut:' ' }})" onclick="quickBook('{{ car|escapejs }}')">
       <div class="top">
         <div class="icon">🚗</div>
         <div>
@@ -227,7 +227,7 @@
     <span class="wk" id="week-num"></span>
     <button class="btn-sms sm btn-outline-custom" onclick="goTo(firstWorkday(new Date()))">Today</button>
     <span class="spacer"></span>
-    <div class="legend">{% for car in cars %}<span><i style="background: var(--c{{ car }})"></i>{{ car }}</span>{% endfor %}</div>
+    <div class="legend">{% for car in cars %}<span><i style="background: var(--c{{ car|cut:' ' }})"></i>{{ car }}</span>{% endfor %}</div>
   </div>
 
   <div class="days" id="days"></div>
@@ -250,7 +250,7 @@
         <span class="field-label">Car</span>
         <div class="car-pick" id="car-pick">
           {% for car in cars %}
-          <button type="button" data-car="{{ car }}" style="--c: var(--c{{ car }})"><span class="n">{{ car }}</span><span class="a">Free</span></button>
+          <button type="button" data-car="{{ car }}" style="--c: var(--c{{ car|cut:' ' }})"><span class="n">{{ car }}</span><span class="a">Free</span></button>
           {% endfor %}
         </div>
 
@@ -332,6 +332,7 @@ document.addEventListener('DOMContentLoaded', function () {
     decline: '{% url "car_booking_decline" 0 %}'
   };
   var IS_MANAGER = {{ is_manager|yesno:"true,false" }};
+  var APPROVER = '{{ approver|escapejs }}';
   var DOW = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
   var MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   var DAY_FROM = 7, DAY_TO = 19;          // hours shown on each day's timeline
@@ -362,7 +363,7 @@ document.addEventListener('DOMContentLoaded', function () {
   var STATUS = { pending: 'Awaiting approval', approved: 'Approved', declined: 'Declined' };
   function badge(b) { return '<span class="st ' + b.status + '">' + STATUS[b.status] + '</span>'; }
   function initials(name) { return name.split(/\s+/).map(function (w) { return w[0]; }).join('').slice(0, 2).toUpperCase(); }
-  function carColor(car) { return 'var(--c' + car + ', var(--accent))'; }
+  function carColor(car) { return 'var(--c' + String(car).replace(/\s+/g, '') + ', var(--accent))'; }
   function duration(start, end) {
     var m = Math.round((parse(end) - parse(start)) / 60000);
     if (!(m > 0)) return '';
@@ -449,11 +450,11 @@ document.addEventListener('DOMContentLoaded', function () {
         var actions = b.can_change
           ? '<span class="acts">' + (editable ? '<button type="button" onclick="event.stopPropagation(); editBooking(' + b.id + ')">✎ Edit</button>' : '') +
             '<button type="button" class="del" onclick="event.stopPropagation(); cancelBooking(' + b.id + ')">✕ Cancel</button></span>'
-          : '<span class="lock" title="Only ' + esc(b.booked_by) + ' or a Manager can change this booking">🔒</span>';
+          : '<span class="lock" title="Only ' + esc(b.booked_by) + ' or a ' + APPROVER + ' can change this booking">🔒</span>';
         return '<div class="' + cls + '" style="--c:' + carColor(b.car) + '"' + (editable ? ' onclick="editBooking(' + b.id + ')" title="Click to edit"' : '') + '>' +
           '<div class="row1"><span class="pill">' + esc(b.car) + '</span><span class="time">' + esc(span(b)) + '</span><span class="dur">' + duration(b.start, b.end) + '</span></div>' +
           '<div class="why">' + badge(b) + ' ' + esc(b.reason) + '</div>' +
-          (b.status === 'declined' && b.decline_reason ? '<div class="note"><b>' + esc(b.decided_by || 'Manager') + ':</b> ' + esc(b.decline_reason) + '</div>' : '') +
+          (b.status === 'declined' && b.decline_reason ? '<div class="note"><b>' + esc(b.decided_by || APPROVER) + ':</b> ' + esc(b.decline_reason) + '</div>' : '') +
           '<div class="who"><span class="avatar">' + esc(initials(b.booked_by)) + '</span>' + (b.mine ? 'You' : esc(b.booked_by)) + actions + '</div>' +
           decideButtons(b) + '</div>';
       }).join('');
@@ -599,7 +600,7 @@ document.addEventListener('DOMContentLoaded', function () {
     document.getElementById('m-title').textContent = booking ? 'Edit booking' : 'Book a car';
     document.getElementById('m-sub').innerHTML = !booking ? 'Booking as <b>' + esc(ME) + '</b>'
       : booking.mine ? 'Your booking · ' + badge(booking) + (IS_MANAGER ? '' : ' · changing the car or time sends it for approval again')
-      : 'Booked by <b>' + esc(booking.booked_by) + '</b> · you’re editing it as a Manager';
+      : 'Booked by <b>' + esc(booking.booked_by) + '</b> · you’re editing it as a ' + APPROVER;
     document.getElementById('f-submit').textContent = booking ? 'Save changes' : 'Confirm booking';
     document.getElementById('f-delete').style.display = booking ? '' : 'none';
     if (booking) document.getElementById('f-reason').value = booking.reason;
@@ -690,7 +691,7 @@ document.addEventListener('DOMContentLoaded', function () {
           }).join(''));
           return;
         }
-        if (!editing && res.data.booking.status === 'pending') toast('Booked. A Manager will approve or decline it, and you’ll be notified.');
+        if (!editing && res.data.booking.status === 'pending') toast('Booked. A ' + APPROVER + ' will approve or decline it, and you’ll be notified.');
         modal.hide();
         goTo(parse(res.data.booking.start));
         load();

@@ -1,8 +1,11 @@
 """Tell the rest of the office when someone books a car: a notice under everyone's bell, plus an email.
 
 Email goes through Microsoft 365 (fe_orders.office365), from the booker's own mailbox (the email address on
-their account), to everyone else in every group except fe_boys, plus admins.
+their account), to everyone else in every group except fe_boys and Finance, plus admins.
+The Finance cars are Finance's own: their bookings only go to the Financial Controllers (never admins or Managers).
 """
+from urllib.parse import quote
+
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.db.models import Q
@@ -10,15 +13,29 @@ from django.urls import reverse
 from django.utils import timezone
 
 from fe_orders import office365
-from shops.access import MANAGER, ROLES
+from shops.access import FINANCIAL_CONTROLLER, FINANCE_ROLES, MANAGER, ROLES
 
 FE_GROUP = 'fe_boys'   # FE staff don't get car booking emails
 
-from .models import Booking, Notification
+from .models import FINANCE_CARS, Booking, Notification
 
 
-def office_team():
-    """Active Sales, Marketing and Manager users (FE staff never book cars)."""
+def finance_only():
+    """Users at a Finance level with no office level (shops.access.is_finance)."""
+    User = get_user_model()
+    return User.objects.filter(groups__name__in=FINANCE_ROLES, is_superuser=False).exclude(groups__name__in=ROLES)
+
+
+def controllers():
+    """Active Financial Controllers: the only people who hear about and decide on the Finance cars."""
+    return finance_only().filter(is_active=True, groups__name=FINANCIAL_CONTROLLER).distinct()
+
+
+def team(car):
+    """Who hears about a car's bookings: for a Finance car only the Financial Controllers, otherwise the active
+    Sales, Marketing and Manager users and admins (FE staff never book cars)."""
+    if car in FINANCE_CARS:
+        return controllers()
     User = get_user_model()
     return User.objects.filter(is_active=True).filter(Q(is_superuser=True) | Q(groups__name__in=ROLES)).distinct()
 
@@ -35,18 +52,30 @@ def _when(booking):
     return f'{start:%a %d %b} {_time(start)} – {end:%a %d %b} {_time(end)}'
 
 
-def managers():
-    """Active Managers and admins: the people who approve or decline bookings."""
+def managers(car):
+    """The people who approve or decline: the Financial Controllers for a Finance car, otherwise Managers and admins."""
+    if car in FINANCE_CARS:
+        return controllers()
     User = get_user_model()
     return User.objects.filter(is_active=True).filter(Q(is_superuser=True) | Q(groups__name=MANAGER)).distinct()
 
 
-def car_recipients(exclude_user):
-    """Email addresses of every active user in any group except fe_boys, plus admins, but not the booker."""
+def approver(car):
+    """What the person who approves this car's bookings is called."""
+    return FINANCIAL_CONTROLLER if car in FINANCE_CARS else MANAGER
+
+
+def car_recipients(car, exclude_user):
+    """Email addresses for a booking, but not the booker's: for a Finance car, the Financial Controllers; otherwise
+    every active user in any group except fe_boys and Finance, plus admins."""
     User = get_user_model()
-    users = (User.objects.filter(is_active=True)
-             .filter(Q(is_superuser=True) | Q(groups__isnull=False))
-             .exclude(groups__name=FE_GROUP).exclude(pk=exclude_user.pk).exclude(email=''))
+    if car in FINANCE_CARS:
+        users = team(car)
+    else:
+        users = (User.objects.filter(is_active=True)
+                 .filter(Q(is_superuser=True) | Q(groups__isnull=False))
+                 .exclude(groups__name=FE_GROUP).exclude(pk__in=finance_only()))
+    users = users.exclude(pk=exclude_user.pk).exclude(email='')
     mine = (exclude_user.email or '').strip().lower()
     return sorted({u.email.strip() for u in users if u.email.strip().lower() != mine})
 
@@ -55,7 +84,7 @@ def email_link(booking):
     """The 'Open Car Allocations' button: always the office server (settings.SITE_URL), whichever
     address the booker happened to use, so it works for everyone who gets the email."""
     return (settings.SITE_URL.rstrip('/') + reverse('car_allocations')
-            + f'?car={booking.car}&date={timezone.localtime(booking.start):%Y-%m-%d}')
+            + f'?car={quote(booking.car)}&date={timezone.localtime(booking.start):%Y-%m-%d}')
 
 
 def booking_email(booking, url):
@@ -64,21 +93,21 @@ def booking_email(booking, url):
         ('Booked by', booking.booked_by_name),
     ])
     subject = f'Car {booking.car} booked — {_when(booking)}'
-    return subject, office365._page(f'🚗 Car {booking.car} booked', details, url, 'Open Car Allocations')
+    return subject, office365._page(f'🚗 Car {booking.car} booked: Requesting your kind Approval', details, url, 'Open Car Allocations')
 
 
 def notify_new_booking(booking, url):
     """Everyone else hears about the booking; while it waits for approval, Managers are asked to decide."""
     message = f'{booking.booked_by_name} booked {booking.car} for {_when(booking)}: {booking.reason}'[:255]
     pending = booking.status == Booking.PENDING
-    deciders = set(managers().values_list('pk', flat=True)) if pending else set()
+    deciders = set(managers(booking.car).values_list('pk', flat=True)) if pending else set()
     ask = f'Approval needed: {booking.booked_by_name} booked {booking.car} for {_when(booking)}: {booking.reason}'[:255]
     Notification.objects.bulk_create([
         Notification(recipient=u, message=ask if u.pk in deciders else message, link=url, booking=booking)
-        for u in office_team().exclude(pk=booking.booked_by_id)
+        for u in team(booking.car).exclude(pk=booking.booked_by_id)
     ])
 
-    to = car_recipients(booking.booked_by)
+    to = car_recipients(booking.car, booking.booked_by)
     if not (office365.is_configured() and to):
         Booking.objects.filter(pk=booking.pk).update(email_status='Not configured')
         return
@@ -91,7 +120,7 @@ def notify_cancelled(booking, by_user, url):
     who = by_user.get_full_name() or by_user.username
     message = f'{who} cancelled the {booking.car} booking for {_when(booking)}'[:255]
     Notification.objects.bulk_create([
-        Notification(recipient=u, message=message, link=url) for u in office_team().exclude(pk=by_user.pk)
+        Notification(recipient=u, message=message, link=url) for u in team(booking.car).exclude(pk=by_user.pk)
     ])
 
 
@@ -108,10 +137,10 @@ def notify_changed(booking, before, by_user, url):
     change = f'{before} → {after}' if after != before else after
     message = f'{who} changed {whose} booking: {change}: {booking.reason}'[:255]
     notices = [Notification(recipient=u, message=message, link=url, booking=booking)
-               for u in office_team().exclude(pk=by_user.pk).exclude(pk=booking.booked_by_id)]
+               for u in team(booking.car).exclude(pk=by_user.pk).exclude(pk=booking.booked_by_id)]
     if booking.booked_by_id != by_user.pk:
         notices.append(Notification(recipient=booking.booked_by, link=url, booking=booking,
-                                    message=f'{who} (Manager) changed your booking: {change}: {booking.reason}'[:255]))
+                                    message=f'{who} ({approver(booking.car)}) changed your booking: {change}: {booking.reason}'[:255]))
     Notification.objects.bulk_create(notices)
 
 

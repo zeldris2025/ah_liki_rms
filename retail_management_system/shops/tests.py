@@ -195,6 +195,30 @@ class ClientImportTests(TestCase):
         self.assertContains(page, 'Renamed (1)')
         self.assertContains(page, 'C001: “Old Name” → “New Name”')
 
+    def test_log_lists_every_row_and_shows_on_the_page(self):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        from .models import Shop
+        Shop.objects.create(customer_code='C001', name='Jane Store', phone='111')
+        Shop.objects.create(customer_code='C003', name='Same Shop')
+        result = self.upload(self.HEADER +
+                             'C001,Jane Store,,,,,222,,\n'
+                             ',No Code,,,,,,,\n'
+                             'C002,Sam Mart,,,,,,,\n'
+                             'C003,Same Shop,,,,,,,\n')
+        self.assertEqual([(e['rows'], e['status']) for e in result['log']],
+                         [([2], 'updated'), ([3], 'skipped'), ([4], 'added'), ([5], 'unchanged')])
+        self.assertIn('111 → 222', result['log'][0]['detail'])
+        self.assertEqual(result['log'][2]['item'], 'C002 · Sam Mart')
+
+        sales = self.upload('Customer Code,Month,Sales\nC001,2026-09,100\nC001,2026-09,50\n', 'import_monthly_sales')
+        self.assertEqual([(e['rows'], e['status']) for e in sales['log']], [([2, 3], 'added')])
+        self.assertIn('Sales 150.00 (rows 2, 3 added together)', sales['log'][0]['detail'])
+
+        f = SimpleUploadedFile('c.csv', (self.HEADER + 'C002,Sam Mart,,,,,999,,\n').encode())
+        page = self.client.post(reverse('import_shops'), {'csv_file': f})
+        self.assertContains(page, 'Import log')
+        self.assertContains(page, 'Phone')
+
     def test_existing_clients_without_code_get_linked_not_duplicated(self):
         from .models import Shop
         old = Shop.objects.create(name='ELINA STORE', contact_person='Elina')
@@ -1163,12 +1187,25 @@ class AccessLevelTests(TestCase):
         self.assertEqual(self.status('import_surveys'), 200)
         self.assertEqual(self.status('import_survey_responses', survey.pk), 200)
         self.assertEqual(self.status('download_survey_template'), 403)
-        for name in ('import_shops', 'import_businesses', 'import_sponsorships', 'import_product_sales'):
+        for name in ('import_shops', 'import_businesses', 'import_product_sales'):
             self.assertEqual(self.status(name), 403, name)
         self.assertContains(self.client.get(reverse('survey_list')), reverse('import_surveys'))
         page = self.client.get(reverse('import_surveys')).content.decode()
         self.assertIn('<th>Customer/Shop</th>', page)
         self.assertNotIn(reverse('download_survey_template'), page)
+
+    def test_marketing_can_import_sponsorships(self):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        from .models import Sponsorship
+        self.login_as('Marketing')
+        self.assertContains(self.client.get(reverse('sponsorship_list')), reverse('import_sponsorships'))
+        page = self.client.get(reverse('import_sponsorships'))
+        self.assertEqual(page.status_code, 200)
+        self.assertNotContains(page, reverse('download_sponsorship_template'))
+        self.assertEqual(self.status('download_sponsorship_template'), 403)
+        f = SimpleUploadedFile('s.csv', b'Customer,Type,Value\nJane Store,Cooler,900\n')
+        self.client.post(reverse('import_sponsorships'), {'csv_file': f})
+        self.assertEqual(Sponsorship.objects.get().type, 'Cooler')
 
     def test_sales_cannot_import_surveys(self):
         self.login_as('Sales')
@@ -1403,3 +1440,56 @@ class SurveyDeleteTests(TestCase):
         self.assertRedirects(self.client.post(reverse('delete_survey', args=[survey.pk])), reverse('survey_list'))
         self.assertFalse(Survey.objects.exists())
         self.assertFalse(SurveyResponse.objects.exists())
+
+
+class SponsorshipImportTests(TestCase):
+    HEADER = 'Customer,Type,Sponsorship Type,Value (WST),Status,Start Date,End Date,Notes\n'
+
+    def setUp(self):
+        _manager('office')
+        self.client.login(username='office', password='pw')
+
+    def upload(self, text):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        f = SimpleUploadedFile('s.csv', text.encode('utf-8-sig'), content_type='text/csv')
+        response = self.client.post(reverse('import_sponsorships'), {'csv_file': f})
+        return response.context.get('result') or response.context.get('error')
+
+    def test_same_file_again_updates_instead_of_duplicating(self):
+        from .models import Shop, Sponsorship
+        Shop.objects.create(name='Jane Store')
+        text = (self.HEADER +
+                'jane store,cooler,in kind,"1,800",pending,01/11/2026,,Two-door cooler\n'
+                'Sam Hotel,Signage,Cash Value,5000,Active,2026-01-01,2026-12-31,\n')
+        first = self.upload(text)
+        self.assertEqual((first['created'], first['updated'], first['unchanged'], first['skipped']), (2, 0, 0, []))
+        jane = Sponsorship.objects.get(customer='Jane Store')   # saved with the client's spelling
+        self.assertEqual((jane.type, jane.sponsorship_type, jane.value, jane.status, jane.start),
+                         ('Cooler', 'In-Kind Value', Decimal('1800'), 'Pending', date(2026, 11, 1)))
+
+        again = self.upload(text.replace('pending', 'Active'))
+        self.assertEqual((again['created'], again['updated'], again['unchanged']), (0, 1, 1))
+        self.assertIn('Status: Pending → Active', again['log'][0]['detail'])
+        self.assertEqual(Sponsorship.objects.count(), 2)
+
+    def test_bad_rows_are_skipped_and_listed(self):
+        from .models import Sponsorship
+        result = self.upload(self.HEADER +
+                             ',Signage,,100,,,,\n'
+                             'A,Billboard,,100,,,,\n'
+                             'B,,,lots,,,,\n'
+                             'C,,,,,2026-02-01,2026-01-01,\n'
+                             'D,,,,,,,\n')
+        self.assertEqual((result['created'], len(result['skipped'])), (1, 4))
+        self.assertIn('Customer is required', result['skipped'][0])
+        self.assertIn('Type "Billboard" must be one of', result['skipped'][1])
+        self.assertIn('Value "lots" is not a number', result['skipped'][2])
+        self.assertIn('End Date is before Start Date', result['skipped'][3])
+        d = Sponsorship.objects.get()
+        self.assertEqual((d.customer, d.type, d.sponsorship_type, d.status), ('D', 'Signage', 'Cash Value', 'Active'))
+
+    def test_missing_customer_column_and_template(self):
+        self.assertIn('needs a "Customer" column', self.upload('Type,Value\nSignage,1\n'))
+        template = self.client.get(reverse('download_sponsorship_template')).content.decode()
+        self.assertEqual(self.upload(template)['created'], 2)
+        self.assertContains(self.client.get(reverse('sponsorship_list')), reverse('import_sponsorships'))

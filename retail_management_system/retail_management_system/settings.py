@@ -37,10 +37,11 @@ _load_env_file(os.path.join(BASE_DIR, '.env'))
 # See https://docs.djangoproject.com/en/2.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = os.environ.get('SECRET_KEY', 'dev-secret-key-change-me')
+SECRET_KEY = os.environ.get('SECRET_KEY') or 'dev-secret-key-change-me'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.environ.get('DEBUG', 'True').lower() in ('1', 'true', 'yes', 'on')
+# Off by default on Azure App Service (which sets WEBSITE_HOSTNAME), on by default everywhere else
+DEBUG = os.environ.get('DEBUG', 'False' if os.environ.get('WEBSITE_HOSTNAME') else 'True').lower() in ('1', 'true', 'yes', 'on')
 
 ALLOWED_HOSTS = [
     host.strip()
@@ -56,6 +57,39 @@ CSRF_TRUSTED_ORIGINS = [
     ).split(',')
     if origin.strip()
 ]
+
+# Where people open the system; used for links in emails, e.g. the 'Open Car Allocations' button.
+# Its host is allowed and trusted for forms automatically. On Azure App Service it defaults to the app's own
+# address (https://<app>.azurewebsites.net); set SITE_URL once a custom domain is added.
+SITE_URL = (os.environ.get('SITE_URL')
+            or ('https://' + os.environ['WEBSITE_HOSTNAME'] if os.environ.get('WEBSITE_HOSTNAME') else '')
+            or 'http://10.10.8.49:8000').rstrip('/')
+
+
+def _add_site(url):
+    """Allow a public address (e.g. https://rms.australiaeast.cloudapp.azure.com) without listing it twice."""
+    url = url.strip().rstrip('/')
+    if '://' not in url:
+        return
+    host = url.split('://', 1)[1].split('/')[0].split(':')[0]
+    if host and host not in ALLOWED_HOSTS:
+        ALLOWED_HOSTS.append(host)
+    if url not in CSRF_TRUSTED_ORIGINS:
+        CSRF_TRUSTED_ORIGINS.append(url)
+
+
+_add_site(SITE_URL)
+# Azure App Service sets WEBSITE_HOSTNAME (e.g. myapp.azurewebsites.net)
+if os.environ.get('WEBSITE_HOSTNAME'):
+    _add_site('https://' + os.environ['WEBSITE_HOSTNAME'])
+
+if not DEBUG:
+    if SECRET_KEY == 'dev-secret-key-change-me':
+        from django.core.exceptions import ImproperlyConfigured
+        raise ImproperlyConfigured('Set SECRET_KEY in .env before running with DEBUG=False.')
+    # Azure terminates HTTPS and pass the original scheme on
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+    SESSION_COOKIE_SECURE = CSRF_COOKIE_SECURE = SITE_URL.startswith('https://')
 
 
 # Application definition
@@ -76,6 +110,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',   # serves /static/ when DEBUG is off
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -112,10 +147,15 @@ WSGI_APPLICATION = 'retail_management_system.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/2.2/ref/settings/#databases
 
+# Live data folder. On Azure App Service: /home/data, persistent storage that deployments never replace.
+DATA_DIR = os.environ.get('DATA_DIR') or ('/home/data' if os.environ.get('WEBSITE_HOSTNAME') else BASE_DIR)
+
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': os.environ.get('DATABASE_PATH', os.path.join(BASE_DIR, 'db.sqlite3')),
+        'NAME': os.environ.get('DATABASE_PATH') or os.path.join(DATA_DIR, 'db.sqlite3'),
+        # Several app workers and the WhatsApp notifier share the file: wait for a lock instead of failing
+        'OPTIONS': {'timeout': 20},
     }
 }
 
@@ -161,10 +201,8 @@ USE_TZ = True
 STATIC_URL = '/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 
-import os
-
 MEDIA_URL = '/media/'
-MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+MEDIA_ROOT = os.environ.get('MEDIA_ROOT') or os.path.join(DATA_DIR, 'media')
 
 # Authentication
 LOGIN_URL = 'login'
@@ -173,7 +211,7 @@ LOGIN_REDIRECT_URL = 'dashboard'
 
 # Daily FE sales files (one CSV per day, kept up to date as orders come in).
 # Re-create any day with: python manage.py export_sales --date YYYY-MM-DD
-SALES_EXPORT_DIR = os.environ.get('SALES_EXPORT_DIR', os.path.join(BASE_DIR, 'exports', 'orders'))
+SALES_EXPORT_DIR = os.environ.get('SALES_EXPORT_DIR') or os.path.join(DATA_DIR, 'exports', 'orders')
 
 # Telegram group notifications for FE orders (a bot made with @BotFather).
 # Leave blank to turn notifications off. Find the chat ID with: python manage.py telegram chats
@@ -182,8 +220,14 @@ TELEGRAM = {
     'CHAT_ID':   os.environ.get('TELEGRAM_ORDERS_CHAT_ID', ''),   # groups look like -1001234567890
 }
 
-# Where people open the system; used for links in emails, e.g. the 'Open Car Allocations' button.
-SITE_URL = os.environ.get('SITE_URL', 'http://10.10.8.49:8000')
+# WhatsApp group notifications for FE orders, sent through WAHA (self-hosted WhatsApp HTTP API).
+# Leave WAHA_URL blank to turn them off. Find the chat ID with: python manage.py whatsapp groups
+WHATSAPP = {
+    'URL':     os.environ.get('WAHA_URL', ''),                 # from the web container: http://host.docker.internal:3000
+    'API_KEY': os.environ.get('WAHA_API_KEY', ''),
+    'SESSION': os.environ.get('WAHA_SESSION', 'default'),
+    'CHAT_ID': os.environ.get('WHATSAPP_ORDERS_CHAT_ID', ''),  # groups look like 120363000000000000@g.us
+}
 
 # Car Allocations shows and checks bookings in office time (the rest of the system still uses TIME_ZONE).
 CAR_TIME_ZONE = os.environ.get('CAR_TIME_ZONE', 'Pacific/Apia')
@@ -198,8 +242,18 @@ OFFICE365 = {
     'SENDER':        os.environ.get('OFFICE365_SENDER', ''),         # the mailbox emails come from, e.g. orders@ahliki.ws
     'ORDER_EMAILS':  os.environ.get('OFFICE365_ORDER_EMAILS', ''),   # comma-separated, who gets new FE orders
     'ISSUE_EMAILS':  os.environ.get('OFFICE365_ISSUE_EMAILS', ''),   # comma-separated, who gets new FE issues
+    'WHATSAPP_ALERT_EMAILS': os.environ.get('OFFICE365_WHATSAPP_ALERT_EMAILS', ''),   # who hears when an order's WhatsApp message fails
 }
 
 # Large requests: bulk deletes in the admin post one field per selected row, and big CSV uploads.
 DATA_UPLOAD_MAX_NUMBER_FIELDS = None             # no limit on the number of form fields
 DATA_UPLOAD_MAX_MEMORY_SIZE   = 1024 * 1024 * 1024   # 1 GB request body
+
+# Errors go to the container log (docker compose logs web); with DEBUG off Django would otherwise hide them
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'handlers': {'console': {'class': 'logging.StreamHandler'}},
+    'root': {'handlers': ['console'], 'level': os.environ.get('LOG_LEVEL', 'INFO')},
+    'loggers': {'django': {'handlers': ['console'], 'level': os.environ.get('LOG_LEVEL', 'INFO'), 'propagate': False}},
+}

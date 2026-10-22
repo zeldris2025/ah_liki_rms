@@ -1,0 +1,14 @@
+{
+    // Azure App Service extension: what "Deploy to Web App" leaves out of the upload.
+    // .env holds secrets (App Service gets them from its Environment variables page instead).
+    "appService.zipIgnorePattern": [
+        ".env",
+        "venv{,/**}",
+        "**/__pycache__{,/**}",
+        "sessions{,/**}",
+        "exports{,/**}",
+        "data{,/**}",
+        "staticfiles{,/**}",
+        ".DS_Store"
+    ]
+}

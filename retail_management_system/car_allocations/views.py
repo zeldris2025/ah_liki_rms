@@ -1,6 +1,7 @@
 import calendar
 import functools
 from datetime import datetime, timedelta
+from urllib.parse import quote
 
 from django.conf import settings
 
@@ -14,10 +15,10 @@ from django.utils import timezone
 from django.utils.dateparse import parse_date, parse_datetime
 from django.views.decorators.http import require_GET, require_POST
 
-from shops.access import MANAGER, roles_of
+from shops.access import FINANCIAL_CONTROLLER, MANAGER, finance_roles_of, is_finance, roles_of
 
 from . import notify
-from .models import CARS, Booking, Notification
+from .models import CARS, FINANCE_CARS, Booking, Notification
 
 MAX_DAYS = 31   # longest single booking
 
@@ -43,31 +44,47 @@ def _parse(value):
     return timezone.make_aware(dt) if timezone.is_naive(dt) else dt
 
 
-def _is_manager(user):
-    return MANAGER in roles_of(user)
+def _fleet(user):
+    """The cars this user sees and books: the Finance cars are Finance's alone; everyone else (admins too)
+    gets the office cars."""
+    return FINANCE_CARS if is_finance(user) else CARS
+
+
+def _approves(user):
+    """The cars whose bookings this user approves, declines and changes: a Manager the office cars,
+    a Financial Controller the Finance cars, an admin the office cars, and staff none."""
+    if user.is_superuser:
+        return CARS
+    if is_finance(user):
+        return FINANCE_CARS if FINANCIAL_CONTROLLER in finance_roles_of(user) else []
+    return CARS if MANAGER in roles_of(user) else []
 
 
 def _visible(qs, user):
-    """Declined bookings only show to the person who booked them and to Managers."""
-    return qs if _is_manager(user) else qs.exclude(Q(status=Booking.DECLINED) & ~Q(booked_by=user))
+    """Only the user's own fleet; declined bookings only show to the person who booked them and to the car's approvers."""
+    return qs.filter(car__in=_fleet(user)).exclude(
+        Q(status=Booking.DECLINED) & ~Q(booked_by=user) & ~Q(car__in=_approves(user)))
 
 
-def _can_change(user, booking):
-    """Your own bookings you can edit or cancel; anyone else's only a Manager (or admin) can."""
-    return booking.booked_by_id == user.pk or MANAGER in roles_of(user)
+def _can_change(user, booking, approves=None):
+    """Your own bookings you can edit or cancel; anyone else's only the car's Manager (or an admin) can."""
+    return booking.booked_by_id == user.pk or booking.car in (_approves(user) if approves is None else approves)
 
 
-NOT_YOURS = "This is someone else's booking. Only the person who booked it, or a Manager, can change it."
+def _not_yours(booking):
+    return (f"This is someone else's booking. Only the person who booked it, or a {notify.approver(booking.car)}, "
+            "can change it.")
 
 
-def _json(booking, user):
+def _json(booking, user, approves=None):
+    approves = _approves(user) if approves is None else approves
     return {
         'id': booking.pk, 'car': booking.car, 'start': _local(booking.start), 'end': _local(booking.end),
         'reason': booking.reason, 'booked_by': booking.booked_by_name,
-        'mine': booking.booked_by_id == user.pk, 'can_change': _can_change(user, booking),
+        'mine': booking.booked_by_id == user.pk, 'can_change': _can_change(user, booking, approves),
         'status': booking.status, 'decline_reason': booking.decline_reason,
         'decided_by': (booking.decided_by.get_full_name() or booking.decided_by.username) if booking.decided_by else '',
-        'can_decide': _is_manager(user),
+        'can_decide': booking.car in approves,
     }
 
 
@@ -76,11 +93,12 @@ def _json(booking, user):
 def car_allocations(request):
     year = timezone.localdate().year
     return render(request, 'car_allocations/car_allocations.html', {
-        'cars': CARS,
+        'cars': _fleet(request.user),
         'months': list(enumerate(calendar.month_name))[1:],
         'years': range(year - 1, year + 3),
         'me': request.user.get_full_name() or request.user.username,
-        'is_manager': _is_manager(request.user),
+        'is_manager': bool(_approves(request.user)),
+        'approver': FINANCIAL_CONTROLLER if is_finance(request.user) else MANAGER,
     })
 
 
@@ -100,8 +118,9 @@ def car_bookings(request):
     qs = _visible(Booking.objects.filter(start__lt=end, end__gt=start), request.user).select_related('booked_by', 'decided_by')
 
     now = timezone.now()
-    status = {car: {'out_until': None, 'next': None} for car in CARS}
-    for b in Booking.objects.filter(end__gt=now, status=Booking.APPROVED).order_by('start'):
+    fleet, approves = _fleet(request.user), _approves(request.user)
+    status = {car: {'out_until': None, 'next': None} for car in fleet}
+    for b in Booking.objects.filter(end__gt=now, status=Booking.APPROVED, car__in=fleet).order_by('start'):
         s = status.get(b.car)
         if s is None:
             continue
@@ -109,11 +128,12 @@ def car_bookings(request):
             s['out_until'] = _local(b.end)
         elif not s['next']:
             s['next'] = _local(b.start)
-    data = {'bookings': [_json(b, request.user) for b in qs], 'status': status, 'now': _local(now)}
-    if _is_manager(request.user):
-        # every booking still waiting for a decision, whichever week is on screen
-        waiting = Booking.objects.filter(status=Booking.PENDING, end__gt=now).select_related('booked_by').order_by('start')
-        data['pending'] = [_json(b, request.user) for b in waiting]
+    data = {'bookings': [_json(b, request.user, approves) for b in qs], 'status': status, 'now': _local(now)}
+    if approves:
+        # every booking of their cars still waiting for a decision, whichever week is on screen
+        waiting = (Booking.objects.filter(status=Booking.PENDING, end__gt=now, car__in=approves)
+                   .select_related('booked_by').order_by('start'))
+        data['pending'] = [_json(b, request.user, approves) for b in waiting]
     return JsonResponse(data)
 
 
@@ -129,7 +149,8 @@ def car_booking_search(request):
         words &= (Q(reason__icontains=word) | Q(car__iexact=word) | Q(booked_by__username__icontains=word)
                   | Q(booked_by__first_name__icontains=word) | Q(booked_by__last_name__icontains=word))
     qs = _visible(Booking.objects.filter(words), request.user).select_related('booked_by', 'decided_by').order_by('-start')[:50]
-    return JsonResponse({'bookings': [_json(b, request.user) for b in qs]})
+    approves = _approves(request.user)
+    return JsonResponse({'bookings': [_json(b, request.user, approves) for b in qs]})
 
 
 class _Clash(Exception):
@@ -137,14 +158,14 @@ class _Clash(Exception):
         self.clashes = clashes
 
 
-def _read_form(post):
-    """(car, start, end, reason, error) from the booking form. Only overlapping times clash, so the same
-    car can be booked several times on one day."""
+def _read_form(post, cars):
+    """(car, start, end, reason, error) from the booking form, for one of `cars`. Only overlapping times clash,
+    so the same car can be booked several times on one day."""
     car = post.get('car', '')
     start, end = _parse(post.get('start')), _parse(post.get('end'))
     reason = post.get('reason', '').strip()[:255]
     error = None
-    if car not in CARS:
+    if car not in cars:
         error = 'Choose one of the cars.'
     elif not start or not end:
         error = 'Enter when the booking starts and ends.'
@@ -180,18 +201,18 @@ def _save_without_clash(booking, user):
 
 def _week_url(request, booking):
     return request.build_absolute_uri(
-        reverse('car_allocations') + f'?car={booking.car}&date={timezone.localtime(booking.start):%Y-%m-%d}')
+        reverse('car_allocations') + f'?car={quote(booking.car)}&date={timezone.localtime(booking.start):%Y-%m-%d}')
 
 
 @login_required
 @office_time
 @require_POST
 def car_book(request):
-    car, start, end, reason, error = _read_form(request.POST)
+    car, start, end, reason, error = _read_form(request.POST, _fleet(request.user))
     if error:
         return JsonResponse({'error': error}, status=400)
     booking = Booking(car=car, start=start, end=end, reason=reason, booked_by=request.user)
-    if _is_manager(request.user):   # a Manager's own booking needs no approval
+    if car in _approves(request.user):   # a Manager's own booking needs no approval
         booking.status, booking.decided_by, booking.decided_at = Booking.APPROVED, request.user, timezone.now()
     clash = _save_without_clash(booking, request.user)
     if clash:
@@ -207,14 +228,14 @@ def car_book(request):
 def car_booking_edit(request, booking_id):
     booking = get_object_or_404(Booking.objects.select_related('booked_by'), pk=booking_id)
     if not _can_change(request.user, booking):
-        return JsonResponse({'error': NOT_YOURS}, status=403)
-    car, start, end, reason, error = _read_form(request.POST)
+        return JsonResponse({'error': _not_yours(booking)}, status=403)
+    car, start, end, reason, error = _read_form(request.POST, _fleet(request.user))
     if error:
         return JsonResponse({'error': error}, status=400)
     before = notify.describe(booking)
     moved = (car, start, end) != (booking.car, booking.start, booking.end)
     booking.car, booking.start, booking.end, booking.reason = car, start, end, reason
-    if not _is_manager(request.user) and (moved or booking.status == Booking.DECLINED):
+    if car not in _approves(request.user) and (moved or booking.status == Booking.DECLINED):
         # a new car or time (or another try after a decline) goes back to the Managers
         booking.status, booking.decline_reason, booking.decided_by, booking.decided_at = Booking.PENDING, '', None, None
     clash = _save_without_clash(booking, request.user)
@@ -230,7 +251,7 @@ def car_booking_edit(request, booking_id):
 def car_booking_cancel(request, booking_id):
     booking = get_object_or_404(Booking.objects.select_related('booked_by'), pk=booking_id)
     if not _can_change(request.user, booking):
-        return JsonResponse({'error': NOT_YOURS}, status=403)
+        return JsonResponse({'error': _not_yours(booking)}, status=403)
     url = _week_url(request, booking)
     notify.notify_cancelled(booking, request.user, url)
     booking.delete()
@@ -241,10 +262,12 @@ def car_booking_cancel(request, booking_id):
 @office_time
 @require_POST
 def car_booking_decide(request, booking_id, decision):
-    """A Manager approves or declines a booking. Declining needs a comment, which the booker sees."""
-    if not _is_manager(request.user):
-        return JsonResponse({'error': 'Only a Manager can approve or decline bookings.'}, status=403)
+    """A Manager (a Financial Controller, for the Finance cars) approves or declines a booking.
+    Declining needs a comment, which the booker sees."""
     booking = get_object_or_404(Booking.objects.select_related('booked_by'), pk=booking_id)
+    if booking.car not in _approves(request.user):
+        return JsonResponse({'error': f'Only a {notify.approver(booking.car)} can approve or decline this booking.'},
+                            status=403)
     if decision == 'approve':
         if booking.status == Booking.APPROVED:
             return JsonResponse({'booking': _json(booking, request.user)})
@@ -290,3 +313,30 @@ def notifications_read(request):
         mine = mine.filter(pk=request.POST['id'])
     mine.update(read=True)
     return JsonResponse({'ok': True})
+
+
+# ── Finance Dashboard (what Finance see at /) ────────────────────────────────
+
+@login_required
+@office_time
+def finance_dashboard(request):
+    """The Finance cars right now, what's coming up, and (for a Financial Controller) what's waiting for approval."""
+    from shops.models import Shop
+    user, now = request.user, timezone.now()
+    approves = _approves(user)
+    live = Booking.objects.filter(car__in=FINANCE_CARS, end__gt=now).exclude(status=Booking.DECLINED)
+    cars = []
+    for car in FINANCE_CARS:
+        mine = live.filter(car=car, status=Booking.APPROVED)
+        cars.append({'name': car, 'out': mine.filter(start__lte=now).select_related('booked_by').first(),
+                     'next': mine.filter(start__gt=now).select_related('booked_by').first()})
+    week = now + timedelta(days=7)
+    return render(request, 'car_allocations/finance_dashboard.html', {
+        'cars': cars,
+        'upcoming': _visible(live.filter(start__lt=week), user).select_related('booked_by')[:10],
+        'my_bookings': _visible(Booking.objects.filter(booked_by=user, end__gt=now), user)[:6],
+        'pending': (Booking.objects.filter(car__in=approves, status=Booking.PENDING, end__gt=now)
+                    .select_related('booked_by') if approves else Booking.objects.none()),
+        'is_manager': bool(approves),
+        'shop_count': Shop.objects.count(),
+    })

@@ -25,9 +25,9 @@ from django.views.decorators.http import require_http_methods, require_POST
 from tablib import Dataset
 
 from .models import Business, BusinessPhoto, Shop, ShopPhoto, Sponsorship, SponsorshipPhoto, Survey, SurveyResponse, MonthlySales, Promotion, SalesTarget, PinnedProduct, ProductGroup, ProductSales, QuickLinkTarget
-from .forms import BusinessCSVImportForm, SponsorshipCSVImportForm, SurveyForm, SurveyResponseForm, BulkSurveyResponseForm
-from . import access, client_import, corporate, product_sales
-from .admin import BusinessResource, SponsorshipResource
+from .forms import BusinessCSVImportForm, SurveyForm, SurveyResponseForm, BulkSurveyResponseForm
+from . import access, client_import, corporate, product_sales, sponsorship_import
+from .admin import BusinessResource
 
 
 # ── helpers ───────────────────────────────────────────────────────────────────
@@ -68,6 +68,9 @@ def user_logout(request):
 
 @login_required(login_url='login')
 def dashboard(request):
+    if getattr(request, 'is_finance', False):
+        from car_allocations.views import finance_dashboard
+        return finance_dashboard(request)
     shops        = Shop.objects.prefetch_related('photos').all()
     businesses   = Business.objects.prefetch_related('photos').all()
     sponsorships = Sponsorship.objects.prefetch_related('photos').all()
@@ -101,6 +104,7 @@ def dashboard(request):
     local_midnight = datetime.now().astimezone().replace(hour=0, minute=0, second=0, microsecond=0)
     recent_orders = list(Order.objects.select_related('shop', 'placed_by').prefetch_related('items')[:6])
     telegram_failed = Order.objects.filter(telegram_status__startswith='Failed').count()
+    whatsapp_failed = Order.objects.filter(whatsapp_status__startswith='Failed').count()
 
     # Promotions: running now first, then the next ones to start
     live_promos = list(Promotion.objects.filter(Promotion.status_q('Active')).order_by('end_date', 'name'))
@@ -124,6 +128,7 @@ def dashboard(request):
         'pending_orders': Order.objects.filter(status='Pending').count(),
         'orders_today': Order.objects.filter(created_at__gte=local_midnight).count(),
         'telegram_failed': telegram_failed,
+        'whatsapp_failed': whatsapp_failed,
         'out_of_stock': Product.objects.filter(available=False).count(),
         'product_count': Product.objects.count(),
         'live_promos': live_promos,
@@ -141,7 +146,7 @@ def dashboard(request):
                        corp_reps=[r for r in reps if r['key'] == own],
                        corporate_clients=len(corporate.client_ids_by_manager()[0].get(own, [])))
     if 'fe_ordering' in blocked:
-        ctx.update(recent_orders=[], pending_orders=0, orders_today=0, telegram_failed=0, out_of_stock=0, product_count=0)
+        ctx.update(recent_orders=[], pending_orders=0, orders_today=0, telegram_failed=0, whatsapp_failed=0, out_of_stock=0, product_count=0)
     if 'promotions' in blocked:
         ctx.update(live_promos=[], upcoming_promos=[], dashboard_promos=[])
     if 'sponsorships' in blocked:
@@ -154,7 +159,7 @@ def dashboard(request):
 # ══════════════════════════════════════════════════════════════════════════════
 
 SHOP_TERRITORIES = ['EC1', 'EC2', 'EC3', 'LFG', 'VT1', 'VT2', 'VT3', 'WC1', 'WC2', 'WC4']
-EXTRA_CUSTOMER_TYPES = ['Fe Regions']   # offered in the client form even before any client uses them
+EXTRA_CUSTOMER_TYPES = ['Fe Regions', 'Inkpro']   # offered in the client form even before any client uses them
 
 
 def customer_type_choices():
@@ -537,6 +542,8 @@ def corporate_sales(request):
         'unmatched_types': [] if own else unmatched,
         'has_targets': any(v is not None for m in managers for v in m['target']),
         'month_cards': month_cards, 'own_rep': own,
+        # when the sales figures last changed, so the team can see how current the page is
+        'updated_as_of': MonthlySales.objects.aggregate(last=Max('updated_at'))['last'],
     })
 
 
@@ -673,12 +680,21 @@ def corporate_targets(request):
         if not errors:
             return redirect(f"{reverse('corporate_sales')}?year={year}")
     saved = {(t.manager, t.month.month): t.amount for t in SalesTarget.objects.filter(month__year=year)}
+    # last year's sales per month, which the calculator grows by a percentage to suggest each target
+    ids, _, _ = corporate.client_ids_by_manager()
+    previous = {}
+    for m in reps:
+        for r in (MonthlySales.objects.filter(month__year=year - 1, shop_id__in=ids[m['key']])
+                  .values('month').annotate(total=Sum('sales'))):
+            previous[(m['key'], r['month'].month)] = r['total']
     rows = [{**m, 'cells': [{'name': f"{m['key']}_{i + 1}", 'label': corporate.MONTH_LABELS[i],
-                             'value': request.POST.get(f"{m['key']}_{i + 1}") if errors else saved.get((m['key'], i + 1), '')}
+                             'value': request.POST.get(f"{m['key']}_{i + 1}") if errors else saved.get((m['key'], i + 1), ''),
+                             'previous': previous.get((m['key'], i + 1))}
                             for i in range(12)]}
             for m in reps]
     return render(request, 'shops/corporate_targets.html', {
         'rows': rows, 'year': year, 'errors': errors, 'months': corporate.MONTH_LABELS,
+        'has_previous': bool(previous),
     })
 
 
@@ -1376,41 +1392,9 @@ def import_businesses(request):
 
 @login_required(login_url='login')
 def import_sponsorships(request):
-    """Import sponsorships from CSV file."""
-    if request.method == 'POST':
-        form = SponsorshipCSVImportForm(request.POST, request.FILES)
-        if form.is_valid():
-            csv_file = request.FILES['csv_file']
-            try:
-                # Read and parse CSV
-                dataset = Dataset().load(csv_file.read().decode('utf-8'), 'csv')
-                resource = SponsorshipResource()
-                result = resource.import_data(dataset, dry_run=False)
-
-                error_list = []
-                if result.has_errors():
-                    for error in result.errors:
-                        error_list.append(str(error))
-
-                messages = {
-                    'success': f'Successfully imported {result.total_rows} sponsorships.',
-                    'errors': error_list,
-                    'import_count': result.total_rows,
-                }
-                return render(request, 'shops/import_result.html', {
-                    'model_type': 'Sponsorships',
-                    'messages': messages,
-                    'success': not result.has_errors(),
-                })
-            except Exception as e:
-                return render(request, 'shops/import_sponsorships.html', {
-                    'form': form,
-                    'error': f'Error processing file: {str(e)}'
-                })
-    else:
-        form = SponsorshipCSVImportForm()
-
-    return render(request, 'shops/import_sponsorships.html', {'form': form})
+    """Upload sponsorships. Matches on Customer + Type + Start Date; see shops/sponsorship_import.py for the rules."""
+    return _run_upload(request, sponsorship_import.import_sponsorships, 'shops/import_sponsorships.html',
+                       {'columns': sponsorship_import.COLUMNS})
 
 
 def download_sales_template(request):
@@ -1450,8 +1434,11 @@ def download_sponsorship_template(request):
     response = HttpResponse(content_type='text/csv')
     response['Content-Disposition'] = 'attachment; filename="sponsorship_template.csv"'
     w = csv.writer(response)
-    w.writerow(['customer', 'type', 'sponsorship_type', 'value', 'status', 'start', 'end', 'notes'])
-    w.writerow(['Company Name', 'Signage', 'Cash Value', '5000', 'Active', '2026-01-01', '2026-12-31', 'Annual sponsorship'])
+    w.writerow([h for _, h in sponsorship_import.COLUMNS])
+    w.writerow(['Example Store', 'Signage', 'Cash Value', '5000.00', 'Active', '2026-01-01', '2026-12-31',
+                'Shop front sign, annual'])
+    w.writerow(['Example Hotel', 'Cooler', 'In-Kind Value', '1800.00', 'Pending', '2026-11-01', '',
+                'Two-door cooler on loan'])
     return response
 
 
