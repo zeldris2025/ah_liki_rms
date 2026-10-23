@@ -12,8 +12,10 @@ class Command(BaseCommand):
 
     def handle(self, *args, action, to=None, **opts):
         if not office365.is_configured():
-            raise CommandError('Set OFFICE365_TENANT_ID, OFFICE365_CLIENT_ID, OFFICE365_CLIENT_SECRET and '
-                               'OFFICE365_SENDER in .env first, then restart.')
+            config = office365._config()
+            missing = [f'OFFICE365_{k}' for k in ('TENANT_ID', 'CLIENT_ID', 'CLIENT_SECRET', 'SENDER') if not config.get(k)]
+            raise CommandError(f"Missing: {', '.join(missing)}. Set them in .env, or on Azure under App Service → "
+                               'Environment variables → App settings (Apply, then open a new SSH session).')
         try:
             office365.access_token()
         except (office365.Office365Error, OSError) as exc:
