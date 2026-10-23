@@ -26,7 +26,7 @@ from tablib import Dataset
 
 from .models import Business, BusinessPhoto, Shop, ShopPhoto, Sponsorship, SponsorshipPhoto, Survey, SurveyResponse, MonthlySales, Promotion, SalesTarget, PinnedProduct, ProductGroup, ProductSales, QuickLinkTarget
 from .forms import BusinessCSVImportForm, SurveyForm, SurveyResponseForm, BulkSurveyResponseForm
-from . import access, client_import, corporate, product_sales, sponsorship_import
+from . import access, analytics, client_import, corporate, product_sales, sponsorship_import
 from .admin import BusinessResource
 
 
@@ -152,6 +152,30 @@ def dashboard(request):
     if 'sponsorships' in blocked:
         ctx.update(sponsorships=Sponsorship.objects.none(), active_spons=Sponsorship.objects.none(), active_val=0)
     return render(request, 'shops/dashboard.html', ctx)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# ANALYTICS (Managers)
+# ══════════════════════════════════════════════════════════════════════════════
+
+@login_required(login_url='login')
+def analytics_page(request):
+    """Will each corporate stream reach its target, how each rep is doing, and average sales per day.
+    ?month=YYYY-MM picks the month (the latest with sales by default); ?forecast=1 opens the target check."""
+    months = analytics.available_months()
+    month = months[0] if months else date.today().replace(day=1)
+    try:
+        picked = date.fromisoformat((request.GET.get('month') or '') + '-01')
+        if picked in months:
+            month = picked
+    except ValueError:
+        pass
+    data = analytics.month_analysis(month)
+    return render(request, 'shops/analytics.html', {
+        **data, 'months': months, 'show_forecast': request.GET.get('forecast') == '1',
+        'trend_json': json.dumps(data['trend']),
+        'updated_as_of': MonthlySales.objects.aggregate(last=Max('updated_at'))['last'],
+    })
 
 
 # ══════════════════════════════════════════════════════════════════════════════

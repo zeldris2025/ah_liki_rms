@@ -1493,3 +1493,55 @@ class SponsorshipImportTests(TestCase):
         template = self.client.get(reverse('download_sponsorship_template')).content.decode()
         self.assertEqual(self.upload(template)['created'], 2)
         self.assertContains(self.client.get(reverse('sponsorship_list')), reverse('import_sponsorships'))
+
+
+class AnalyticsTests(TestCase):
+    """The Managers' Analytics page: the target check, the rep table and average sales per day."""
+
+    def setUp(self):
+        from .models import MonthlySales, SalesTarget, Shop
+        self.horeca = Shop.objects.create(customer_code='H1', name='Beach Hotel', customer_type='HORECA')
+        self.ministry = Shop.objects.create(customer_code='M1', name='Ministry of Health', customer_type='Government / Ministries')
+        self.quiet = Shop.objects.create(customer_code='Q1', name='Quiet Cafe', customer_type='HORECA', territory='EC1')
+        for shop, month, amount in ((self.horeca, date(2024, 6, 1), 10000), (self.ministry, date(2024, 6, 1), 1000),
+                                    (self.horeca, date(2024, 5, 1), 30500), (self.quiet, date(2024, 5, 1), 500)):
+            MonthlySales.objects.create(shop=shop, month=month, sales=amount)
+        SalesTarget.objects.create(manager='judane', month=date(2024, 6, 1), amount=30000)
+        SalesTarget.objects.create(manager='ruth', month=date(2024, 6, 1), amount=9000)
+
+    def test_target_check_projects_the_month_end(self):
+        from . import analytics
+        data = analytics.month_analysis(date(2024, 6, 1), today=date(2024, 6, 10))   # 10 of 30 days in
+        self.assertEqual((data['covered'], data['days'], data['in_progress']), (10, 30, True))
+        streams = {s['key']: s for s in data['streams']}
+        judane, ruth = streams['judane'], streams['ruth']
+        self.assertEqual((judane['per_day'], judane['projected'], judane['status_label']), (1000, 30000, 'On track'))
+        self.assertEqual(judane['needed_per_day'], 1000)
+        self.assertEqual((ruth['projected'], ruth['status_label']), (3000, 'Off track'))
+        self.assertEqual(ruth['needed_per_day'], 400)
+        self.assertEqual((data['on_track'], data['targeted']), (1, 2))
+        # Judane's May (both HORECA clients) averaged 1,000 a day across 31 days, so June's 1,000 a day is level
+        self.assertEqual(judane['vs_prev'], 0)
+        self.assertEqual([c['name'] for c in data['quiet']], ['Quiet Cafe'])
+
+    def test_finished_month_is_reached_or_missed(self):
+        from . import analytics
+        streams = {s['key']: s for s in analytics.month_analysis(date(2024, 6, 1), today=date(2024, 7, 2))['streams']}
+        self.assertEqual(streams['judane']['status_label'], 'Missed')
+        self.assertEqual(streams['judane']['per_day'], 10000 / 30)
+
+    def test_managers_only(self):
+        from django.contrib.auth.models import Group
+        _manager('boss')
+        self.client.login(username='boss', password='pw')
+        page = self.client.get(reverse('analytics') + '?month=2024-06&forecast=1')
+        self.assertEqual(page.status_code, 200)
+        self.assertContains(page, 'Will each stream reach its target?')
+        self.assertContains(page, 'Beach Hotel')
+        self.assertContains(self.client.get(reverse('dashboard')), reverse('analytics'))
+        for role in ('Sales', 'Marketing'):
+            user = User.objects.create_user(role, password='pw')
+            user.groups.add(Group.objects.get(name=role))
+            self.client.login(username=role, password='pw')
+            self.assertEqual(self.client.get(reverse('analytics')).status_code, 403, role)
+            self.assertNotIn(reverse('analytics'), self.client.get(reverse('dashboard')).content.decode())

@@ -1,0 +1,1 @@
+{% if v is None %}<span class="an-note">—</span>{% else %}<span class="{% if v >= 0 %}an-up{% else %}an-down{% endif %}">{% if v > 0 %}+{% endif %}{{ v }}%</span>{% endif %}

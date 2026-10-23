@@ -158,6 +158,9 @@
       {% with n=request.resolver_match.url_name %}
       <!-- Main -->
       <a href="{% url 'dashboard' %}"        class="nav-item-custom {% if n == 'dashboard' %}active{% endif %}"><span class="nav-icon">📊</span>Dashboard</a>
+      {% if access.analytics %}
+      <a href="{% url 'analytics' %}"        class="nav-item-custom {% if n == 'analytics' %}active{% endif %}"><span class="nav-icon">🔎</span>Analytics</a>
+      {% endif %}
       <a href="{% url 'atlas' %}"            class="nav-item-custom {% if n == 'atlas' %}active{% endif %}"><span class="nav-icon">🗺️</span>Ah Liki Atlas</a>
       {% if not is_finance %}
       <a href="{% url 'shop_list' %}"        class="nav-item-custom {% if n == 'shop_list' or n == 'shop_detail' or n == 'add_shop' or n == 'edit_shop' %}active{% endif %}"><span class="nav-icon">🏪</span>All Clients</a>

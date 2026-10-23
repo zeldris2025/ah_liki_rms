@@ -8,6 +8,7 @@ urlpatterns = [
 
     # Dashboard
     path('',                                  views.dashboard,          name='dashboard'),
+    path('analytics/',                        views.analytics_page,     name='analytics'),
 
     # Shops
     path('shops/',                            views.shop_list,          name='shop_list'),

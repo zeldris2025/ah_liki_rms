@@ -30,6 +30,7 @@ AREAS = {
     'fe_ordering':     {'sales_export', 'product_list', 'product_add', 'product_edit', 'product_toggle',
                         'product_delete', 'product_import', 'product_template', 'product_export'},  # plus every fe_* URL
     'monthly_sales':   {'monthly_sales'},
+    'analytics':       {'analytics'},   # Managers only
     'surveys':         {'survey_list', 'add_survey', 'survey_detail', 'edit_survey', 'delete_survey', 'survey_analysis',
                         'add_survey_response', 'import_survey_responses', 'import_surveys', 'edit_survey_response', 'delete_survey_response'},
     'reports':         {'reports', 'download_report'},
@@ -43,8 +44,8 @@ AREAS = {
 
 BLOCKED = {
     SALES:     {'product_sales', 'promotions', 'sponsorships', 'fe_ordering',
-                'monthly_sales', 'surveys', 'reports', 'bulk_import'},   # Insights = monthly sales, surveys, reports
-    MARKETING: {'corporate_sales', 'product_sales', 'monthly_sales', 'reports', 'bulk_import'},
+                'monthly_sales', 'surveys', 'reports', 'bulk_import', 'analytics'},   # Insights = monthly sales, surveys, reports
+    MARKETING: {'corporate_sales', 'product_sales', 'monthly_sales', 'reports', 'bulk_import', 'analytics'},
     MANAGER:   set(),
 }
 

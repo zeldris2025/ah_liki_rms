@@ -1,0 +1,316 @@
+{% extends 'shops/base.html' %}
+{% block content %}
+<style>
+  .an-head { display:flex; justify-content:space-between; align-items:flex-end; gap:16px; flex-wrap:wrap; margin-bottom:22px; }
+  .an-month { display:flex; align-items:center; gap:8px; }
+  .an-month select { width:auto; min-width:150px; }
+  .an-note { color:var(--muted); font-size:12px; line-height:1.5; }
+  .an-tiles { display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:14px; margin-bottom:24px; }
+  .an-up { color:var(--success); font-weight:700; } .an-down { color:var(--danger); font-weight:700; }
+  .an-card { background:var(--card); border:1px solid var(--border); border-radius:14px; margin-bottom:24px; overflow:hidden; }
+  .an-card-head { display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; padding:16px 20px; border-bottom:1px solid var(--border); }
+  .an-card-head b { font-size:15px; color:var(--primary); }
+  .an-card-body { padding:18px 20px; }
+  .an-table-wrap { overflow-x:auto; }
+  .an-num { text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
+  .sms-table th.an-num { text-align:right; }
+  .an-dot { display:inline-block; width:10px; height:10px; border-radius:3px; margin-right:7px; vertical-align:0; }
+  .an-total td { font-weight:700; background:var(--surface); }
+
+  /* Target check */
+  .an-check { display:flex; flex-direction:column; align-items:center; gap:10px; padding:30px 20px; text-align:center; }
+  .an-check-btn { font-size:15px; padding:12px 26px; border-radius:12px; cursor:pointer; }
+  .an-summary { font-size:14px; color:var(--text-secondary); margin-bottom:14px; }
+  .an-summary b { color:var(--primary); }
+  .an-streams { display:grid; gap:12px; }
+  .an-stream { border:1px solid var(--border); border-left:4px solid var(--c); border-radius:12px; padding:14px 16px; }
+  .an-stream-top { display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; }
+  .an-stream-name { font-weight:700; color:var(--primary); font-size:15px; }
+  .an-stream-sub { color:var(--muted); font-size:12px; }
+  .an-pill { display:inline-flex; align-items:center; gap:6px; font-size:12px; font-weight:700; padding:4px 11px; border-radius:999px; border:1px solid; white-space:nowrap; }
+  .an-pill.on, .an-pill.reached { background:#F0FDF4; border-color:#BBF7D0; color:#166534; }
+  .an-pill.risk  { background:#FFFBEB; border-color:#FDE68A; color:#92400E; }
+  .an-pill.off, .an-pill.missed { background:#FEF2F2; border-color:#FECACA; color:#991B1B; }
+  .an-pill.none  { background:var(--surface); border-color:var(--border); color:var(--muted); }
+  .an-bar { position:relative; height:14px; border-radius:999px; background:var(--surface); border:1px solid var(--border); margin:14px 0 6px; }
+  .an-bar .proj { position:absolute; left:0; top:0; bottom:0; border-radius:999px; background:color-mix(in srgb, var(--c) 30%, #fff); }
+  .an-bar .act  { position:absolute; left:0; top:0; bottom:0; border-radius:999px; background:var(--c); }
+  .an-bar .tgt  { position:absolute; top:-5px; bottom:-5px; width:2px; background:var(--primary); }
+  .an-bar .exp  { position:absolute; top:-3px; bottom:-3px; width:0; border-left:2px dotted var(--muted); }
+  .an-key { display:flex; gap:14px; flex-wrap:wrap; font-size:11px; color:var(--muted); margin-bottom:12px; }
+  .an-key i { display:inline-block; width:12px; height:10px; border-radius:3px; margin-right:5px; vertical-align:-1px; }
+  .an-figs { display:grid; grid-template-columns:repeat(auto-fit, minmax(130px, 1fr)); gap:8px 16px; margin-top:10px; }
+  .an-fig span { display:block; color:var(--muted); font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; }
+  .an-fig b { font-size:15px; color:var(--primary); font-variant-numeric:tabular-nums; }
+
+  .an-charts { display:grid; grid-template-columns:1fr 1fr; gap:20px; }
+  .an-canvas { position:relative; height:300px; }
+  .an-chart-title { font-weight:700; color:var(--primary); font-size:13px; margin-bottom:8px; }
+  .an-two { display:grid; grid-template-columns:1fr 1fr; gap:24px; }
+  .an-list { list-style:none; margin:0; padding:0; font-size:13px; }
+  .an-list li { display:flex; justify-content:space-between; align-items:center; gap:10px; padding:8px 0; border-bottom:1px dashed var(--border); }
+  .an-list li:last-child { border-bottom:none; }
+  .an-list a { color:var(--primary); text-decoration:none; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .an-list a:hover { color:var(--accent); }
+  .an-list small { display:block; color:var(--muted); font-size:11px; font-weight:400; }
+  @media (max-width: 900px) { .an-charts, .an-two { grid-template-columns:1fr; } }
+</style>
+
+<div class="an-head">
+  <div>
+    <h2 style="color:var(--primary);margin:0;font-size:22px;font-weight:700">Analytics</h2>
+    <p class="an-note" style="margin:6px 0 0;font-size:13px">
+      {{ month|date:"F Y" }} ·
+      {% if in_progress %}figures cover {{ covered }} of {{ days }} days{% if as_of %} (to {{ as_of|date:"j M" }}){% endif %}, {{ days_left }} day{{ days_left|pluralize }} left
+      {% else %}full month, {{ days }} days{% endif %}
+      {% if updated_as_of %}· sales last uploaded {{ updated_as_of|date:"j M Y, H:i" }}{% endif %}
+    </p>
+  </div>
+  <form method="get" class="an-month">
+    <label for="an-month" class="sms-label" style="margin:0">Month</label>
+    <select id="an-month" name="month" class="sms-input" onchange="this.form.submit()">
+      {% for m in months %}<option value="{{ m|date:'Y-m' }}" {% if m == month %}selected{% endif %}>{{ m|date:"F Y" }}</option>{% endfor %}
+    </select>
+    {% if show_forecast %}<input type="hidden" name="forecast" value="1">{% endif %}
+    <noscript><button class="btn-sms btn-outline-custom">Show</button></noscript>
+  </form>
+</div>
+
+<!-- Every client, this month -->
+<div class="an-tiles">
+  <div class="stat-card">
+    <div class="stat-label">Sales · {{ month|date:"M Y" }}</div>
+    <div class="stat-value" style="color:var(--primary)">{{ company.actual|floatformat:"0g" }}</div>
+    <div class="stat-sub">{% if in_progress %}so far, all clients{% else %}all clients{% endif %}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Average sales per day</div>
+    <div class="stat-value" style="color:var(--primary)">{{ company.per_day|floatformat:"0g" }}</div>
+    <div class="stat-sub">{% if company.vs_prev is not None %}<span class="{% if company.vs_prev >= 0 %}an-up{% else %}an-down{% endif %}">{% if company.vs_prev > 0 %}+{% endif %}{{ company.vs_prev }}%</span> vs {{ prev|date:"M" }} ({{ company.prev_per_day|floatformat:"0g" }}/day){% else %}no sales for {{ prev|date:"M" }}{% endif %}</div>
+  </div>
+  <div class="stat-card">
+    {% if in_progress %}
+    <div class="stat-label">Projected month end</div>
+    <div class="stat-value" style="color:var(--primary)">{{ company.projected|floatformat:"0g" }}</div>
+    <div class="stat-sub">at the current daily average</div>
+    {% else %}
+    <div class="stat-label">vs {{ last_year|date:"M Y" }}</div>
+    <div class="stat-value" style="color:{% if company.vs_ly is None %}var(--muted){% elif company.vs_ly >= 0 %}var(--success){% else %}var(--danger){% endif %}">{% if company.vs_ly is None %}—{% else %}{% if company.vs_ly > 0 %}+{% endif %}{{ company.vs_ly }}%{% endif %}</div>
+    <div class="stat-sub">average per day, same month last year</div>
+    {% endif %}
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Active clients</div>
+    <div class="stat-value" style="color:var(--primary)">{{ company.active|floatformat:"0g" }}</div>
+    <div class="stat-sub">bought this month · avg {{ company.per_client|floatformat:"0g" }} each</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Year to date · per day</div>
+    <div class="stat-value" style="color:var(--primary)">{{ company.ytd_per_day|floatformat:"0g" }}</div>
+    <div class="stat-sub">{{ company.ytd|floatformat:"0g" }} total{% if company.vs_ly_ytd is not None %} · <span class="{% if company.vs_ly_ytd >= 0 %}an-up{% else %}an-down{% endif %}">{% if company.vs_ly_ytd > 0 %}+{% endif %}{{ company.vs_ly_ytd }}%</span> vs last year{% endif %}</div>
+  </div>
+</div>
+
+<!-- Target check -->
+<div class="an-card" id="target-check">
+  <div class="an-card-head">
+    <b>🎯 Will each stream reach its target?</b>
+    <span class="an-note">Corporate streams · {{ month|date:"F Y" }}</span>
+  </div>
+  <div class="an-check" id="check-prompt" {% if show_forecast %}hidden{% endif %}>
+    <form method="get" action="#target-check" id="check-form">
+      <input type="hidden" name="month" value="{{ month|date:'Y-m' }}">
+      <input type="hidden" name="forecast" value="1">
+      <button class="btn-sms btn-primary-custom an-check-btn">Check targets</button>
+    </form>
+    <div class="an-note">Carries each stream's average per day so far to the end of the month and compares it with the target.</div>
+  </div>
+
+  <div class="an-card-body" id="check-result" {% if not show_forecast %}hidden{% endif %}>
+    {% if has_targets %}
+    <div class="an-summary">
+      {% if in_progress %}<b>{{ on_track }} of {{ targeted }}</b> stream{{ targeted|pluralize }} with a target {{ on_track|pluralize:"is,are" }} on track to reach it,
+      with {{ days_left }} day{{ days_left|pluralize }} left.
+      {% else %}<b>{{ on_track }} of {{ targeted }}</b> stream{{ targeted|pluralize }} with a target reached it.{% endif %}
+    </div>
+    {% else %}
+    <div class="an-summary">No targets are set for {{ month|date:"F Y" }}. {% if access.corporate_sales %}<a href="{% url 'corporate_targets' %}?year={{ month.year }}">Set targets</a>{% endif %}</div>
+    {% endif %}
+    <div class="an-key">
+      <span><i style="background:var(--primary)"></i>Sales so far</span>
+      {% if in_progress %}<span><i style="background:#CBD5E1"></i>Projected by month end</span>{% endif %}
+      <span><i style="background:var(--primary);width:2px"></i>Target</span>
+      {% if in_progress %}<span><i style="border-left:2px dotted var(--muted);width:2px;border-radius:0"></i>Where they'd be today on an even pace</span>{% endif %}
+    </div>
+    <div class="an-streams">
+      {% for s in streams %}{% include 'shops/_analytics_stream.html' %}{% endfor %}
+      {% with s=corporate %}{% if s.target %}{% include 'shops/_analytics_stream.html' with total=True %}{% endif %}{% endwith %}
+    </div>
+    <p class="an-note" style="margin:14px 0 0">On track: projected to reach the target. At risk: projected at 90% or more of it. Off track: below that.
+      Averages use calendar days. Sales are uploaded as month totals, so a running month is measured to the day of the latest upload.</p>
+  </div>
+</div>
+
+<!-- Sales reps -->
+<div class="an-card">
+  <div class="an-card-head">
+    <b>👥 Sales rep performance · {{ month|date:"F Y" }}</b>
+    <span class="an-note">Change columns compare average sales per day, so a part month is compared fairly</span>
+  </div>
+  <div class="an-table-wrap">
+    <table class="sms-table">
+      <thead><tr>
+        <th>Sales rep</th><th class="an-num">Clients</th><th class="an-num">Active</th><th class="an-num">Sales</th>
+        <th class="an-num">Avg / day</th><th class="an-num">Avg / active client</th><th class="an-num">vs {{ prev|date:"M" }}</th>
+        <th class="an-num">vs {{ last_year|date:"M Y" }}</th><th class="an-num">Share</th><th class="an-num">YTD sales</th><th class="an-num">YTD vs last year</th>
+      </tr></thead>
+      <tbody>
+        {% for s in streams %}
+        <tr>
+          <td><span class="an-dot" style="background:{{ s.color }}"></span><b>{{ s.name }}</b><div class="an-note">{{ s.streams|join:", " }}</div></td>
+          <td class="an-num">{{ s.clients }}</td>
+          <td class="an-num">{{ s.active }}</td>
+          <td class="an-num">{{ s.actual|floatformat:"0g" }}</td>
+          <td class="an-num"><b>{{ s.per_day|floatformat:"0g" }}</b></td>
+          <td class="an-num">{{ s.per_client|floatformat:"0g" }}</td>
+          <td class="an-num">{% include 'shops/_analytics_pct.html' with v=s.vs_prev %}</td>
+          <td class="an-num">{% include 'shops/_analytics_pct.html' with v=s.vs_ly %}</td>
+          <td class="an-num">{% if s.share is not None %}{{ s.share }}%{% else %}—{% endif %}</td>
+          <td class="an-num">{{ s.ytd|floatformat:"0g" }}</td>
+          <td class="an-num">{% include 'shops/_analytics_pct.html' with v=s.vs_ly_ytd %}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="11" class="an-note" style="text-align:center">No active sales reps. Add them in the admin panel.</td></tr>
+        {% endfor %}
+        {% if streams %}
+        <tr class="an-total">
+          <td>All corporate streams</td>
+          <td class="an-num">{{ corporate.clients }}</td><td class="an-num">{{ corporate.active }}</td>
+          <td class="an-num">{{ corporate.actual|floatformat:"0g" }}</td><td class="an-num">{{ corporate.per_day|floatformat:"0g" }}</td>
+          <td class="an-num">{{ corporate.per_client|floatformat:"0g" }}</td>
+          <td class="an-num">{% include 'shops/_analytics_pct.html' with v=corporate.vs_prev %}</td>
+          <td class="an-num">{% include 'shops/_analytics_pct.html' with v=corporate.vs_ly %}</td>
+          <td class="an-num">100%</td><td class="an-num">{{ corporate.ytd|floatformat:"0g" }}</td>
+          <td class="an-num">{% include 'shops/_analytics_pct.html' with v=corporate.vs_ly_ytd %}</td>
+        </tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Average sales per day -->
+<div class="an-card">
+  <div class="an-card-head">
+    <b>📅 Average sales per day · last 12 months</b>
+    <span class="an-note">{% if trend.partial %}{{ month|date:"M" }} is a part month ({{ covered }} days){% endif %}</span>
+  </div>
+  <div class="an-card-body an-charts">
+    <div><div class="an-chart-title">All clients</div><div class="an-canvas"><canvas id="chart-all" aria-label="Average sales per day, all clients, by month"></canvas></div></div>
+    <div><div class="an-chart-title">By sales rep</div><div class="an-canvas"><canvas id="chart-reps" aria-label="Average sales per day by sales rep, by month"></canvas></div></div>
+  </div>
+</div>
+
+<!-- Territories -->
+<div class="an-card">
+  <div class="an-card-head"><b>🗺️ Sales by territory · {{ month|date:"F Y" }}</b><span class="an-note">Every client, by the territory code on their record</span></div>
+  <div class="an-table-wrap">
+    <table class="sms-table">
+      <thead><tr><th>Territory</th><th class="an-num">Active clients</th><th class="an-num">Sales</th><th class="an-num">Avg / day</th><th class="an-num">vs {{ prev|date:"M" }}</th><th class="an-num">Share</th></tr></thead>
+      <tbody>
+        {% for t in territories %}
+        <tr>
+          <td><b>{{ t.name }}</b></td>
+          <td class="an-num">{{ t.active }} <span class="an-note">of {{ t.clients }}</span></td>
+          <td class="an-num">{{ t.actual|floatformat:"0g" }}</td>
+          <td class="an-num">{{ t.per_day|floatformat:"0g" }}</td>
+          <td class="an-num">{% include 'shops/_analytics_pct.html' with v=t.vs_prev %}</td>
+          <td class="an-num">{% if t.share is not None %}{{ t.share }}%{% else %}—{% endif %}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="6" class="an-note" style="text-align:center">No sales uploaded for {{ month|date:"F Y" }}.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Clients -->
+<div class="an-two">
+  <div class="an-card">
+    <div class="an-card-head"><b>🏆 Top clients · {{ month|date:"M Y" }}</b></div>
+    <div class="an-card-body">
+      <ol class="an-list">
+        {% for c in top_clients %}
+        <li><a href="{% url 'shop_detail' c.id %}">{{ forloop.counter }}. {{ c.name }}{% if c.rep %}<small><span class="an-dot" style="background:{{ c.color }}"></span>{{ c.rep }}</small>{% endif %}</a>
+            <span class="an-num"><b>{{ c.value|floatformat:"0g" }}</b></span></li>
+        {% empty %}<li class="an-note">No sales yet.</li>{% endfor %}
+      </ol>
+    </div>
+  </div>
+  <div class="an-card">
+    <div class="an-card-head">
+      <b>💤 Bought in {{ prev|date:"M" }}, nothing {% if in_progress %}yet {% endif %}in {{ month|date:"M" }}</b>
+      <span class="an-note">{{ quiet_count }} client{{ quiet_count|pluralize }} · {{ quiet_value|floatformat:"0g" }} last month</span>
+    </div>
+    <div class="an-card-body">
+      <ol class="an-list">
+        {% for c in quiet %}
+        <li><a href="{% url 'shop_detail' c.id %}">{{ c.name }}{% if c.rep %}<small><span class="an-dot" style="background:{{ c.color }}"></span>{{ c.rep }}</small>{% endif %}</a>
+            <span class="an-num">{{ c.value|floatformat:"0g" }} <span class="an-note">in {{ prev|date:"M" }}</span></span></li>
+        {% empty %}<li class="an-note">Every client who bought in {{ prev|date:"F" }} has bought again.</li>{% endfor %}
+      </ol>
+      {% if quiet_count > 10 %}<p class="an-note" style="margin:10px 0 0">Showing the 10 biggest by last month's sales.</p>{% endif %}
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+(function () {
+  // The Check targets button opens the result in place; without JavaScript it reloads the page with ?forecast=1
+  var form = document.getElementById('check-form');
+  form.addEventListener('submit', function (e) {
+    e.preventDefault();
+    document.getElementById('check-prompt').hidden = true;
+    document.getElementById('check-result').hidden = false;
+    var url = new URL(location.href);
+    url.searchParams.set('month', form.month.value);
+    url.searchParams.set('forecast', '1');
+    history.replaceState(null, '', url);
+  });
+
+  if (!window.Chart) return;
+  var data = {{ trend_json|safe }};
+  var money = function (v) { return v == null ? '—' : Math.round(v).toLocaleString(); };
+  var short = function (v) { return v >= 1e6 ? (v / 1e6).toFixed(1) + 'M' : v >= 1e3 ? Math.round(v / 1e3) + 'k' : v; };
+  var last = data.labels.length - 1;
+  var common = {
+    responsive: true, maintainAspectRatio: false,
+    interaction: { mode: 'index', intersect: false },
+    plugins: { tooltip: { callbacks: { label: function (c) { return ' ' + c.dataset.label + ': ' + money(c.parsed.y) + ' / day'; },
+                                       afterTitle: function (items) { return data.partial && items[0].dataIndex === last ? 'Part month' : ''; } } } },
+    scales: { x: { grid: { display: false } },
+              y: { beginAtZero: true, grid: { color: 'rgba(15,23,42,.06)' }, border: { display: false }, ticks: { callback: short } } }
+  };
+
+  new Chart(document.getElementById('chart-all'), {
+    type: 'bar',
+    data: { labels: data.labels, datasets: [{ label: 'All clients', data: data.all, borderRadius: 4, maxBarThickness: 34,
+      // the month still running is lighter
+      backgroundColor: data.all.map(function (_, i) { return data.partial && i === last ? 'rgba(14,165,233,.4)' : '#0EA5E9'; }) }] },
+    options: Object.assign({}, common, { plugins: Object.assign({}, common.plugins, { legend: { display: false } }) })
+  });
+
+  new Chart(document.getElementById('chart-reps'), {
+    type: 'line',
+    data: { labels: data.labels, datasets: data.streams.map(function (s) {
+      return { label: s.name, data: s.values, borderColor: s.color, backgroundColor: s.color, borderWidth: 2,
+               pointRadius: 3, pointHoverRadius: 5, tension: .25, spanGaps: false };
+    }) },
+    options: Object.assign({}, common, { plugins: Object.assign({}, common.plugins,
+      { legend: { position: 'bottom', labels: { boxWidth: 12, boxHeight: 12, usePointStyle: true } } }) })
+  });
+})();
+</script>
+{% endblock %}
