@@ -143,13 +143,76 @@
     .page-header { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:22px; }
     .page-title { margin:0; color:var(--primary); font-size:20px; font-weight:700; }
     .page-sub { margin:4px 0 0; color:var(--muted); font-size:13px; }
+
+    /* ── Mobile ── */
+    .mobile-bar, .sidebar-backdrop, .sidebar-close { display: none; }
+    .table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+    /* Phones and portrait tablets: the sidebar becomes a slide-in menu behind a top bar */
+    @media (max-width: 991px) {
+      .layout { display: block; }
+      .mobile-bar { display: flex; align-items: center; gap: 12px; position: sticky; top: 0; z-index: 1030; background: var(--primary); color: #fff; padding: 10px 16px; }
+      .mobile-bar .menu-btn { background: rgba(255,255,255,.12); border: none; color: #fff; border-radius: 10px; width: 44px; height: 44px; font-size: 22px; line-height: 1; cursor: pointer; }
+      .mobile-bar .label { color: var(--accent); font-size: 9px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; }
+      .mobile-bar .title { font-size: 15px; font-weight: 700; }
+      .sidebar { position: fixed; top: 0; left: 0; bottom: 0; height: 100%; width: 280px; max-width: 85vw; z-index: 1050; transform: translateX(-100%); transition: transform .25s ease; }
+      .sidebar.open { transform: none; box-shadow: 0 0 40px rgba(0,0,0,.4); }
+      .sidebar-brand { padding-right: 56px; }
+      .sidebar-close { display: block; position: absolute; top: 14px; right: 12px; background: rgba(255,255,255,.12); border: none; color: #fff; border-radius: 8px; width: 36px; height: 36px; font-size: 16px; cursor: pointer; }
+      .sidebar-backdrop { position: fixed; inset: 0; z-index: 1040; background: rgba(15,23,42,.5); }
+      .sidebar-backdrop.open { display: block; }
+      body.menu-open { overflow: hidden; }
+      .nav-item-custom { padding: 13px 14px; font-size: 14px; }
+      .main-content { padding: 20px; }
+    }
+
+    /* Phones: one column, smaller spacing, wide tables scroll sideways */
+    @media (max-width: 640px) {
+      .main-content { padding: 16px; }
+      .top-actions { margin: 0 0 8px; }
+      .page-header { flex-wrap: wrap; gap: 12px; }
+      .page-title { font-size: 18px; }
+      .stat-card { padding: 16px; }
+      .stat-value { font-size: 22px; }
+      .detail-hero { padding: 20px; border-radius: 14px; }
+      .sms-table th, .sms-table td { padding: 10px 12px; white-space: nowrap; }
+      .btn-sms { padding: 10px 16px; }
+      /* 16px stops iPhones zooming in when a field is tapped */
+      .sms-input, .form-control, .form-select, .main-content input, .main-content select, .main-content textarea { font-size: 16px; }
+
+      /* Page grids set inline or in page styles: stack them (small tile grids keep wrapping by themselves) */
+      .main-content [style*="grid-template-columns"]:not([style*="minmax(1"]) { grid-template-columns: 1fr !important; }
+      .main-content [style*="display:flex"], .main-content [style*="display: flex"] { flex-wrap: wrap; }
+      .main-content .an-charts, .main-content .an-two, .main-content .mgr-filters, .main-content .pg-top, .main-content .pg-cols,
+      .main-content .ps-top, .main-content .ps-main, .main-content .ps-charts, .main-content .promo-grid, .main-content .promo-detail-grid,
+      .main-content .rep-grid, .main-content .rep-row { grid-template-columns: 1fr; }
+      .main-content .ps-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+      #lightbox img { max-width: 94vw; max-height: 62vh; }
+      #lb-bar { padding: 12px 14px; }
+      .lb-nav { padding: 10px 12px; font-size: 22px; }
+      #lb-prev { left: 6px; }
+      #lb-next { right: 6px; }
+      #lb-thumbs { max-width: 94vw; bottom: 16px; }
+    }
   </style>
 </head>
 <body>
+<!-- Mobile top bar (shown on small screens only) -->
+<header class="mobile-bar">
+  <button type="button" class="menu-btn" onclick="toggleMenu(true)" aria-label="Open menu">☰</button>
+  <div>
+    <div class="label">Ah Liki Investment Corp</div>
+    <div class="title">{% if is_finance %}Finance{% else %}Sales and Marketing{% endif %}</div>
+  </div>
+</header>
+<div class="sidebar-backdrop" id="sidebar-backdrop" onclick="toggleMenu(false)"></div>
+
 <div class="layout">
 
   <!-- Sidebar -->
-  <aside class="sidebar">
+  <aside class="sidebar" id="sidebar">
+    <button type="button" class="sidebar-close" onclick="toggleMenu(false)" aria-label="Close menu">✕</button>
     <div class="sidebar-brand">
       <div class="label">Ah Liki Investment Corp</div>
       <div class="title">{% if is_finance %}Finance{% else %}Sales and Marketing{% endif %}</div>
@@ -261,6 +324,27 @@
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script>
+// ── Mobile menu ───────────────────────────────────────────────────────────
+function toggleMenu(open) {
+  document.getElementById('sidebar').classList.toggle('open', open);
+  document.getElementById('sidebar-backdrop').classList.toggle('open', open);
+  document.body.classList.toggle('menu-open', open);
+}
+document.addEventListener('keydown', function(e) { if (e.key === 'Escape') toggleMenu(false); });
+document.querySelectorAll('#sidebar a').forEach(function(a) {
+  a.addEventListener('click', function() { toggleMenu(false); });
+});
+
+// ── Wide tables scroll sideways instead of stretching the page ────────────
+document.querySelectorAll('.main-content table').forEach(function(t) {
+  var p = t.parentElement;
+  if (p.classList.contains('table-scroll') || p.classList.contains('table-responsive') || getComputedStyle(p).overflowX === 'auto') return;
+  var wrap = document.createElement('div');
+  wrap.className = 'table-scroll';
+  p.insertBefore(wrap, t);
+  wrap.appendChild(t);
+});
+
 // ── Lightbox ──────────────────────────────────────────────────────────────
 var LB = { photos:[], idx:0 };
 function lbOpen(photos, idx) {
