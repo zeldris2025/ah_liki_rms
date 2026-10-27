@@ -466,9 +466,13 @@ class CorporateManagerPageTests(TestCase):
         Shop.objects.create(name='No Type Store')
         r = self.client.get(reverse('shop_list'), {'customer_type': 'Laundromats'})
         self.assertEqual({s.name for s in r.context['page_obj']}, {'Clean Laundromat', 'Quiet Laundromat'})
-        self.assertContains(r, 'Laundromats (2)')
+        self.assertContains(r, 'Laundromats <span>(2)</span>')
         r = self.client.get(reverse('shop_list'), {'customer_type': '__none__'})
         self.assertEqual([s.name for s in r.context['page_obj']], ['No Type Store'])
+        r = self.client.get(reverse('shop_list'), {'customer_type': ['Laundromats', 'Hotels & Resorts', '__none__']})
+        self.assertEqual({s.name for s in r.context['page_obj']},
+                         {'Clean Laundromat', 'Quiet Laundromat', 'Beach Hotel', 'No Type Store'})
+        self.assertContains(r, 'Customer Type: 3 selected')
 
 
 class YearToDateTargetTests(TestCase):

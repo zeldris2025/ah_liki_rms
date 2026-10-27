@@ -1,5 +1,17 @@
 {% extends 'shops/base.html' %}
 {% block content %}
+<style>
+  .type-pick { position:relative; border:1px solid var(--border); border-radius:8px; background:var(--card); font-size:13px; }
+  .type-pick summary { list-style:none; cursor:pointer; padding:8px 30px 8px 12px; max-width:260px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .type-pick summary::-webkit-details-marker { display:none; }
+  .type-pick summary::after { content:'▾'; position:absolute; right:11px; top:8px; color:var(--muted); }
+  .type-panel { position:absolute; top:calc(100% + 4px); left:0; z-index:20; min-width:270px; max-height:340px; overflow-y:auto; background:var(--card); border:1px solid var(--border); border-radius:10px; box-shadow:0 10px 30px rgba(15,23,42,.15); padding:6px; }
+  .type-panel label { display:flex; align-items:center; gap:8px; padding:7px 8px; border-radius:6px; cursor:pointer; white-space:nowrap; }
+  .type-panel label:hover { background:var(--surface); }
+  .type-panel label span { color:var(--muted); }
+  .type-actions { display:flex; justify-content:space-between; gap:8px; padding:8px 4px 4px; border-top:1px solid var(--border); margin-top:4px; position:sticky; bottom:-6px; background:var(--card); }
+  @media (max-width: 640px) { .type-panel { min-width:0; width:calc(100vw - 32px); } }
+</style>
 <div class="page-header">
   <div>
     <h2 class="page-title">All Clients</h2>
@@ -17,15 +29,27 @@
   <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:12px">
     <input type="text" name="q" value="{{ q }}" placeholder="Search name, customer code, contact or village…"
            style="padding:8px 14px;border:1px solid var(--border);border-radius:8px;font-size:13px;flex:1 1 180px;min-width:140px">
-    <select name="customer_type" onchange="this.form.submit()" aria-label="Customer type"
-            style="padding:8px 12px;border:1px solid {% if customer_type %}var(--accent){% else %}var(--border){% endif %};border-radius:8px;font-size:13px;max-width:260px">
-      <option value="">Customer Type: All</option>
-      {% for t in customer_types %}{% if t.customer_type %}
-      <option value="{{ t.customer_type }}" {% if customer_type == t.customer_type %}selected{% endif %}>{{ t.customer_type }} ({{ t.n }})</option>
-      {% endif %}{% endfor %}
-      {% for t in customer_types %}{% if not t.customer_type %}
-      <option value="__none__" {% if customer_type == '__none__' %}selected{% endif %}>No type set ({{ t.n }})</option>
-      {% endif %}{% endfor %}
+    <details class="type-pick" style="border-color:{% if selected_types %}var(--accent){% else %}var(--border){% endif %}">
+      <summary>Customer Type: {% if not selected_types %}All{% elif selected_types|length == 1 %}{% if selected_types.0 == '__none__' %}No type set{% else %}{{ selected_types.0 }}{% endif %}{% else %}{{ selected_types|length }} selected{% endif %}</summary>
+      <div class="type-panel">
+        {% for t in customer_types %}{% if t.customer_type %}
+        <label><input type="checkbox" name="customer_type" value="{{ t.customer_type }}" {% if t.customer_type in selected_types %}checked{% endif %}> {{ t.customer_type }} <span>({{ t.n }})</span></label>
+        {% endif %}{% endfor %}
+        {% for t in customer_types %}{% if not t.customer_type %}
+        <label><input type="checkbox" name="customer_type" value="__none__" {% if '__none__' in selected_types %}checked{% endif %}> No type set <span>({{ t.n }})</span></label>
+        {% endif %}{% endfor %}
+        <div class="type-actions">
+          <button type="button" class="btn-sms btn-outline-custom sm" onclick="this.closest('.type-pick').querySelectorAll('input').forEach(function(c){c.checked=false})">Clear</button>
+          <button type="submit" class="btn-sms btn-primary-custom sm">Apply</button>
+        </div>
+      </div>
+    </details>
+    <select name="island" onchange="this.form.submit()" aria-label="Island"
+            style="padding:8px 12px;border:1px solid {% if island %}var(--accent){% else %}var(--border){% endif %};border-radius:8px;font-size:13px">
+      <option value="">Island: All</option>
+      {% for i in islands %}
+      <option value="{{ i.island }}" {% if island == i.island %}selected{% endif %}>{{ i.island }} ({{ i.n }})</option>
+      {% endfor %}
     </select>
     <select name="tip_top" style="padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px">
       <option value="">Tip Top: All</option>
@@ -53,7 +77,7 @@
       <option value="no"  {% if photos == 'no'  %}selected{% endif %}>No Photos</option>
     </select>
     <button type="submit" class="btn-sms btn-primary-custom sm">Filter</button>
-    {% if q or customer_type or territories or tip_top or taula_fridge or talofa_voucher or faakau_com or photos %}
+    {% if q or selected_types or island or territories or tip_top or taula_fridge or talofa_voucher or faakau_com or photos %}
     <a href="{% url 'shop_list' %}" class="btn-sms btn-outline-custom sm">✕ Clear</a>
     {% endif %}
   </div>
@@ -144,11 +168,11 @@
 {% if page_obj.has_other_pages %}
 <div style="display:flex;justify-content:center;gap:6px;margin-top:20px">
   {% if page_obj.has_previous %}
-  <a href="?page={{ page_obj.previous_page_number }}&q={{ q|urlencode }}{% for t in territories %}&territory={{ t }}{% endfor %}&tip_top={{ tip_top }}&taula_fridge={{ taula_fridge }}&talofa_voucher={{ talofa_voucher }}&faakau_com={{ faakau_com }}&photos={{ photos }}&customer_type={{ customer_type|urlencode }}{% if sort %}&sort={{ sort }}{% endif %}" class="btn-sms btn-outline-custom sm">← Prev</a>
+  <a href="?page={{ page_obj.previous_page_number }}&q={{ q|urlencode }}{% for t in territories %}&territory={{ t }}{% endfor %}&tip_top={{ tip_top }}&taula_fridge={{ taula_fridge }}&talofa_voucher={{ talofa_voucher }}&faakau_com={{ faakau_com }}&photos={{ photos }}{% for t in selected_types %}&customer_type={{ t|urlencode }}{% endfor %}&island={{ island|urlencode }}{% if sort %}&sort={{ sort }}{% endif %}" class="btn-sms btn-outline-custom sm">← Prev</a>
   {% endif %}
   <span style="padding:6px 16px;font-size:13px;color:var(--muted)">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
   {% if page_obj.has_next %}
-  <a href="?page={{ page_obj.next_page_number }}&q={{ q|urlencode }}{% for t in territories %}&territory={{ t }}{% endfor %}&tip_top={{ tip_top }}&taula_fridge={{ taula_fridge }}&talofa_voucher={{ talofa_voucher }}&faakau_com={{ faakau_com }}&photos={{ photos }}&customer_type={{ customer_type|urlencode }}{% if sort %}&sort={{ sort }}{% endif %}" class="btn-sms btn-outline-custom sm">Next →</a>
+  <a href="?page={{ page_obj.next_page_number }}&q={{ q|urlencode }}{% for t in territories %}&territory={{ t }}{% endfor %}&tip_top={{ tip_top }}&taula_fridge={{ taula_fridge }}&talofa_voucher={{ talofa_voucher }}&faakau_com={{ faakau_com }}&photos={{ photos }}{% for t in selected_types %}&customer_type={{ t|urlencode }}{% endfor %}&island={{ island|urlencode }}{% if sort %}&sort={{ sort }}{% endif %}" class="btn-sms btn-outline-custom sm">Next →</a>
   {% endif %}
 </div>
 {% endif %}

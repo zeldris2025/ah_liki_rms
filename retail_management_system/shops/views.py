@@ -202,12 +202,15 @@ def shop_list(request):
     talofa      = request.GET.get('talofa_voucher', '')
     faakau      = request.GET.get('faakau_com', '')
     photos      = request.GET.get('photos', '')
-    ctype       = request.GET.get('customer_type', '')
+    ctypes      = [t for t in request.GET.getlist('customer_type') if t]
+    island      = request.GET.get('island', '')
 
-    if ctype == '__none__':
-        qs = qs.filter(customer_type='')
-    elif ctype:
-        qs = qs.filter(customer_type=ctype)
+    if island:
+        qs = qs.filter(island=island)
+    if ctypes:
+        # Several types combine with OR; "__none__" stands for clients with no type set
+        named = [t for t in ctypes if t != '__none__']
+        qs = qs.filter(Q(customer_type__in=named) | (Q(customer_type='') if '__none__' in ctypes else Q(pk__in=[])))
     if q:
         qs = qs.filter(Q(name__icontains=q) | Q(customer_code__iexact=q) | Q(contact_person__icontains=q)
                        | Q(address__icontains=q))
@@ -263,7 +266,8 @@ def shop_list(request):
         'all_territories': all_territories,
         'tip_top': tip_top, 'photos': photos,
         'taula_fridge': taula, 'talofa_voucher': talofa, 'faakau_com': faakau,
-        'customer_type': ctype, 'sort': sort, 'sales_year': sales_year,
+        'selected_types': ctypes, 'island': island, 'sort': sort, 'sales_year': sales_year,
+        'islands': Shop.objects.values('island').annotate(n=Count('id')).order_by('island'),
         'sort_query': urlencode([(k, v) for k, vs in request.GET.lists() if k not in ('sort', 'page') for v in vs]),
         'customer_types': Shop.objects.values('customer_type').annotate(n=Count('id')).order_by('customer_type'),
     })
