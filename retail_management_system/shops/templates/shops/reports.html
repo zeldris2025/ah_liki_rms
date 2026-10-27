@@ -76,6 +76,10 @@
         <div class="form-group"><label class="sms-label">Customer Type</label>
           <select name="customer_type" class="sms-input"><option value="">All</option>{% for t in customer_types %}<option value="{{ t }}">{{ t }}</option>{% endfor %}</select></div>
       </div>
+      <div class="rep-row">
+        <div class="form-group"><label class="sms-label">Island</label>
+          <select name="island" class="sms-input"><option value="">All</option><option>Upolu</option><option>Savaii</option></select></div>
+      </div>
       <div class="rep-layouts">
         <label><input type="radio" name="layout" value="rows" checked><span>One row per client per month<small>Code, name, month, sales</small></span></label>
         <label><input type="radio" name="layout" value="clients"><span>Total per client<small>Each client’s total for the period, highest first</small></span></label>

@@ -590,6 +590,14 @@ class ReportsTests(TestCase):
         feb = self.download(type='monthly_sales', year=2026, month=2, person='corporate')
         self.assertEqual(len(feb), 3)
 
+    def test_monthly_sales_island_filter(self):
+        savaii = self.download(type='monthly_sales', year=2026, island='Savaii')
+        self.assertEqual([r[1] for r in savaii[1:]], ['Beach Hotel'])
+        upolu = self.download(type='monthly_sales', year=2026, island='Upolu', layout='clients')
+        self.assertEqual([r[1] for r in upolu[1:]], ['Ministry of Finance'])
+        response = self.client.get(reverse('download_report'), {'type': 'monthly_sales', 'year': 2026, 'island': 'Savaii'})
+        self.assertIn('monthly_sales_2026_savaii_', response['Content-Disposition'])
+
     def test_corporate_report(self):
         rows = self.download(type='corporate', year=2026, person='ruth')
         self.assertEqual(rows[0], ['Manager', 'Streams', 'Month', 'Actual Sales', 'Target', 'Variance', '% of Target'])

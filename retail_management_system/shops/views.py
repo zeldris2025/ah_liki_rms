@@ -1032,6 +1032,9 @@ def _monthly_sales_report(request):
     layout = request.GET.get('layout', 'rows')
     ctype = request.GET.get('customer_type', '')
     person = request.GET.get('person', '')
+    island = request.GET.get('island', '')
+    if island not in dict(Shop.ISLAND_CHOICES):
+        island = ''
 
     _, types, _ = corporate.client_ids_by_manager()
     owner = {t: m['name'] for m in corporate.managers() for t in types[m['key']]}
@@ -1041,12 +1044,15 @@ def _monthly_sales_report(request):
         qs = qs.filter(month__month=month)
     if ctype:
         qs = qs.filter(shop__customer_type=ctype)
+    if island:
+        qs = qs.filter(shop__island=island)
     if person == 'corporate':
         qs = qs.filter(shop__customer_type__in=list(owner))
     elif person in types:
         qs = qs.filter(shop__customer_type__in=types[person])
     label = f'{year}-{month:02d}' if month else str(year)
-    response, w = _csv_response(f'monthly_sales_{label}' + (f'_{person}' if person else ''))
+    response, w = _csv_response(f'monthly_sales_{label}' + (f'_{person}' if person else '')
+                                + (f'_{island.lower()}' if island else ''))
 
     if layout == 'clients':
         w.writerow(['Customer Code', 'Customer Name', 'Customer Type', 'Corporate Manager', 'Territory Code',
