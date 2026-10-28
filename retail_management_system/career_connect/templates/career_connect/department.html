@@ -1,0 +1,56 @@
+{% extends 'career_connect/base.html' %}
+{% load career_icons %}
+{% block title %}{{ department.name }} — Ah Liki Career Connect{% endblock %}
+{% block extra_style %}
+  .page-head.dept { background: linear-gradient(105deg, var(--navy-deep) 0%, var(--c-dark) 55%, var(--c) 130%); }
+  .head-row { display: flex; align-items: center; gap: 18px; }
+  .head-badge { width: 72px; height: 72px; border-radius: 50%; background: var(--c); border: 2px solid rgba(255,255,255,.4); display: grid; place-items: center; color: #fff; flex-shrink: 0; }
+{% endblock %}
+{% block main %}
+<div class="page-head dept{% if department.image_url %} has-photo{% endif %}"
+     style="--c:{{ department.palette.main }};--c-dark:{{ department.palette.dark }};{% if department.image_url %}--photo:url('{{ department.image_url }}');--photo-opacity:{{ department.photo_opacity }};{% endif %}">
+  <div class="wrap">
+    <nav class="crumbs" aria-label="Breadcrumb">
+      <a href="{% url 'career_connect' %}">Home</a> › <a href="{% url 'career_connect_departments' %}">Career Opportunities</a> › {{ department.name }}
+    </nav>
+    <div class="head-row">
+      <span class="head-badge">{% icon department.symbol 34 %}</span>
+      <div>
+        <div class="kicker">Department</div>
+        <h1>{{ department.name }}</h1>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="page-body"><div class="wrap">
+  <section class="panel" aria-labelledby="about-dept">
+    <h2 id="about-dept">About this department</h2>
+    {% if department.description %}<div class="prose">{{ department.description|linebreaks }}</div>
+    {% else %}{% include 'career_connect/_missing.html' with what='A description of this department' %}{% endif %}
+  </section>
+
+  <section style="margin-top:30px" aria-labelledby="roles">
+    <div class="kicker">Roles</div>
+    <h2 class="section-title" id="roles" style="font-size:26px;margin-bottom:18px">Roles in this department</h2>
+    {% for r in roles %}
+    <a class="role-row" href="{{ r.get_absolute_url }}" style="--c:{{ department.palette.main }}">
+      <span class="body">
+        <span class="t">{{ r.title }}</span>
+        <span class="s" style="display:block">{{ r.summary|default:"Tap to see the role details." }}</span>
+        <span class="pill {% if r.vacancy_status == 'open' %}open{% elif r.vacancy_status == 'closed' %}closed{% else %}light{% endif %}">
+          {% if r.vacancy_status == 'not_stated' %}Vacancy status not stated{% else %}{{ r.get_vacancy_status_display }}{% endif %}</span>
+      </span>
+      <span class="go">{% icon 'arrow' 18 %}</span>
+    </a>
+    {% empty %}
+    {% include 'career_connect/_missing.html' with what='Roles for this department' %}
+    {% endfor %}
+  </section>
+
+  <div class="actions" style="margin-top:26px">
+    <a class="btn btn-light" href="{% url 'career_connect_departments' %}">{% icon 'back' 16 %} All departments</a>
+    <a class="btn btn-light" href="{% url 'career_connect' %}">Home</a>
+  </div>
+</div></div>
+{% endblock %}

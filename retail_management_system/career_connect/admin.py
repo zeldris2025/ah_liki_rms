@@ -1,0 +1,122 @@
+"""Career Connect content, edited in the Django admin with its own model permissions.
+
+Nobody gets these permissions automatically (superusers aside, as with every model): add people to the
+'Career Connect Admin' group. The SMS access levels still apply, so only Managers can reach the admin at all.
+"""
+from django import forms
+from django.contrib import admin
+from django.urls import reverse
+from django.utils.html import format_html
+
+from .models import CompanyImage, Department, ExpressionOfInterest, PortalSettings, Role
+
+
+@admin.register(PortalSettings)
+class PortalSettingsAdmin(admin.ModelAdmin):
+    list_display = ('__str__', 'is_published', 'updated_at', 'public_link')
+    fieldsets = (
+        (None, {'fields': ('is_published', 'tagline', 'hero_text', 'hero_image', 'company_image')}),
+        ('About the company', {'fields': ('company_intro', 'company_background')}),
+        ('Headquarters opening video', {'fields': ('video_title', 'video_url', 'video_caption')}),
+        ('Headquarters location', {'fields': ('hq_name', 'hq_address', 'hq_directions',
+                                              ('hq_latitude', 'hq_longitude'), 'hq_map_url')}),
+        ('Contact and applications', {'fields': ('contact_email', 'contact_phone', 'application_instructions')}),
+        ('Footer and social media', {'fields': ('footer_slogan', 'footer_closing', 'footer_text',
+                                                'facebook_url', 'instagram_url', 'linkedin_url')}),
+    )
+    autocomplete_fields = ('hero_image', 'company_image')
+
+    def has_add_permission(self, request):
+        return super().has_add_permission(request) and not PortalSettings.objects.exists()
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+    @admin.display(description='Public page')
+    def public_link(self, obj):
+        return format_html('<a href="{}" target="_blank" rel="noopener">Open Career Connect ↗</a>',
+                           reverse('career_connect'))
+
+
+class RoleInline(admin.TabularInline):
+    model = Role
+    fields = ('title', 'slug', 'vacancy_status', 'apply_method', 'order', 'is_published')
+    prepopulated_fields = {'slug': ('title',)}
+    show_change_link = True
+    extra = 0
+
+
+@admin.register(Department)
+class DepartmentAdmin(admin.ModelAdmin):
+    list_display = ('name', 'thumbnail', 'symbol', 'colour', 'order', 'is_published')
+    list_editable = ('order', 'is_published')
+    prepopulated_fields = {'slug': ('name',)}
+    fieldsets = (
+        (None, {'fields': ('name', 'slug', 'symbol', 'colour', 'description', 'order', 'is_published')}),
+        ('Background photo', {
+            'fields': ('background', 'background_opacity', 'card_preview'),
+            'description': "Upload a photo to show behind this department's card and page heading. It is faded "
+                           'over the department colour (50% by default) so the white text stays easy to read. '
+                           'To remove it, tick "Clear" and save.',
+        }),
+    )
+    readonly_fields = ('card_preview',)
+    inlines = [RoleInline]
+
+    def formfield_for_dbfield(self, db_field, request, **kwargs):
+        if db_field.name == 'background_opacity':
+            kwargs['widget'] = forms.NumberInput(attrs={'min': 10, 'max': 90, 'step': 5, 'style': 'width:6em'})
+        return super().formfield_for_dbfield(db_field, request, **kwargs)
+
+    @admin.display(description='Photo')
+    def thumbnail(self, obj):
+        if not obj.background:
+            return '—'
+        return format_html('<img src="{}" alt="" style="height:34px;width:56px;object-fit:cover;border-radius:4px">',
+                           obj.background.url)
+
+    @admin.display(description='Preview (after saving)')
+    def card_preview(self, obj):
+        p = obj.palette
+        photo = (format_html('<span style="position:absolute;inset:0;background:url(&quot;{}&quot;) center/cover;'
+                             'opacity:{}"></span>', obj.background.url, obj.photo_opacity) if obj.background else '')
+        return format_html(
+            '<div style="position:relative;width:300px;height:140px;border-radius:8px;overflow:hidden;'
+            'background:linear-gradient(120deg,{} 0%,{} 150%);color:#fff;font:600 17px/1.3 sans-serif">{}'
+            '<span style="position:absolute;left:16px;bottom:30px;text-shadow:0 1px 6px rgba(0,0,0,.35)">{}</span>'
+            '<span style="position:absolute;left:16px;bottom:12px;font-size:12px;font-weight:400">{}</span></div>',
+            p['dark'], p['main'], photo, obj.name or 'Department',
+            f'Photo at {obj.background_opacity}%' if obj.background else 'No photo: colour only')
+
+
+@admin.register(Role)
+class RoleAdmin(admin.ModelAdmin):
+    list_display = ('title', 'department', 'vacancy_status', 'apply_method', 'is_published')
+    list_filter = ('department', 'vacancy_status', 'apply_method', 'is_published')
+    search_fields = ('title', 'summary', 'description')
+    prepopulated_fields = {'slug': ('title',)}
+    fieldsets = (
+        (None, {'fields': ('department', 'title', 'slug', 'summary', 'order', 'is_published')}),
+        ('Job details', {'fields': ('description', 'responsibilities', 'qualifications', 'skills')}),
+        ('Vacancy and applying', {'fields': ('vacancy_status', 'how_to_apply', 'apply_method', 'apply_url',
+                                             'apply_email')}),
+    )
+
+
+@admin.register(CompanyImage)
+class CompanyImageAdmin(admin.ModelAdmin):
+    list_display = ('__str__', 'order', 'is_published')
+    list_editable = ('order', 'is_published')
+    search_fields = ('caption', 'alt_text', 'image')
+
+
+@admin.register(ExpressionOfInterest)
+class ExpressionOfInterestAdmin(admin.ModelAdmin):
+    list_display = ('full_name', 'role_title', 'email', 'phone', 'school', 'created_at', 'reviewed')
+    list_filter = ('reviewed', 'role__department', 'created_at')
+    list_editable = ('reviewed',)
+    search_fields = ('full_name', 'email', 'school', 'role_title')
+    readonly_fields = ('role', 'role_title', 'full_name', 'email', 'phone', 'school', 'message', 'created_at')
+
+    def has_add_permission(self, request):
+        return False   # they only come from the public form

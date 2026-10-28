@@ -5,27 +5,41 @@
       <div class="an-stream-name">{{ s.name }}</div>
       {% if not total %}<div class="an-stream-sub">{{ s.streams|join:", " }} · {{ s.active }} of {{ s.clients }} clients bought</div>{% endif %}
     </div>
-    <span class="an-pill {{ s.status }}">
-      {% if s.status == 'on' or s.status == 'reached' %}✓{% elif s.status == 'risk' %}!{% elif s.status == 'off' or s.status == 'missed' %}✕{% else %}–{% endif %}
-      {{ s.status_label }}{% if s.pct_projected is not None and in_progress and s.status != 'reached' %} · {{ s.pct_projected }}% projected{% elif s.pct_so_far is not None %} · {{ s.pct_so_far }}%{% endif %}
-    </span>
   </div>
-  {% if s.target %}
-  <div class="an-bar" role="img" aria-label="{{ s.actual|floatformat:'0g' }} sold of a {{ s.target|floatformat:'0g' }} target{% if in_progress %}, {{ s.projected|floatformat:'0g' }} projected{% endif %}">
+  {% if s.target or s.financial %}
+  <div class="an-bar" role="img" aria-label="{{ s.actual|floatformat:'0g' }} sold{% if s.target %}, commercial target {{ s.target|floatformat:'0g' }}{% endif %}{% if s.financial %}, financial target {{ s.financial|floatformat:'0g' }}{% endif %}{% if in_progress %}, {{ s.projected|floatformat:'0g' }} projected{% endif %}">
     {% if in_progress %}<span class="proj" style="width:{{ s.bar.projected }}%"></span>{% endif %}
     <span class="act" style="width:{{ s.bar.actual }}%"></span>
-    {% if in_progress %}<span class="exp" style="left:{{ s.bar.expected }}%" title="Even pace by today: {{ s.expected_by_now|floatformat:'0g' }}"></span>{% endif %}
-    <span class="tgt" style="left:calc({{ s.bar.target }}% - 1px)" title="Target: {{ s.target|floatformat:'0g' }}"></span>
+    {% if in_progress and s.target %}<span class="exp" style="left:{{ s.bar.expected }}%" title="Even pace by today: {{ s.expected_by_now|floatformat:'0g' }}"></span>{% endif %}
+    {% if s.financial %}<span class="tgt fin" style="left:calc({{ s.bar.financial }}% - 1px)" title="Financial Target: {{ s.financial|floatformat:'0g' }}"></span>{% endif %}
+    {% if s.target %}<span class="tgt" style="left:calc({{ s.bar.target }}% - 1px)" title="Commercial Target: {{ s.target|floatformat:'0g' }}"></span>{% endif %}
   </div>
   {% endif %}
   <div class="an-figs">
     <div class="an-fig"><span>Sales so far</span><b>{{ s.actual|floatformat:"0g" }}</b></div>
-    <div class="an-fig"><span>Target</span><b>{% if s.target %}{{ s.target|floatformat:"0g" }}{% else %}—{% endif %}</b></div>
     {% if in_progress %}<div class="an-fig"><span>Projected</span><b>{{ s.projected|floatformat:"0g" }}</b></div>{% endif %}
-    <div class="an-fig"><span>{% if in_progress %}Gap at month end{% else %}Over / under{% endif %}</span>
-      <b class="{% if s.gap is None %}{% elif s.gap >= 0 %}an-up{% else %}an-down{% endif %}">{% if s.gap is None %}—{% else %}{% if s.gap > 0 %}+{% endif %}{{ s.gap|floatformat:"0g" }}{% endif %}</b></div>
     <div class="an-fig"><span>Avg / day so far</span><b>{{ s.per_day|floatformat:"0g" }}</b></div>
-    {% if in_progress and s.target %}<div class="an-fig"><span>Needed / day</span>
-      <b>{% if s.needed_per_day %}{{ s.needed_per_day|floatformat:"0g" }}{% else %}Reached{% endif %}</b></div>{% endif %}
+  </div>
+  <div class="an-goals">
+    {% for g in s.goals %}
+    <div class="an-goal {{ g.kind }}">
+      <div class="an-goal-head">
+        <div><b>{{ g.name }}</b> <span class="an-note">{{ g.note }}</span></div>
+        <span class="an-pill {{ g.status }}">
+          {% if g.status == 'on' or g.status == 'reached' %}✓{% elif g.status == 'risk' %}↗{% elif g.status == 'off' or g.status == 'missed' %}↑{% else %}–{% endif %}
+          {{ g.status_label }}{% if g.status_detail %} · {{ g.status_detail }}{% endif %}
+        </span>
+      </div>
+      {% if g.target %}
+      <div class="an-figs">
+        <div class="an-fig"><span>Target</span><b>{{ g.target|floatformat:"0g" }}</b></div>
+        <div class="an-fig"><span>{% if in_progress %}Gap at month end{% else %}Over / under{% endif %}</span>
+          <b class="{% if g.gap >= 0 %}an-up{% else %}an-down{% endif %}">{% if g.gap > 0 %}+{% endif %}{{ g.gap|floatformat:"0g" }}</b></div>
+        {% if in_progress %}<div class="an-fig"><span>Needed / day</span>
+          <b>{% if g.needed_per_day %}{{ g.needed_per_day|floatformat:"0g" }}{% else %}Reached{% endif %}</b></div>{% endif %}
+      </div>
+      {% endif %}
+    </div>
+    {% endfor %}
   </div>
 </div>

@@ -256,6 +256,9 @@
       <a href="{% url 'sponsorship_list' %}" class="nav-item-custom {% if n == 'sponsorship_list' or n == 'add_sponsorship' or n == 'edit_sponsorship' %}active{% endif %}"><span class="nav-icon">🤝</span>Sponsorships</a>
       {% endif %}
       <a href="{% url 'car_allocations' %}"  class="nav-item-custom {% if n == 'car_allocations' %}active{% endif %}"><span class="nav-icon">🚗</span>Car Allocations</a>
+      {% if perms.career_connect.manage_career_connect and not is_finance %}
+      <a href="{% url 'career_connect_manage_qr' %}" class="nav-item-custom {% if n == 'career_connect_manage_qr' %}active{% endif %}"><span class="nav-icon">🎓</span>Career Connect</a>
+      {% endif %}
 
       <!-- FE Ordering -->
       {% if access.fe_ordering %}

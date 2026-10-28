@@ -1,0 +1,46 @@
+{% extends 'shops/base.html' %}
+{% block content %}
+<h2 class="page-title">🎓 Ah Liki Career Connect</h2>
+<p style="color:var(--muted);font-size:14px;margin:0 0 20px">
+  The public student portal. Students scan the QR code and open it without signing in; it never shows any SMS page.
+</p>
+
+{% if problems %}
+<div class="sms-card" style="padding:16px 20px;margin-bottom:18px;border-color:#F59E0B;background:#FFFBEB">
+  <strong style="color:#92400E">⚠ Don't print this QR code yet:</strong>
+  <ul style="margin:6px 0 0;color:#92400E;font-size:14px">{% for p in problems %}<li>{{ p }}</li>{% endfor %}</ul>
+  <div style="font-size:13px;color:#92400E;margin-top:6px">
+    Set <code>CAREER_CONNECT_URL</code> (or <code>SITE_URL</code>) to the live HTTPS address, e.g.
+    <code>https://your-domain/career-connect/</code>, and restart the app.
+  </div>
+</div>
+{% endif %}
+
+{% if not portal.is_published %}
+<div class="sms-card" style="padding:14px 20px;margin-bottom:18px;background:#FEF2F2;border-color:#FCA5A5;color:#991B1B">
+  The portal is switched off: scanning the code shows "not available". Turn it on in Portal settings.
+</div>
+{% endif %}
+
+<div style="display:grid;gap:18px;grid-template-columns:repeat(auto-fit,minmax(280px,1fr))">
+  <div class="sms-card" style="padding:24px;text-align:center">
+    <img src="{{ qr_data_uri }}" alt="QR code for {{ portal_url }}" style="width:260px;max-width:100%;image-rendering:pixelated">
+    <div style="font-size:13px;color:var(--muted);margin:10px 0 16px;word-break:break-all">{{ portal_url }}</div>
+    <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
+      <a class="btn-sms btn-primary-custom" href="?download=png">⬇ PNG (print)</a>
+      <a class="btn-sms btn-outline-custom" href="?download=svg">⬇ SVG (posters)</a>
+    </div>
+  </div>
+  <div class="sms-card" style="padding:24px">
+    <div class="stat-label">Manage content</div>
+    <div style="display:flex;flex-direction:column;gap:8px;margin-top:6px">
+      <a class="btn-sms btn-outline-custom" href="{{ portal_url }}" target="_blank" rel="noopener">↗ Open the public portal</a>
+      {% if perms.career_connect.change_portalsettings %}<a class="btn-sms btn-outline-custom" href="{% url 'admin:career_connect_portalsettings_change' 1 %}">Portal settings, video &amp; location</a>{% endif %}
+      {% if perms.career_connect.view_department %}<a class="btn-sms btn-outline-custom" href="{% url 'admin:career_connect_department_changelist' %}">Departments</a>{% endif %}
+      {% if perms.career_connect.view_role %}<a class="btn-sms btn-outline-custom" href="{% url 'admin:career_connect_role_changelist' %}">Roles &amp; job details</a>{% endif %}
+      {% if perms.career_connect.view_companyimage %}<a class="btn-sms btn-outline-custom" href="{% url 'admin:career_connect_companyimage_changelist' %}">Company photos</a>{% endif %}
+      {% if perms.career_connect.view_expressionofinterest %}<a class="btn-sms btn-outline-custom" href="{% url 'admin:career_connect_expressionofinterest_changelist' %}">Expressions of interest{% if interest_count %} <span class="badge-custom badge-blue">{{ interest_count }} new</span>{% endif %}</a>{% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

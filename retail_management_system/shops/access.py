@@ -8,6 +8,8 @@ Finance only get their dashboard, a read-only Ah Liki Atlas and Car Allocations 
 from django.shortcuts import render
 from django.urls import Resolver404, resolve
 
+from career_connect.access import PUBLIC_URL_NAMES as CAREER_CONNECT_PUBLIC
+
 SALES, MARKETING, MANAGER = 'Sales', 'Marketing', 'Manager'
 ROLES = (SALES, MARKETING, MANAGER)
 FINANCIAL_CONTROLLER, FINANCE_STAFF = 'Financial Controller', 'Finance Staff'
@@ -16,7 +18,7 @@ FINANCE_ROLES = (FINANCIAL_CONTROLLER, FINANCE_STAFF)
 # The only pages Finance can open (the Atlas without its pin-moving URL, so it's read-only)
 FINANCE_ALLOWED = {'login', 'logout', 'dashboard', 'atlas', 'car_allocations', 'car_bookings', 'car_booking_search',
                    'car_book', 'car_booking_edit', 'car_booking_cancel', 'car_booking_approve',
-                   'car_booking_decline', 'notifications', 'notifications_read'}
+                   'car_booking_decline', 'notifications', 'notifications_read'} | CAREER_CONNECT_PUBLIC
 
 # URL names in each restricted area. Anything not listed (dashboard, clients, territories, atlas) is open to everyone.
 AREAS = {

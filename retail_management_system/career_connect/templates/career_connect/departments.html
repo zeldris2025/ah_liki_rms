@@ -1,0 +1,17 @@
+{% extends 'career_connect/base.html' %}
+{% load career_icons %}
+{% block title %}Career Opportunities — Ah Liki Career Connect{% endblock %}
+{% block main %}
+<div class="page-head">
+  <div class="wrap">
+    <nav class="crumbs" aria-label="Breadcrumb"><a href="{% url 'career_connect' %}">Home</a> › Career Opportunities</nav>
+    <div class="kicker">Career Opportunities</div>
+    <h1>Explore Our Departments</h1>
+    <p>Find the right department for your skills and interests. Choose a department to see its roles.</p>
+  </div>
+</div>
+<div class="page-body"><div class="wrap">
+  {% include 'career_connect/_dept_cards.html' %}
+  <div class="actions" style="margin-top:28px"><a class="btn btn-light" href="{% url 'career_connect' %}">{% icon 'back' 16 %} Home</a></div>
+</div></div>
+{% endblock %}

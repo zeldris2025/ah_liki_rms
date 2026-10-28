@@ -2,10 +2,13 @@
 from django.shortcuts import redirect
 from django.urls import Resolver404, resolve
 
+from career_connect.access import PUBLIC_URL_NAMES as CAREER_CONNECT_PUBLIC
+
 FE_GROUP = 'fe_boys'
 
 # URL names an FE user may open; everything else sends them back to the FE home.
-FE_ALLOWED = {'login', 'logout', 'atlas', 'atlas_shop_location'}
+# The public Career Connect pages are open to everyone, signed in or not.
+FE_ALLOWED = {'login', 'logout', 'atlas', 'atlas_shop_location'} | CAREER_CONNECT_PUBLIC
 
 
 def is_fe(user):

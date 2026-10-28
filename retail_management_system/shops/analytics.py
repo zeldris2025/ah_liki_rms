@@ -13,7 +13,7 @@ from django.db.models import Max
 from . import corporate
 from .models import MonthlySales, SalesTarget, Shop
 
-AT_RISK = 0.9   # projected at 90% of target or more is "At risk"; lower is "Off track"
+ALMOST = 0.9   # projected at 90% of target or more is "Almost there"; lower "Needs a boost"
 
 
 def add_months(month, n):
@@ -50,18 +50,40 @@ def _pct(new, old):
 
 def _status(actual, target, projected, covered, days):
     if not target:
-        return 'none', 'No target'
+        return 'none', 'No target set'
     if actual >= target:
-        return 'reached', 'Reached'
+        return 'reached', 'Target reached'
     if covered >= days:
-        return 'missed', 'Missed'
+        return 'missed', 'Below target'
     if not covered:
-        return 'none', 'Not started'
+        return 'none', 'Not started yet'
     if projected >= target:
         return 'on', 'On track'
-    if projected >= target * AT_RISK:
-        return 'risk', 'At risk'
-    return 'off', 'Off track'
+    if projected >= target * ALMOST:
+        return 'risk', 'Almost there'
+    return 'off', 'Needs a boost'
+
+
+def _goal(actual, target, projected, covered, days):
+    """How sales so far and the projection compare with one target (the commercial or the financial)."""
+    left = days - covered
+    status, label = _status(actual, target, projected, covered, days)
+    pct_so_far = round(actual / target * 100) if target else None
+    pct_projected = round(projected / target * 100) if target else None
+    if status in ('on', 'risk', 'off'):
+        detail = f'on pace for {pct_projected}%'
+    elif status in ('reached', 'missed'):
+        detail = f'{pct_so_far}% achieved'
+    else:
+        detail = ''
+    return {
+        'target': target, 'pct_so_far': pct_so_far, 'pct_projected': pct_projected,
+        # where they'd be today if the target were spread evenly over the month
+        'expected_by_now': target * covered / days if target else None,
+        'gap': projected - target if target else None,
+        'needed_per_day': max(target - actual, 0) / left if target and left else None,
+        'status': status, 'status_label': label, 'status_detail': detail,
+    }
 
 
 def month_analysis(month, today=None):
@@ -100,7 +122,8 @@ def month_analysis(month, today=None):
 
     targets = {t.manager: float(t.amount) for t in SalesTarget.objects.filter(month=month)}
 
-    def figures(shop_ids, target):
+    def figures(shop_ids, target, financial=None):
+        """financial: the Financial Target, the same month's sales last year; target: the Commercial Target."""
         actual = total(shop_ids, month)
         per_day = actual / covered if covered else 0
         projected = per_day * days if covered < days else actual
@@ -108,8 +131,7 @@ def month_analysis(month, today=None):
         ly_day = total(shop_ids, last_year) / days
         this_ytd, ly_ytd = ytd(shop_ids, month.year, month.month), ytd(shop_ids, month.year - 1, month.month)
         n_active = active(shop_ids, month)
-        left = days - covered
-        status, label = _status(actual, target, projected, covered, days)
+        commercial = _goal(actual, target, projected, covered, days)
         return {
             'clients': len(shop_ids), 'active': n_active, 'actual': actual, 'per_day': per_day,
             'per_client': actual / n_active if n_active else 0,
@@ -117,31 +139,30 @@ def month_analysis(month, today=None):
             'ly_per_day': ly_day, 'vs_ly': _pct(per_day, ly_day) if covered else None,
             'ytd': this_ytd, 'ytd_per_day': this_ytd / ytd_days if ytd_days else 0,
             'vs_ly_ytd': _pct(this_ytd / ytd_days, ly_ytd / ly_ytd_days) if ytd_days and ly_ytd else None,
-            'target': target, 'projected': projected,
-            'pct_so_far': round(actual / target * 100) if target else None,
-            'pct_projected': round(projected / target * 100) if target else None,
-            # where they'd be today if the target were spread evenly over the month
-            'expected_by_now': target * covered / days if target else None,
-            'gap': projected - target if target else None,
-            'needed_per_day': max(target - actual, 0) / left if target and left else None,
-            'status': status, 'status_label': label,
+            'projected': projected, **commercial,
+            'financial': financial,
+            'goals': [{'kind': 'com', 'name': 'Commercial Target', 'note': 'set for the month', **commercial},
+                      {'kind': 'fin', 'name': 'Financial Target', 'note': f'{last_year:%b %Y} sales',
+                       **_goal(actual, financial, projected, covered, days)}],
         }
 
     streams = []
     for r in reps:
-        row = figures(ids[r['key']], targets.get(r['key']))
+        row = figures(ids[r['key']], targets.get(r['key']), total(ids[r['key']], last_year) or None)
         streams.append({'key': r['key'], 'name': r['name'], 'color': r['color'], 'streams': r['streams'], **row})
     corp_ids = [pk for r in reps for pk in ids[r['key']]]
     corp_target = sum(s['target'] for s in streams if s['target']) or None
-    corporate_total = {'name': 'All corporate streams', **figures(corp_ids, corp_target)}
+    corp_financial = sum(s['financial'] for s in streams if s['financial']) or None
+    corporate_total = {'name': 'All corporate streams', **figures(corp_ids, corp_target, corp_financial)}
     for s in streams:
         s['share'] = round(s['actual'] / corporate_total['actual'] * 100, 1) if corporate_total['actual'] else None
 
     for s in streams + [corporate_total]:
-        # the target check's bar: sales so far, the projection, and markers at the target and where they should be by now
-        scale = max(s['target'] or 0, s['projected'], s['actual']) or 1
+        # the target check's bar: sales so far, the projection, and markers at both targets and where they should be by now
+        scale = max(s['target'] or 0, s['financial'] or 0, s['projected'], s['actual']) or 1
         s['bar'] = {'actual': round(s['actual'] / scale * 100, 1), 'projected': round(s['projected'] / scale * 100, 1),
                     'target': round(s['target'] / scale * 100, 1) if s['target'] else None,
+                    'financial': round(s['financial'] / scale * 100, 1) if s['financial'] else None,
                     'expected': round(s['expected_by_now'] / scale * 100, 1) if s['target'] else None}
 
     all_ids = list(shops)
@@ -197,9 +218,11 @@ def month_analysis(month, today=None):
         'covered': covered, 'days': days, 'days_left': days - covered, 'in_progress': covered < days,
         'as_of': date(month.year, month.month, covered) if covered else None,
         'streams': streams, 'corporate': corporate_total, 'company': company,
-        'has_targets': any(s['target'] for s in streams),
+        'has_targets': any(s['target'] or s['financial'] for s in streams),
         'on_track': sum(1 for s in streams if s['status'] in ('on', 'reached')),
         'targeted': sum(1 for s in streams if s['target']),
+        'fin_on_track': sum(1 for s in streams if s['goals'][1]['status'] in ('on', 'reached')),
+        'fin_targeted': sum(1 for s in streams if s['financial']),
         'trend': trend_data, 'territories': territories,
         'top_clients': top_clients, 'quiet': quiet[:10], 'quiet_count': len(quiet), 'quiet_value': quiet_value,
     }

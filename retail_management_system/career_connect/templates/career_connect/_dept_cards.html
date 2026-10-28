@@ -1,0 +1,16 @@
+{% load career_icons %}{% if departments %}
+<div class="dept-grid">
+  {% for d in departments %}
+  <a class="dept-card{% if d.image_url %} has-photo{% endif %}" href="{{ d.get_absolute_url }}"
+     style="--c:{{ d.palette.main }};--c-dark:{{ d.palette.dark }};{% if d.image_url %}--photo:url('{{ d.image_url }}');--photo-opacity:{{ d.photo_opacity }};{% endif %}">
+    <span class="mark">{% icon d.symbol 150 %}</span>
+    <span class="badge">{% icon d.symbol 30 %}</span>
+    <span class="name">{{ d.name }}</span>
+    <span class="count">{{ d.role_count }} Role{{ d.role_count|pluralize }}</span>
+    <span class="go">{% icon 'arrow' 16 %}</span>
+  </a>
+  {% endfor %}
+</div>
+{% else %}
+{% include 'career_connect/_missing.html' with what='Department information' %}
+{% endif %}

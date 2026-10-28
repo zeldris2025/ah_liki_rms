@@ -105,6 +105,7 @@ INSTALLED_APPS = [
     'retail_atlas',
     'fe_orders',
     'car_allocations',
+    'career_connect',
     'import_export',
 ]
 
@@ -228,6 +229,12 @@ WHATSAPP = {
     'SESSION': os.environ.get('WAHA_SESSION', 'default'),
     'CHAT_ID': os.environ.get('WHATSAPP_ORDERS_CHAT_ID', ''),  # groups look like 120363000000000000@g.us
 }
+
+# Ah Liki Career Connect: the public student portal the printed QR code opens (no sign-in).
+# Must be the live HTTPS address once deployed; defaults to SITE_URL + /career-connect/.
+CAREER_CONNECT_URL = (os.environ.get('CAREER_CONNECT_URL') or SITE_URL + '/career-connect/').strip()
+# Expression-of-interest forms accepted per hour from one network address
+CAREER_CONNECT_INTEREST_LIMIT = int(os.environ.get('CAREER_CONNECT_INTEREST_LIMIT', '30'))
 
 # Car Allocations shows and checks bookings in office time (the rest of the system still uses TIME_ZONE).
 CAR_TIME_ZONE = os.environ.get('CAR_TIME_ZONE', 'Pacific/Apia')

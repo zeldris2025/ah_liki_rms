@@ -1529,17 +1529,31 @@ class AnalyticsTests(TestCase):
         judane, ruth = streams['judane'], streams['ruth']
         self.assertEqual((judane['per_day'], judane['projected'], judane['status_label']), (1000, 30000, 'On track'))
         self.assertEqual(judane['needed_per_day'], 1000)
-        self.assertEqual((ruth['projected'], ruth['status_label']), (3000, 'Off track'))
+        self.assertEqual((ruth['projected'], ruth['status_label']), (3000, 'Needs a boost'))
+        self.assertEqual(ruth['status_detail'], 'on pace for 33%')
         self.assertEqual(ruth['needed_per_day'], 400)
         self.assertEqual((data['on_track'], data['targeted']), (1, 2))
         # Judane's May (both HORECA clients) averaged 1,000 a day across 31 days, so June's 1,000 a day is level
         self.assertEqual(judane['vs_prev'], 0)
         self.assertEqual([c['name'] for c in data['quiet']], ['Quiet Cafe'])
 
+    def test_financial_target_is_last_years_month(self):
+        from . import analytics
+        from .models import MonthlySales
+        MonthlySales.objects.create(shop=self.horeca, month=date(2023, 6, 1), sales=40000)
+        data = analytics.month_analysis(date(2024, 6, 1), today=date(2024, 6, 10))
+        judane = {s['key']: s for s in data['streams']}['judane']
+        commercial, financial = judane['goals']
+        self.assertEqual((commercial['name'], commercial['pct_projected'], commercial['status_label']), ('Commercial Target', 100, 'On track'))
+        self.assertEqual((financial['target'], financial['pct_projected'], financial['status_label']), (40000, 75, 'Needs a boost'))
+        self.assertEqual(financial['status_detail'], 'on pace for 75%')
+        self.assertEqual((data['fin_on_track'], data['fin_targeted']), (0, 1))
+        self.assertEqual(data['corporate']['financial'], 40000)
+
     def test_finished_month_is_reached_or_missed(self):
         from . import analytics
         streams = {s['key']: s for s in analytics.month_analysis(date(2024, 6, 1), today=date(2024, 7, 2))['streams']}
-        self.assertEqual(streams['judane']['status_label'], 'Missed')
+        self.assertEqual(streams['judane']['status_label'], 'Below target')
         self.assertEqual(streams['judane']['per_day'], 10000 / 30)
 
     def test_managers_only(self):

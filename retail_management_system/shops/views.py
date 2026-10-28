@@ -171,9 +171,18 @@ def analytics_page(request):
     except ValueError:
         pass
     data = analytics.month_analysis(month)
+    # the target check's cards, for its PNG download
+    goal_keys = ('kind', 'name', 'note', 'target', 'gap', 'needed_per_day', 'status', 'status_label', 'status_detail')
+    cards = [{'name': s['name'], 'color': s['color'], 'total': False,
+              'sub': f"{', '.join(s['streams'])} · {s['active']} of {s['clients']} clients bought"} | {k: s[k] for k in ('actual', 'projected', 'per_day', 'bar')}
+             | {'goals': [{k: g[k] for k in goal_keys} for g in s['goals']]} for s in data['streams']]
+    corp = data['corporate']
+    if corp['target']:
+        cards.append({'name': corp['name'], 'color': '', 'total': True, 'sub': ''} | {k: corp[k] for k in ('actual', 'projected', 'per_day', 'bar')}
+                     | {'goals': [{k: g[k] for k in goal_keys} for g in corp['goals']]})
     return render(request, 'shops/analytics.html', {
         **data, 'months': months, 'show_forecast': request.GET.get('forecast') == '1',
-        'trend_json': json.dumps(data['trend']),
+        'trend_json': json.dumps(data['trend']), 'check_json': json.dumps(cards),
         'updated_as_of': MonthlySales.objects.aggregate(last=Max('updated_at'))['last'],
     })
 
@@ -192,6 +201,7 @@ def customer_type_choices():
     return sorted(set(used) | set(EXTRA_CUSTOMER_TYPES), key=str.lower)
 
 
+@login_required(login_url='login')
 def shop_list(request):
     qs = Shop.objects.prefetch_related('photos').all()
 
@@ -273,6 +283,7 @@ def shop_list(request):
     })
 
 
+@login_required(login_url='login')
 def shop_detail(request, shop_id):
     shop = get_object_or_404(Shop.objects.prefetch_related('photos'), id=shop_id)
     # Group photos by note for the detail view
@@ -316,6 +327,7 @@ def _client_from_post(post, shop):
     return None
 
 
+@login_required(login_url='login')
 def add_shop(request):
     if request.method == 'POST':
         shop = Shop()
@@ -336,6 +348,7 @@ def add_shop(request):
                                                     'customer_types': customer_type_choices()})
 
 
+@login_required(login_url='login')
 def edit_shop(request, shop_id):
     shop = get_object_or_404(Shop.objects.prefetch_related('photos'), id=shop_id)
     if request.method == 'POST':
@@ -373,12 +386,14 @@ def edit_shop(request, shop_id):
                                                     'territories': SHOP_TERRITORIES, 'customer_types': customer_type_choices()})
 
 
+@login_required(login_url='login')
 def delete_shop(request, shop_id):
     shop = get_object_or_404(Shop, id=shop_id)
     shop.delete()
     return redirect('shop_list')
 
 
+@login_required(login_url='login')
 def territory_shops(request, territory):
     qs = Shop.objects.prefetch_related('photos').filter(island='Upolu', territory=territory)
     q = request.GET.get('q', '')
@@ -395,6 +410,7 @@ def territory_shops(request, territory):
     })
 
 
+@login_required(login_url='login')
 def upolu_shops(request, region):
     qs = Shop.objects.prefetch_related('photos').filter(island='Upolu')
     q = request.GET.get('q', '')
@@ -411,6 +427,7 @@ def upolu_shops(request, region):
     })
 
 
+@login_required(login_url='login')
 def savaii_shops(request, region):
     qs = Shop.objects.prefetch_related('photos').filter(island='Savaii')
     q = request.GET.get('q', '')
@@ -726,6 +743,7 @@ def corporate_targets(request):
     })
 
 
+@login_required(login_url='login')
 def business_list(request):
     qs = Business.objects.prefetch_related('photos').all()
     q      = request.GET.get('search_query', '').strip()
@@ -748,6 +766,7 @@ def business_list(request):
     })
 
 
+@login_required(login_url='login')
 def add_business(request):
     if request.method == 'POST':
         name = request.POST.get('name', '').strip()
@@ -770,6 +789,7 @@ def add_business(request):
     return render(request, 'shops/business_form.html', {'action': 'Add'})
 
 
+@login_required(login_url='login')
 def edit_business(request, biz_id):
     biz = get_object_or_404(Business.objects.prefetch_related('photos'), id=biz_id)
     if request.method == 'POST':
@@ -800,6 +820,7 @@ def edit_business(request, biz_id):
     return render(request, 'shops/business_form.html', {'action': 'Edit', 'biz': biz})
 
 
+@login_required(login_url='login')
 def delete_business(request, biz_id):
     biz = get_object_or_404(Business, id=biz_id)
     biz.delete()
@@ -810,6 +831,7 @@ def delete_business(request, biz_id):
 # SPONSORSHIPS
 # ══════════════════════════════════════════════════════════════════════════════
 
+@login_required(login_url='login')
 def sponsorship_list(request):
     qs = Sponsorship.objects.prefetch_related('photos').all()
     status = request.GET.get('status', '')
@@ -832,6 +854,7 @@ def sponsorship_list(request):
     })
 
 
+@login_required(login_url='login')
 def add_sponsorship(request):
     all_customers = sorted(set(
         list(Shop.objects.values_list('name', flat=True)) +
@@ -869,6 +892,7 @@ def add_sponsorship(request):
     })
 
 
+@login_required(login_url='login')
 def edit_sponsorship(request, sp_id):
     sp = get_object_or_404(Sponsorship.objects.prefetch_related('photos'), id=sp_id)
     all_customers = sorted(set(
@@ -911,6 +935,7 @@ def edit_sponsorship(request, sp_id):
     })
 
 
+@login_required(login_url='login')
 def delete_sponsorship(request, sp_id):
     sp = get_object_or_404(Sponsorship, id=sp_id)
     sp.delete()
@@ -1332,6 +1357,7 @@ def import_product_sales(request):
                        {'columns': product_sales.COLUMNS})
 
 
+@login_required(login_url='login')
 def download_product_sales_template(request):
     response = HttpResponse(content_type='text/csv')
     response['Content-Disposition'] = 'attachment; filename="product_sales_template.csv"'
@@ -1431,6 +1457,7 @@ def import_sponsorships(request):
                        {'columns': sponsorship_import.COLUMNS})
 
 
+@login_required(login_url='login')
 def download_sales_template(request):
     """Download CSV template for monthly sales."""
     response = HttpResponse(content_type='text/csv')
@@ -1442,6 +1469,7 @@ def download_sales_template(request):
     return response
 
 
+@login_required(login_url='login')
 def download_shop_template(request):
     """Download CSV template for clients."""
     response = HttpResponse(content_type='text/csv')
@@ -1453,6 +1481,7 @@ def download_shop_template(request):
     return response
 
 
+@login_required(login_url='login')
 def download_business_template(request):
     """Download CSV template for HORECA businesses."""
     response = HttpResponse(content_type='text/csv')
@@ -1463,6 +1492,7 @@ def download_business_template(request):
     return response
 
 
+@login_required(login_url='login')
 def download_sponsorship_template(request):
     """Download CSV template for sponsorships."""
     response = HttpResponse(content_type='text/csv')
@@ -1486,6 +1516,7 @@ SURVEY_CSV_FIELDS = {'products': 'product', 'customer/shop': 'customer', 'period
                      'qty': 'quantity', 'location': 'location', 'region': 'region'}
 
 
+@login_required(login_url='login')
 def download_survey_template(request):
     """Download CSV template for survey responses."""
     response = HttpResponse(content_type='text/csv')
@@ -1500,6 +1531,7 @@ def download_survey_template(request):
 # SURVEYS
 # ══════════════════════════════════════════════════════════════════════════════
 
+@login_required(login_url='login')
 def survey_list(request):
     """List all surveys with pagination and filtering."""
     from .forms import SurveyForm
@@ -1524,6 +1556,7 @@ def survey_list(request):
     })
 
 
+@login_required(login_url='login')
 def add_survey(request):
     """Create a new survey."""
     from .forms import SurveyForm
@@ -1545,6 +1578,7 @@ def add_survey(request):
     return render(request, 'shops/survey_form.html', {'form': form, 'action': 'Create'})
 
 
+@login_required(login_url='login')
 def survey_detail(request, survey_id):
     """View survey details, responses, and analysis."""
     survey = get_object_or_404(Survey.objects.prefetch_related('responses'), id=survey_id)
@@ -1566,6 +1600,7 @@ def survey_detail(request, survey_id):
     })
 
 
+@login_required(login_url='login')
 def edit_survey(request, survey_id):
     """Edit survey details."""
     from .forms import SurveyForm
@@ -1586,6 +1621,7 @@ def edit_survey(request, survey_id):
     return render(request, 'shops/survey_form.html', {'form': form, 'action': 'Edit', 'survey': survey})
 
 
+@login_required(login_url='login')
 def delete_survey(request, survey_id):
     """Delete a survey and all its responses."""
     survey = get_object_or_404(Survey, id=survey_id)
@@ -1595,6 +1631,7 @@ def delete_survey(request, survey_id):
     return render(request, 'shops/survey_confirm_delete.html', {'survey': survey})
 
 
+@login_required(login_url='login')
 def add_survey_response(request, survey_id):
     """Add a response to a survey."""
     from .forms import SurveyResponseForm
@@ -1617,6 +1654,7 @@ def add_survey_response(request, survey_id):
     })
 
 
+@login_required(login_url='login')
 def edit_survey_response(request, response_id):
     """Edit a survey response."""
     from .forms import SurveyResponseForm
@@ -1640,6 +1678,7 @@ def edit_survey_response(request, response_id):
     })
 
 
+@login_required(login_url='login')
 def delete_survey_response(request, response_id):
     """Delete a survey response."""
     response = get_object_or_404(SurveyResponse, id=response_id)
@@ -1663,6 +1702,7 @@ def _period_key(row):
     return (1, datetime.min, row['name'])
 
 
+@login_required(login_url='login')
 def survey_analysis(request, survey_id):
     """Brand distribution and shelf-price charts for a survey, filterable by region, location and period."""
     survey = get_object_or_404(Survey, id=survey_id)
@@ -1765,6 +1805,7 @@ def _survey_import_page(request, form, survey=None):
     })
 
 
+@login_required(login_url='login')
 def import_survey_responses(request, survey_id):
     """Bulk import survey responses from CSV file."""
     survey = get_object_or_404(Survey, id=survey_id)
@@ -1779,6 +1820,7 @@ def import_survey_responses(request, survey_id):
     return _survey_import_page(request, form, survey)
 
 
+@login_required(login_url='login')
 def import_surveys(request):
     """CSV import from the Surveys list: into an existing survey, or a new one created from the form."""
     from .forms import SurveyCSVImportForm

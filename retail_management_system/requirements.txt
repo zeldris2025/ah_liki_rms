@@ -6,3 +6,5 @@ openpyxl>=3.1
 # Production (Azure): the app server, and static files served by the app itself
 gunicorn>=22.0
 whitenoise>=6.6
+# Career Connect printable QR code (pure Python, no other dependencies)
+segno>=1.6

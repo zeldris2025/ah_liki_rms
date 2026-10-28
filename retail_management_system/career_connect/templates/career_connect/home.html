@@ -1,0 +1,144 @@
+{% extends 'career_connect/base.html' %}
+{% load static career_icons %}
+{% block extra_style %}
+  /* Hero: the video sets the height up to a cap (then crops top and bottom), text stacked over it with a navy wash */
+  .hero { position: relative; overflow: hidden; color: #fff; display: grid; background: var(--navy-deep); }
+  .hero > .hero-video, .hero > .wrap { grid-area: 1 / 1; }
+  .hero-video { width: 100%; height: 100%; max-height: min(60vh, 520px); object-fit: cover; display: block; }
+  .hero > .wrap { align-self: center; width: 100%; }
+  .hero::before { content: ''; position: absolute; inset: 0; z-index: 1;
+                  background: linear-gradient(100deg, rgba(7,28,69,.94) 0%, rgba(10,37,88,.82) 36%, rgba(10,37,88,.35) 66%, rgba(10,37,88,.12) 100%); }
+  .hero-text { position: relative; z-index: 2; padding: 50px 0 56px; max-width: 470px; }
+  .hero-text .kicker { color: #fff; opacity: .9; }
+  .hero h1 { color: #fff; font-size: clamp(34px, 5vw, 50px); font-weight: 800; line-height: 1.08; letter-spacing: -.01em; margin-bottom: 18px; }
+  .hero p { color: #DCE6F7; font-size: 15.5px; margin: 0 0 24px; max-width: 400px; }
+
+  /* Four quick links */
+  .quick { display: grid; gap: 22px; grid-template-columns: repeat(4, 1fr); padding: 30px 0 18px; }
+  .quick-card { position: relative; background: #fff; border-radius: 10px; padding: 20px 20px 18px; box-shadow: var(--shadow);
+                display: flex; flex-direction: column; transition: transform .15s, box-shadow .15s; }
+  .quick-card:hover { transform: translateY(-3px); box-shadow: 0 12px 28px rgba(13,40,92,.14); }
+  .quick-card .dot { width: 50px; height: 50px; border-radius: 50%; display: grid; place-items: center; margin-bottom: 14px; }
+  .quick-card h3 { font-size: 15.5px; font-weight: 600; margin-bottom: 6px; }
+  .quick-card p { color: var(--muted); font-size: 13px; margin: 0 0 12px; flex: 1; }
+  .quick-card .link-arrow::after { content: ''; position: absolute; inset: 0; }   /* whole card is the link */
+  .t-blue { background: #E3EEFD; color: #1E6FE0; } .t-teal { background: #DDF3EF; color: #0F8F7A; }
+  .t-purple { background: #EEE7FD; color: #7C3AED; } .t-cyan { background: #DCF3F7; color: #0E8FB0; }
+
+  .departments { padding: 34px 0 44px; }
+  .departments .section-lead { margin-bottom: 24px; }
+
+  /* Our company */
+  .company { background: #fff; padding: 34px 0; }
+  .company .wrap { display: grid; gap: 28px; grid-template-columns: 280px 1fr 250px; align-items: center; }
+  .company-photo { height: 172px; border-radius: 4px; overflow: hidden; box-shadow: var(--shadow); }
+  .company-photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .company-photo.placeholder { background: linear-gradient(120deg, #E3EEFD, #C9DCF9); display: grid; place-items: center; }
+  .company-photo.placeholder img { width: 120px; height: 120px; object-fit: contain; }
+  .company h2 { font-size: 24px; font-weight: 700; margin-bottom: 8px; }
+  .company .prose { font-size: 13.5px; color: var(--text); margin-bottom: 14px; }
+  .side-links { display: flex; flex-direction: column; gap: 12px; }
+  .side-link { display: flex; gap: 12px; align-items: center; background: #EEF4FD; border-radius: 8px; padding: 14px; text-decoration: none; transition: background .15s; }
+  .side-link:hover { background: #E1ECFC; }
+  .side-link .dot { width: 42px; height: 42px; border-radius: 50%; background: #D3E3FB; color: var(--blue); display: grid; place-items: center; }
+  .side-link b { display: block; color: var(--ink); font-size: 14px; font-weight: 600; line-height: 1.3; }
+  .side-link small { color: var(--muted); font-size: 12px; }
+
+  @media (max-width: 960px) {
+    .quick { grid-template-columns: repeat(2, 1fr); }
+    .company .wrap { grid-template-columns: 240px 1fr; }
+    .side-links { grid-column: 1 / -1; flex-direction: row; }
+    .side-link { flex: 1; }
+  }
+  @media (max-width: 760px) {
+    .hero::before { background: linear-gradient(180deg, rgba(7,28,69,.88) 0%, rgba(10,37,88,.72) 100%); }
+    .hero-text { padding: 40px 0 44px; }
+    .company .wrap { grid-template-columns: 1fr; }
+    .side-links { flex-direction: column; }
+  }
+  @media (max-width: 520px) { .quick { grid-template-columns: 1fr; } }
+{% endblock %}
+
+{% block main %}
+{% static 'imgs/ahliki_building.png' as default_hero %}
+<section class="hero" aria-labelledby="hero-title">
+  <video class="hero-video" autoplay muted loop playsinline preload="auto" aria-hidden="true"
+         poster="{{ portal.hero_image_url|default:default_hero }}">
+    <source src="{% static 'videos/hero_video.mp4' %}" type="video/mp4">
+  </video>
+  <div class="wrap">
+    <div class="hero-text">
+      <div class="kicker">Ah Liki Career Connect</div>
+      <h1 id="hero-title">{{ portal.tagline }}</h1>
+      <p>{{ portal.hero_text }}</p>
+      <a class="btn btn-primary" href="{% url 'career_connect_departments' %}"><span class="ring">{% icon 'compass' 15 %}</span>Start Exploring</a>
+    </div>
+  </div>
+</section>
+
+<div class="wrap">
+  <section class="quick" aria-label="Quick links">
+    <div class="quick-card">
+      <span class="dot t-blue">{% icon 'play' 24 %}</span>
+      <h3>Watch Our HQ Video</h3>
+      <p>See our journey and the opening of our headquarters in 2021.</p>
+      <a class="link-arrow" href="{% url 'career_connect_about' %}#video">Watch Video {% icon 'arrow' 15 %}</a>
+    </div>
+    <div class="quick-card">
+      <span class="dot t-teal">{% icon 'pin' 24 %}</span>
+      <h3>Our Location</h3>
+      <p>Find our headquarters and get directions.</p>
+      <a class="link-arrow" href="{% url 'career_connect_about' %}#location">View Location {% icon 'arrow' 15 %}</a>
+    </div>
+    <div class="quick-card">
+      <span class="dot t-purple">{% icon 'building' 24 %}</span>
+      <h3>About Ah Liki Wholesale</h3>
+      <p>Learn about our company, values and what we do.</p>
+      <a class="link-arrow" href="{% url 'career_connect_about' %}">Learn More {% icon 'arrow' 15 %}</a>
+    </div>
+    <div class="quick-card">
+      <span class="dot t-cyan">{% icon 'people' 24 %}</span>
+      <h3>Career Opportunities</h3>
+      <p>Explore our roles and find your place with us.</p>
+      <a class="link-arrow" href="{% url 'career_connect_departments' %}">View Jobs {% icon 'arrow' 15 %}</a>
+    </div>
+  </section>
+
+  <section class="departments" aria-labelledby="dept-title">
+    <div class="kicker">Career Opportunities</div>
+    <h2 class="section-title" id="dept-title">Explore Our Departments</h2>
+    <p class="section-lead">Find the right department for your skills and interests. Choose a department to see its roles.</p>
+    {% include 'career_connect/_dept_cards.html' %}
+  </section>
+</div>
+
+<section class="company" aria-labelledby="company-title">
+  <div class="wrap">
+    {% if portal.company_image_url %}
+    <div class="company-photo"><img src="{{ portal.company_image_url }}" alt="{{ portal.company_image.alt_text|default:portal.company_image.caption }}" loading="lazy"></div>
+    {% else %}
+    <div class="company-photo placeholder" aria-hidden="true"><img src="{% static 'imgs/ahliki_logo.png' %}" alt=""></div>
+    {% endif %}
+    <div>
+      <div class="kicker">Learn more about Ah Liki Wholesale</div>
+      <h2 id="company-title">Our Company</h2>
+      {% if portal.company_intro %}
+        <div class="prose">{{ portal.company_intro|truncatewords:55|linebreaks }}</div>
+      {% else %}
+        <div style="margin-bottom:14px">{% include 'career_connect/_missing.html' with what='The company introduction' %}</div>
+      {% endif %}
+      <a class="btn btn-navy" href="{% url 'career_connect_about' %}">Learn More About Us {% icon 'arrow' 15 %}</a>
+    </div>
+    <div class="side-links">
+      <a class="side-link" href="{% url 'career_connect_about' %}#video">
+        <span class="dot">{% icon 'play' 20 %}</span>
+        <span><b>Watch Our HQ Video</b><small>From 2021 – opening of the HQ</small></span>
+      </a>
+      <a class="side-link" href="{% url 'career_connect_about' %}#location">
+        <span class="dot">{% icon 'pin' 20 %}</span>
+        <span><b>Location of ALW HQ</b><small>Get directions to our headquarters</small></span>
+      </a>
+    </div>
+  </div>
+</section>
+{% endblock %}
