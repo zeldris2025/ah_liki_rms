@@ -175,6 +175,16 @@ def image(request, image_id):
 
 @require_GET
 @public_page
+def company_image(request, company_slug):
+    """A published company's background photo or logo."""
+    c = get_object_or_404(Company, slug=company_slug, is_published=True)
+    if not c.background:
+        raise Http404
+    return _serve_photo(c.background)
+
+
+@require_GET
+@public_page
 def department_image(request, company_slug, dept_slug):
     """A published department's background photo."""
     dept = _published_department(company_slug, dept_slug)

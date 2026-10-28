@@ -116,6 +116,9 @@
     /* Uploaded photo, faded over the department colour (photo strength set in the admin, 50% by default) */
     .dept-card.has-photo::before, .page-head.has-photo::before { content: ''; position: absolute; inset: 0; z-index: -1;
                                    background: var(--photo) center / cover no-repeat; opacity: var(--photo-opacity, .5); }
+    /* Logos: shown whole, centred with breathing room (on the heading, kept to the right of the title) */
+    .dept-card.fit-contain::before { inset: 14px; background-size: contain; }
+    .page-head.fit-contain::before { inset: 16px 4% 16px 50%; background-size: contain; background-position: right center; }
     .page-head.has-photo { isolation: isolate; }
     .page-head.has-photo::after { display: none; }
     .dept-card .mark { position: absolute; right: -14px; top: -10px; color: #fff; opacity: .13; z-index: -1; transform: rotate(-12deg); }

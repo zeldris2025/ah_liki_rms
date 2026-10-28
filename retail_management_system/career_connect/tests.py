@@ -38,12 +38,12 @@ class PublicPortalTests(TestCase):
 
     def setUp(self):
         cache.clear()
-        self.finance = Department.objects.get(slug='finance')
+        self.finance = Department.objects.get(company__slug='ah-liki-wholesale', slug='finance')
         self.accountant = Role.objects.get(department=self.finance, slug='accountant')
 
     def test_seeded_departments_and_roles(self):
         self.assertEqual(
-            list(Department.objects.values_list('name', flat=True)),
+            list(Department.objects.filter(company__slug='ah-liki-wholesale').values_list('name', flat=True)),
             ['Finance Department', 'Marketing Department', 'HR Department', 'Sales Department',
              'Warehouse Operation', 'Trades Department'])
         self.assertEqual(Role.objects.count(), 11)
@@ -58,7 +58,7 @@ class PublicPortalTests(TestCase):
         for d in Department.objects.all():
             urls.append(d.get_absolute_url())
             urls += [r.get_absolute_url() for r in d.roles.all()]
-        self.assertEqual(len(urls), 3 + 5 + 6 + 11)
+        self.assertEqual(len(urls), 3 + 5 + 5 * 6 + 11)
         for url in urls:
             r = self.client.get(url)
             self.assertEqual(r.status_code, 200, url)
@@ -115,23 +115,23 @@ class PublicPortalTests(TestCase):
         # Unpublished roles and departments are not counted
         self.accountant.is_published = False
         self.accountant.save()
-        Department.objects.filter(slug='trades').update(is_published=False)
+        Department.objects.filter(company__slug='ah-liki-wholesale', slug='trades').update(is_published=False)
         self.assertContains(self.client.get(reverse('career_connect_careers')), '7 Available Positions')
 
     def test_company_page_shows_its_departments(self):
         r = self.client.get(reverse('career_connect_company', args=['ah-liki-wholesale']))
-        for d in Department.objects.all():
+        for d in Department.objects.filter(company__slug='ah-liki-wholesale'):
             self.assertContains(r, f'href="{d.get_absolute_url()}"')
         r = self.client.get(reverse('career_connect_company', args=['farmer-joe']))
-        self.assertNotContains(r, 'Finance Department')
-        self.assertContains(r, 'not provided yet')
+        self.assertContains(r, 'href="/career-connect/careers/farmer-joe/finance/"')
+        self.assertNotContains(r, f'href="{self.finance.get_absolute_url()}"')
         Company.objects.filter(slug='taula').update(is_published=False)
         self.assertEqual(self.client.get(reverse('career_connect_company', args=['taula'])).status_code, 404)
         self.assertNotContains(self.client.get(reverse('career_connect_careers')), 'Taula')
 
     def test_same_department_name_in_two_companies(self):
         farmer_joe = Company.objects.get(slug='farmer-joe')
-        dept = Department.objects.create(company=farmer_joe, name='Finance Department', slug='finance')
+        dept = Department.objects.get(company=farmer_joe, slug='finance')
         Role.objects.create(department=dept, title='Bookkeeper', slug='bookkeeper')
         self.assertEqual(dept.get_absolute_url(), '/career-connect/careers/farmer-joe/finance/')
         self.assertNotContains(self.client.get(self.finance.get_absolute_url()), 'Bookkeeper')
@@ -473,7 +473,7 @@ class DesignTests(TestCase):
         self.assertContains(r, f'<img src="{img.get_absolute_url()}"', count=1)
 
     def test_department_background_photo_faded_at_50_percent(self):
-        dept = Department.objects.get(slug='trades')
+        dept = Department.objects.get(company__slug='ah-liki-wholesale', slug='trades')
         self.assertEqual(dept.background_opacity, 50)
         self.assertNotContains(self.client.get(reverse('career_connect')), 'dept-card has-photo')
         dept.background = SimpleUploadedFile('trades.png', PNG, 'image/png')
@@ -494,9 +494,43 @@ class DesignTests(TestCase):
         self.assertEqual(self.client.get(reverse('career_connect_department_image', args=['ah-liki-wholesale', 'finance'])).status_code, 404)
         self.assertEqual(self.client.get('/media/' + dept.background.name).status_code, 302)
 
+    def test_company_logo_faded_behind_card_and_heading(self):
+        c = Company.objects.get(slug='taula')
+        self.assertEqual((c.background_opacity, c.background_fit), (50, 'contain'))
+        self.assertNotContains(self.client.get(reverse('career_connect')), 'company-card has-photo')
+        c.background = SimpleUploadedFile('taula.png', PNG, 'image/png')
+        c.save()
+        url = c.image_url
+        self.assertTrue(url.startswith(reverse('career_connect_company_image', args=['taula']) + '?v='))
+        for page in (reverse('career_connect'), reverse('career_connect_careers'), c.get_absolute_url()):
+            r = self.client.get(page)
+            self.assertContains(r, f"--photo:url('{url}');--photo-opacity:0.50;")
+            self.assertContains(r, 'dept has-photo fit-contain' if page == c.get_absolute_url()
+                                else 'company-card has-photo fit-contain')
+        c.background_fit = 'cover'
+        c.save()
+        self.assertContains(self.client.get(c.get_absolute_url()), 'dept has-photo fit-cover')
+        photo = self.client.get(url)
+        self.assertEqual((photo.status_code, photo['Content-Type']), (200, 'image/png'))
+        photo.close()
+        # Only while the company is published, and never for a company without a picture
+        c.is_published = False
+        c.save()
+        self.assertEqual(self.client.get(url).status_code, 404)
+        self.assertEqual(self.client.get(reverse('career_connect_company_image', args=['farmer-joe'])).status_code, 404)
+
+    def test_every_company_has_the_wholesale_departments(self):
+        wholesale = list(Department.objects.filter(company__slug='ah-liki-wholesale').values_list('slug', 'name'))
+        self.assertEqual(len(wholesale), 6)
+        for c in Company.objects.exclude(slug='ah-liki-wholesale'):
+            self.assertEqual(list(c.departments.values_list('slug', 'name')), wholesale)
+            self.assertFalse(Role.objects.filter(department__company=c).exists())
+        r = self.client.get(reverse('career_connect_department', args=['farmer-joe', 'finance']))
+        self.assertContains(r, 'Finance Department')
+
     def test_photo_strength_limits(self):
         from django.core.exceptions import ValidationError
-        dept = Department.objects.get(slug='trades')
+        dept = Department.objects.get(company__slug='ah-liki-wholesale', slug='trades')
         dept.background_opacity = 95
         with self.assertRaises(ValidationError):
             dept.full_clean()
@@ -507,7 +541,7 @@ class DesignTests(TestCase):
     def test_admin_can_upload_a_department_background(self):
         boss = _user('boss', 'Manager', 'Career Connect Admin', is_staff=True)
         self.client.force_login(boss)
-        dept = Department.objects.get(slug='hr')
+        dept = Department.objects.get(company__slug='ah-liki-wholesale', slug='hr')
         change = reverse('admin:career_connect_department_change', args=[dept.pk])
         form = self.client.get(change)
         self.assertContains(form, 'name="background"')

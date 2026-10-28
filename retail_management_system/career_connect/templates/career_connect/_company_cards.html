@@ -1,7 +1,8 @@
 {% load career_icons %}{% if companies %}
 <div class="dept-grid">
   {% for c in companies %}
-  <a class="dept-card company-card" href="{{ c.get_absolute_url }}" style="--c:{{ c.palette.main }};--c-dark:{{ c.palette.dark }};">
+  <a class="dept-card company-card{% if c.image_url %} has-photo fit-{{ c.background_fit }}{% endif %}" href="{{ c.get_absolute_url }}"
+     style="--c:{{ c.palette.main }};--c-dark:{{ c.palette.dark }};{% if c.image_url %}--photo:url('{{ c.image_url }}');--photo-opacity:{{ c.photo_opacity }};{% endif %}">
     <span class="mark">{% icon c.symbol 150 %}</span>
     <span class="badge">{% icon c.symbol 30 %}</span>
     <span class="name">{{ c.name }}</span>

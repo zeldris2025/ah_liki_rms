@@ -155,6 +155,11 @@ def _photo_size(file):
         raise ValidationError(f'The photo must be smaller than {MAX_PHOTO_MB} MB.')
 
 
+def _photo_opacity(percent):
+    """A photo-strength percentage as a CSS opacity, kept within 10–90%."""
+    return f'{min(max(percent, 10), 90) / 100:.2f}'
+
+
 class CompanyImage(models.Model):
     image = models.ImageField(upload_to='career_connect/',
                               validators=[FileExtensionValidator(['jpg', 'jpeg', 'png', 'webp', 'gif'])])
@@ -187,11 +192,20 @@ class Company(models.Model):
     COLOUR_CHOICES = [(k, k.title()) for k in COLOURS]
     SYMBOL_CHOICES = [('store', 'Store (wholesale / retail)'), ('cart', 'Cart (supermarket)'),
                       ('utensils', 'Utensils (food)'), ('leaf', 'Leaf (farm)'), ('building', 'Building')]
+    FIT_CHOICES = [('contain', 'Whole picture, centred (best for logos)'), ('cover', 'Fill the card (best for photos)')]
 
     name = models.CharField(max_length=120)
     slug = models.SlugField(max_length=80, unique=True, help_text='Used in the web address, e.g. "farmer-joe".')
     symbol = models.CharField('icon', max_length=20, choices=SYMBOL_CHOICES, default='building')
     colour = models.CharField(max_length=20, choices=COLOUR_CHOICES, default='navy')
+    background = models.ImageField(
+        'background photo or logo', upload_to='career_connect/companies/', blank=True,
+        validators=[FileExtensionValidator(PHOTO_TYPES), _photo_size],
+        help_text=f'Optional. Shown faded behind the company card and page heading (JPG, PNG or WebP, under {MAX_PHOTO_MB} MB).')
+    background_fit = models.CharField('picture fit', max_length=10, choices=FIT_CHOICES, default='contain')
+    background_opacity = models.PositiveSmallIntegerField(
+        'photo strength (%)', default=50, validators=[MinValueValidator(10), MaxValueValidator(90)],
+        help_text='How strongly the picture shows over the company colour: 50 = half faded (recommended).')
     description = models.TextField(blank=True)
     order = models.PositiveIntegerField(default=0)
     is_published = models.BooleanField(default=True)
@@ -205,6 +219,18 @@ class Company(models.Model):
 
     def get_absolute_url(self):
         return reverse('career_connect_company', args=[self.slug])
+
+    @property
+    def image_url(self):
+        """The public address of the background picture ('' if none), with ?v= as for departments."""
+        if not self.background:
+            return ''
+        return (reverse('career_connect_company_image', args=[self.slug])
+                + '?v=' + quote(os.path.basename(self.background.name)))
+
+    @property
+    def photo_opacity(self):
+        return _photo_opacity(self.background_opacity)
 
     @property
     def palette(self):
@@ -264,7 +290,7 @@ class Department(models.Model):
 
     @property
     def photo_opacity(self):
-        return f'{min(max(self.background_opacity, 10), 90) / 100:.2f}'
+        return _photo_opacity(self.background_opacity)
 
     @property
     def palette(self):

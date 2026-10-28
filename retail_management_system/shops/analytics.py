@@ -1,8 +1,9 @@
 """Manager analytics: will each corporate stream reach its target, how each rep is doing, and average sales per day.
 
-Sales arrive as month totals (the Monthly Sales upload), so a day's average is the month's sales over the days
-those figures cover. For a month still running, that's up to the day of the latest upload; a finished month
-counts every day. A stream's month-end projection is its average per day so far carried to the end of the month.
+Sales arrive as month totals (the Monthly Sales upload), so a day's average is the month's sales over the trading
+days those figures cover. Trading days are Monday to Saturday; Sundays aren't counted. For a month still running,
+that's up to the day of the latest upload; a finished month counts every trading day. A stream's month-end
+projection is its average per trading day so far carried over the trading days left in the month.
 """
 import calendar
 from collections import defaultdict
@@ -21,20 +22,29 @@ def add_months(month, n):
     return date(month.year + i // 12, i % 12 + 1, 1)
 
 
+def trading_days(month, upto=None):
+    """Mondays to Saturdays in the month, up to and including day `upto` (the whole month if not given)."""
+    last = calendar.monthrange(month.year, month.month)[1]
+    return sum(1 for d in range(1, min(upto or last, last) + 1)
+               if date(month.year, month.month, d).weekday() != calendar.SUNDAY)
+
+
 def days_in(month):
-    return calendar.monthrange(month.year, month.month)[1]
+    return trading_days(month)
 
 
 def days_covered(month, today=None):
-    """(days the month's figures cover, days in the month). A finished month covers every day; the month
-    still running covers up to the latest upload (or today, if nothing is uploaded for it yet)."""
+    """(trading days the month's figures cover, trading days in the month, the date they run to). A finished
+    month covers every day; the month still running covers up to the latest upload (or today, if nothing is
+    uploaded for it yet)."""
     today = today or date.today()
-    days = days_in(month)
-    if today >= date(month.year, month.month, days) or today < month:
-        return (days if today >= month else 0), days
+    end = date(month.year, month.month, calendar.monthrange(month.year, month.month)[1])
+    if today >= end or today < month:
+        return (days_in(month), days_in(month), end) if today >= month else (0, days_in(month), None)
     last = MonthlySales.objects.filter(month=month).aggregate(u=Max('updated_at'))['u']
     as_of = last.astimezone().date() if last else today   # this computer's clock, like the dashboard
-    return min(max(as_of, month), today).day, days
+    as_of = min(max(as_of, month), today)
+    return trading_days(month, as_of.day), days_in(month), as_of
 
 
 def available_months(today=None):
@@ -89,7 +99,7 @@ def _goal(actual, target, projected, covered, days):
 def month_analysis(month, today=None):
     """Everything on the Analytics page for one month (the first of the month)."""
     today = today or date.today()
-    covered, days = days_covered(month, today)
+    covered, days, as_of = days_covered(month, today)
     prev, last_year = add_months(month, -1), date(month.year - 1, month.month, 1)
     prev_days = days_in(prev)
 
@@ -116,7 +126,7 @@ def month_analysis(month, today=None):
         months = [date(year, i, 1) for i in range(1, upto + 1)]
         return sum(total(shop_ids, m) for m in months)
 
-    # Days so far this year (to the end of the figures) and over the same span last year, for a fair YTD per day
+    # Trading days so far this year (to the end of the figures) and over the same span last year, for a fair YTD per day
     ytd_days = sum(days_in(date(month.year, i, 1)) for i in range(1, month.month)) + covered
     ly_ytd_days = sum(days_in(date(month.year - 1, i, 1)) for i in range(1, month.month + 1))
 
@@ -168,7 +178,7 @@ def month_analysis(month, today=None):
     all_ids = list(shops)
     company = figures(all_ids, None)
 
-    # Average sales per day for the 12 months to this one: every client, and each stream
+    # Average sales per trading day for the 12 months to this one: every client, and each stream
     trend_months = [add_months(month, i) for i in range(-11, 1)]
 
     def trend(shop_ids):
@@ -216,7 +226,7 @@ def month_analysis(month, today=None):
     return {
         'month': month, 'prev': prev, 'last_year': last_year,
         'covered': covered, 'days': days, 'days_left': days - covered, 'in_progress': covered < days,
-        'as_of': date(month.year, month.month, covered) if covered else None,
+        'as_of': as_of if covered else None,
         'streams': streams, 'corporate': corporate_total, 'company': company,
         'has_targets': any(s['target'] or s['financial'] for s in streams),
         'on_track': sum(1 for s in streams if s['status'] in ('on', 'reached')),

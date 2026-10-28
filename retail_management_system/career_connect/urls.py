@@ -15,6 +15,8 @@ urlpatterns = [
     path('career-connect/careers/<slug:company_slug>/<slug:dept_slug>/<slug:role_slug>/interest/', views.interest,
          name='career_connect_interest'),
     path('career-connect/images/<int:image_id>/',              views.image,       name='career_connect_image'),
+    path('career-connect/images/company/<slug:company_slug>/', views.company_image,
+         name='career_connect_company_image'),
     path('career-connect/images/department/<slug:company_slug>/<slug:dept_slug>/', views.department_image,
          name='career_connect_department_image'),
     # Staff only (signed in + permission)

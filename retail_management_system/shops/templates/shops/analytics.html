@@ -69,8 +69,8 @@
     <h2 style="color:var(--primary);margin:0;font-size:22px;font-weight:700">Analytics</h2>
     <p class="an-note" style="margin:6px 0 0;font-size:13px">
       {{ month|date:"F Y" }} ·
-      {% if in_progress %}figures cover {{ covered }} of {{ days }} days{% if as_of %} (to {{ as_of|date:"j M" }}){% endif %}, {{ days_left }} day{{ days_left|pluralize }} left
-      {% else %}full month, {{ days }} days{% endif %}
+      {% if in_progress %}figures cover {{ covered }} of {{ days }} trading days (Mon–Sat){% if as_of %} (to {{ as_of|date:"j M" }}){% endif %}, {{ days_left }} trading day{{ days_left|pluralize }} left
+      {% else %}full month, {{ days }} trading days (Mon–Sat){% endif %}
       {% if updated_as_of %}· sales last uploaded {{ updated_as_of|date:"j M Y, H:i" }}{% endif %}
     </p>
   </div>
@@ -134,13 +134,13 @@
       <input type="hidden" name="forecast" value="1">
       <button class="btn-sms btn-primary-custom an-check-btn">Check targets</button>
     </form>
-    <div class="an-note">Carries each stream's average per day so far to the end of the month and compares it with the target.</div>
+    <div class="an-note">Carries each stream's average per trading day so far (Mon–Sat, Sundays excluded) to the end of the month and compares it with the target.</div>
   </div>
 
   <div class="an-card-body" id="check-result" {% if not show_forecast %}hidden{% endif %}>
     {% if has_targets %}
     <div class="an-summary">
-      {% if in_progress %}With {{ days_left }} day{{ days_left|pluralize }} to go,
+      {% if in_progress %}With {{ days_left }} trading day{{ days_left|pluralize }} to go,
       {% if targeted %}<b>{{ on_track }} of {{ targeted }}</b> stream{{ targeted|pluralize }} {{ targeted|pluralize:"is,are" }} on track for the Commercial Target{% endif %}{% if targeted and fin_targeted %} and {% endif %}{% if fin_targeted %}<b>{{ fin_on_track }} of {{ fin_targeted }}</b> for the Financial Target{% endif %}.
       {% else %}{% if targeted %}<b>{{ on_track }} of {{ targeted }}</b> stream{{ targeted|pluralize }} reached the Commercial Target{% endif %}{% if targeted and fin_targeted %} and {% endif %}{% if fin_targeted %}<b>{{ fin_on_track }} of {{ fin_targeted }}</b> reached the Financial Target{% endif %}.{% endif %}
     </div>
@@ -215,8 +215,8 @@
 <!-- Average sales per day -->
 <div class="an-card">
   <div class="an-card-head">
-    <b>📅 Average sales per day · last 12 months</b>
-    <span class="an-note">{% if trend.partial %}{{ month|date:"M" }} is a part month ({{ covered }} days){% endif %}</span>
+    <b>📅 Average sales per trading day (Mon–Sat) · last 12 months</b>
+    <span class="an-note">{% if trend.partial %}{{ month|date:"M" }} is a part month ({{ covered }} trading days){% endif %}</span>
   </div>
   <div class="an-card-body an-charts">
     <div><div class="an-chart-title">All clients<button type="button" class="btn-sms btn-accent-custom sm an-png" data-chart="chart-all" title="Download this graph as a PNG image">⬇ PNG</button></div><div class="an-canvas"><canvas id="chart-all" aria-label="Average sales per day, all clients, by month"></canvas></div></div>
@@ -321,7 +321,7 @@
     x.fillStyle = '#fff'; x.fillRect(0, 0, width, height);
     x.textBaseline = 'middle';
     text('Will each stream reach its target?', pad, 32, '700 20px', '#0F172A');
-    text('Corporate streams · {{ month|date:"F Y" }} · ' + (inProgress ? '{{ covered }} of {{ days }} days covered, {{ days_left }} day{{ days_left|pluralize }} left' : 'full month') + ' · WST', pad, 58, '14px', '#64748B');
+    text('Corporate streams · {{ month|date:"F Y" }} · ' + (inProgress ? '{{ covered }} of {{ days }} trading days covered, {{ days_left }} trading day{{ days_left|pluralize }} left' : 'full month') + ' · WST', pad, 58, '14px', '#64748B');
     var summary = document.querySelector('#check-result .an-summary');
     if (summary) text(summary.textContent.replace(/\s+/g, ' ').trim(), pad, 84, '600 13px', '#334155');
     // legend
@@ -381,7 +381,7 @@
         }
       });
     });
-    text('Commercial Target = target set for the month · Financial Target = same month last year · Projection = average per day so far carried to month end · Ah Liki Investment Corp',
+    text('Commercial Target = target set for the month · Financial Target = same month last year · Projection = average per trading day (Mon–Sat) so far carried to month end · Ah Liki Investment Corp',
          pad, height - 22, '11px', '#94A3B8');
     var a = document.createElement('a');
     a.href = c.toDataURL('image/png');
@@ -422,7 +422,7 @@
   });
 
   // PNG of a graph for reports: the chart on a white background with a title and a footer
-  var period = 'Last 12 months to {{ month|date:"F Y" }}' + (data.partial ? ' · {{ month|date:"M" }} is a part month ({{ covered }} days)' : '');
+  var period = 'Last 12 months to {{ month|date:"F Y" }}' + (data.partial ? ' · {{ month|date:"M" }} is a part month ({{ covered }} trading days)' : '');
   [].forEach.call(document.querySelectorAll('.an-png'), function (button) {
     button.addEventListener('click', function () {
       var chart = Chart.getChart(button.getAttribute('data-chart'));
@@ -441,7 +441,7 @@
       x.fillStyle = '#64748B'; x.font = '14px ' + font; x.fillText(period + ' · WST', pad, 58);
       x.drawImage(chart.canvas, (width - w) / 2, top, w, h);
       x.fillStyle = '#94A3B8'; x.font = '11px ' + font;
-      x.fillText('Average per day = month sales ÷ days covered · Ah Liki Investment Corp', pad, height - 22);
+      x.fillText('Average per day = month sales ÷ trading days covered (Mon–Sat, Sundays excluded) · Ah Liki Investment Corp', pad, height - 22);
       var a = document.createElement('a');
       a.href = c.toDataURL('image/png');
       a.download = 'avg_sales_per_day_' + name.toLowerCase().replace(/[^a-z0-9]+/g, '_') + '_{{ month|date:"Y_m" }}.png';

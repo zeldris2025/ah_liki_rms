@@ -46,13 +46,62 @@ class DepartmentInline(admin.TabularInline):
     extra = 0
 
 
+def _opacity_widget(db_field, kwargs):
+    if db_field.name == 'background_opacity':
+        kwargs['widget'] = forms.NumberInput(attrs={'min': 10, 'max': 90, 'step': 5, 'style': 'width:6em'})
+
+
+def _thumbnail(obj):
+    if not obj.background:
+        return '—'
+    return format_html('<img src="{}" alt="" style="height:34px;width:56px;object-fit:cover;border-radius:4px">',
+                       obj.background.url)
+
+
+def _card_preview(obj, default_name, fit='cover'):
+    """The card as it appears on the public pages: the colour with the background picture faded over it."""
+    p = obj.palette
+    inset = '14px' if fit == 'contain' else '0'
+    photo = (format_html('<span style="position:absolute;inset:{};background:url(&quot;{}&quot;) center/{} no-repeat;'
+                         'opacity:{}"></span>', inset, obj.background.url, fit, obj.photo_opacity)
+             if obj.background else '')
+    return format_html(
+        '<div style="position:relative;width:300px;height:140px;border-radius:8px;overflow:hidden;'
+        'background:linear-gradient(120deg,{} 0%,{} 150%);color:#fff;font:600 17px/1.3 sans-serif">{}'
+        '<span style="position:absolute;left:16px;bottom:30px;text-shadow:0 1px 6px rgba(0,0,0,.35)">{}</span>'
+        '<span style="position:absolute;left:16px;bottom:12px;font-size:12px;font-weight:400">{}</span></div>',
+        p['dark'], p['main'], photo, obj.name or default_name,
+        f'Photo at {obj.background_opacity}%' if obj.background else 'No photo: colour only')
+
+
 @admin.register(Company)
 class CompanyAdmin(admin.ModelAdmin):
-    list_display = ('name', 'symbol', 'colour', 'order', 'is_published')
+    list_display = ('name', 'thumbnail', 'symbol', 'colour', 'order', 'is_published')
     list_editable = ('order', 'is_published')
     prepopulated_fields = {'slug': ('name',)}
-    fields = ('name', 'slug', 'symbol', 'colour', 'description', 'order', 'is_published')
+    fieldsets = (
+        (None, {'fields': ('name', 'slug', 'symbol', 'colour', 'description', 'order', 'is_published')}),
+        ('Background photo or logo', {
+            'fields': ('background', 'background_fit', 'background_opacity', 'card_preview'),
+            'description': "Upload the company's logo (or a photo) to show behind its card and page heading. It is "
+                           'faded over the company colour (50% by default) so the white text stays easy to read. '
+                           'To remove it, tick "Clear" and save.',
+        }),
+    )
+    readonly_fields = ('card_preview',)
     inlines = [DepartmentInline]
+
+    def formfield_for_dbfield(self, db_field, request, **kwargs):
+        _opacity_widget(db_field, kwargs)
+        return super().formfield_for_dbfield(db_field, request, **kwargs)
+
+    @admin.display(description='Picture')
+    def thumbnail(self, obj):
+        return _thumbnail(obj)
+
+    @admin.display(description='Preview (after saving)')
+    def card_preview(self, obj):
+        return _card_preview(obj, 'Company', obj.background_fit)
 
 
 class RoleInline(admin.TabularInline):
@@ -82,29 +131,16 @@ class DepartmentAdmin(admin.ModelAdmin):
     inlines = [RoleInline]
 
     def formfield_for_dbfield(self, db_field, request, **kwargs):
-        if db_field.name == 'background_opacity':
-            kwargs['widget'] = forms.NumberInput(attrs={'min': 10, 'max': 90, 'step': 5, 'style': 'width:6em'})
+        _opacity_widget(db_field, kwargs)
         return super().formfield_for_dbfield(db_field, request, **kwargs)
 
     @admin.display(description='Photo')
     def thumbnail(self, obj):
-        if not obj.background:
-            return '—'
-        return format_html('<img src="{}" alt="" style="height:34px;width:56px;object-fit:cover;border-radius:4px">',
-                           obj.background.url)
+        return _thumbnail(obj)
 
     @admin.display(description='Preview (after saving)')
     def card_preview(self, obj):
-        p = obj.palette
-        photo = (format_html('<span style="position:absolute;inset:0;background:url(&quot;{}&quot;) center/cover;'
-                             'opacity:{}"></span>', obj.background.url, obj.photo_opacity) if obj.background else '')
-        return format_html(
-            '<div style="position:relative;width:300px;height:140px;border-radius:8px;overflow:hidden;'
-            'background:linear-gradient(120deg,{} 0%,{} 150%);color:#fff;font:600 17px/1.3 sans-serif">{}'
-            '<span style="position:absolute;left:16px;bottom:30px;text-shadow:0 1px 6px rgba(0,0,0,.35)">{}</span>'
-            '<span style="position:absolute;left:16px;bottom:12px;font-size:12px;font-weight:400">{}</span></div>',
-            p['dark'], p['main'], photo, obj.name or 'Department',
-            f'Photo at {obj.background_opacity}%' if obj.background else 'No photo: colour only')
+        return _card_preview(obj, 'Department')
 
 
 @admin.register(Role)

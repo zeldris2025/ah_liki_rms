@@ -14,6 +14,7 @@ PUBLIC_URL_NAMES = {
     'career_connect_role',
     'career_connect_interest',
     'career_connect_image',
+    'career_connect_company_image',
     'career_connect_department_image',
 }
 

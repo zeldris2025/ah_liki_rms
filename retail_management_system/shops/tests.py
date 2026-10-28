@@ -1523,19 +1523,27 @@ class AnalyticsTests(TestCase):
 
     def test_target_check_projects_the_month_end(self):
         from . import analytics
-        data = analytics.month_analysis(date(2024, 6, 1), today=date(2024, 6, 10))   # 10 of 30 days in
-        self.assertEqual((data['covered'], data['days'], data['in_progress']), (10, 30, True))
+        # June 2024 has 25 trading days (Sundays excluded); to the 10th, 8 of them are in (the 2nd and 9th are Sundays)
+        data = analytics.month_analysis(date(2024, 6, 1), today=date(2024, 6, 10))
+        self.assertEqual((data['covered'], data['days'], data['in_progress']), (8, 25, True))
+        self.assertEqual(data['as_of'], date(2024, 6, 10))
         streams = {s['key']: s for s in data['streams']}
         judane, ruth = streams['judane'], streams['ruth']
-        self.assertEqual((judane['per_day'], judane['projected'], judane['status_label']), (1000, 30000, 'On track'))
-        self.assertEqual(judane['needed_per_day'], 1000)
-        self.assertEqual((ruth['projected'], ruth['status_label']), (3000, 'Needs a boost'))
-        self.assertEqual(ruth['status_detail'], 'on pace for 33%')
-        self.assertEqual(ruth['needed_per_day'], 400)
+        self.assertEqual((judane['per_day'], judane['projected'], judane['status_label']), (1250, 31250, 'On track'))
+        self.assertEqual(judane['needed_per_day'], 20000 / 17)
+        self.assertEqual((ruth['projected'], ruth['status_label']), (3125, 'Needs a boost'))
+        self.assertEqual(ruth['status_detail'], 'on pace for 35%')
+        self.assertEqual(ruth['needed_per_day'], 8000 / 17)
         self.assertEqual((data['on_track'], data['targeted']), (1, 2))
-        # Judane's May (both HORECA clients) averaged 1,000 a day across 31 days, so June's 1,000 a day is level
-        self.assertEqual(judane['vs_prev'], 0)
+        # Judane's May (both HORECA clients) was 31,000 over 27 trading days, so June's 1,250 a day is 8.9% up
+        self.assertEqual(judane['vs_prev'], 8.9)
         self.assertEqual([c['name'] for c in data['quiet']], ['Quiet Cafe'])
+
+    def test_sundays_are_not_trading_days(self):
+        from . import analytics
+        self.assertEqual(analytics.trading_days(date(2024, 6, 1)), 25)
+        self.assertEqual(analytics.trading_days(date(2024, 6, 1), 2), 1)   # Sat 1st and Sun 2nd
+        self.assertEqual(analytics.trading_days(date(2024, 2, 1)), 25)    # 29 days, 4 Sundays
 
     def test_financial_target_is_last_years_month(self):
         from . import analytics
@@ -1544,9 +1552,9 @@ class AnalyticsTests(TestCase):
         data = analytics.month_analysis(date(2024, 6, 1), today=date(2024, 6, 10))
         judane = {s['key']: s for s in data['streams']}['judane']
         commercial, financial = judane['goals']
-        self.assertEqual((commercial['name'], commercial['pct_projected'], commercial['status_label']), ('Commercial Target', 100, 'On track'))
-        self.assertEqual((financial['target'], financial['pct_projected'], financial['status_label']), (40000, 75, 'Needs a boost'))
-        self.assertEqual(financial['status_detail'], 'on pace for 75%')
+        self.assertEqual((commercial['name'], commercial['pct_projected'], commercial['status_label']), ('Commercial Target', 104, 'On track'))
+        self.assertEqual((financial['target'], financial['pct_projected'], financial['status_label']), (40000, 78, 'Needs a boost'))
+        self.assertEqual(financial['status_detail'], 'on pace for 78%')
         self.assertEqual((data['fin_on_track'], data['fin_targeted']), (0, 1))
         self.assertEqual(data['corporate']['financial'], 40000)
 
@@ -1554,7 +1562,7 @@ class AnalyticsTests(TestCase):
         from . import analytics
         streams = {s['key']: s for s in analytics.month_analysis(date(2024, 6, 1), today=date(2024, 7, 2))['streams']}
         self.assertEqual(streams['judane']['status_label'], 'Below target')
-        self.assertEqual(streams['judane']['per_day'], 10000 / 30)
+        self.assertEqual(streams['judane']['per_day'], 10000 / 25)
 
     def test_managers_only(self):
         from django.contrib.auth.models import Group

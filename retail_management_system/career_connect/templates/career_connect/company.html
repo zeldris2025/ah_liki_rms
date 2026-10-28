@@ -7,7 +7,8 @@
   .head-badge { width: 72px; height: 72px; border-radius: 50%; background: var(--c); border: 2px solid rgba(255,255,255,.4); display: grid; place-items: center; color: #fff; flex-shrink: 0; }
 {% endblock %}
 {% block main %}
-<div class="page-head dept" style="--c:{{ company.palette.main }};--c-dark:{{ company.palette.dark }};">
+<div class="page-head dept{% if company.image_url %} has-photo fit-{{ company.background_fit }}{% endif %}"
+     style="--c:{{ company.palette.main }};--c-dark:{{ company.palette.dark }};{% if company.image_url %}--photo:url('{{ company.image_url }}');--photo-opacity:{{ company.photo_opacity }};{% endif %}">
   <div class="wrap">
     <nav class="crumbs" aria-label="Breadcrumb">
       <a href="{% url 'career_connect' %}">Home</a> › <a href="{% url 'career_connect_careers' %}">Career Opportunities</a> › {{ company.name }}
