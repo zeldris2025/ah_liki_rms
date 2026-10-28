@@ -11,12 +11,13 @@
      style="--c:{{ department.palette.main }};--c-dark:{{ department.palette.dark }};{% if department.image_url %}--photo:url('{{ department.image_url }}');--photo-opacity:{{ department.photo_opacity }};{% endif %}">
   <div class="wrap">
     <nav class="crumbs" aria-label="Breadcrumb">
-      <a href="{% url 'career_connect' %}">Home</a> › <a href="{% url 'career_connect_departments' %}">Career Opportunities</a> › {{ department.name }}
+      <a href="{% url 'career_connect' %}">Home</a> › <a href="{% url 'career_connect_careers' %}">Career Opportunities</a> ›
+      <a href="{{ department.company.get_absolute_url }}">{{ department.company.name }}</a> › {{ department.name }}
     </nav>
     <div class="head-row">
       <span class="head-badge">{% icon department.symbol 34 %}</span>
       <div>
-        <div class="kicker">Department</div>
+        <div class="kicker">{{ department.company.name }}</div>
         <h1>{{ department.name }}</h1>
       </div>
     </div>
@@ -49,7 +50,7 @@
   </section>
 
   <div class="actions" style="margin-top:26px">
-    <a class="btn btn-light" href="{% url 'career_connect_departments' %}">{% icon 'back' 16 %} All departments</a>
+    <a class="btn btn-light" href="{{ department.company.get_absolute_url }}">{% icon 'back' 16 %} {{ department.company.name }}</a>
     <a class="btn btn-light" href="{% url 'career_connect' %}">Home</a>
   </div>
 </div></div>

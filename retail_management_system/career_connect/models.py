@@ -1,6 +1,6 @@
 """Ah Liki Career Connect: public company information and career pages for students.
 
-Everything shown publicly is typed in by an administrator; blank fields show 'not provided yet' rather than
+Companies (Ah Liki Investment group) → departments → roles. Everything shown publicly is typed in by an administrator; blank fields show 'not provided yet' rather than
 made-up text. Only published departments, roles and images ever reach the public pages.
 """
 import os
@@ -173,6 +173,45 @@ class CompanyImage(models.Model):
         return reverse('career_connect_image', args=[self.pk])
 
 
+class Company(models.Model):
+    """A company in the Ah Liki Investment group. Its departments (and their roles) are listed on its careers page."""
+    COLOURS = {
+        'blue':   ('#1E6FE0', '#0B3F8F', '#E3EEFD'),
+        'purple': ('#7C3AED', '#4C1D95', '#EEE7FD'),
+        'orange': ('#F07A1A', '#9A3F07', '#FDEBDC'),
+        'green':  ('#16A34A', '#0F5D2E', '#DDF5E5'),
+        'teal':   ('#0E9BB5', '#0A5566', '#DCF3F7'),
+        'navy':   ('#1E40AF', '#0B1F4D', '#E2E8F7'),
+        'red':    ('#DC2626', '#7F1D1D', '#FDE4E4'),
+    }
+    COLOUR_CHOICES = [(k, k.title()) for k in COLOURS]
+    SYMBOL_CHOICES = [('store', 'Store (wholesale / retail)'), ('cart', 'Cart (supermarket)'),
+                      ('utensils', 'Utensils (food)'), ('leaf', 'Leaf (farm)'), ('building', 'Building')]
+
+    name = models.CharField(max_length=120)
+    slug = models.SlugField(max_length=80, unique=True, help_text='Used in the web address, e.g. "farmer-joe".')
+    symbol = models.CharField('icon', max_length=20, choices=SYMBOL_CHOICES, default='building')
+    colour = models.CharField(max_length=20, choices=COLOUR_CHOICES, default='navy')
+    description = models.TextField(blank=True)
+    order = models.PositiveIntegerField(default=0)
+    is_published = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ('order', 'name')
+        verbose_name_plural = 'companies'
+
+    def __str__(self):
+        return self.name
+
+    def get_absolute_url(self):
+        return reverse('career_connect_company', args=[self.slug])
+
+    @property
+    def palette(self):
+        main, dark, soft = self.COLOURS.get(self.colour, self.COLOURS['navy'])
+        return {'main': main, 'dark': dark, 'soft': soft}
+
+
 class Department(models.Model):
     # Card colours: (main, dark, soft tint)
     COLOURS = {
@@ -188,8 +227,9 @@ class Department(models.Model):
                       ('chart', 'Chart (sales)'), ('box', 'Box (warehouse)'), ('wrench', 'Wrench (trades)'),
                       ('briefcase', 'Briefcase')]
 
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name='departments')
     name = models.CharField(max_length=120)
-    slug = models.SlugField(max_length=80, unique=True, help_text='Used in the web address, e.g. "finance".')
+    slug = models.SlugField(max_length=80, help_text='Used in the web address, e.g. "finance"; unique within the company.')
     symbol = models.CharField('icon', max_length=20, choices=SYMBOL_CHOICES, default='briefcase')
     colour = models.CharField(max_length=20, choices=COLOUR_CHOICES, default='blue')
     background = models.ImageField(
@@ -204,13 +244,14 @@ class Department(models.Model):
     is_published = models.BooleanField(default=True)
 
     class Meta:
-        ordering = ('order', 'name')
+        ordering = ('company__order', 'order', 'name')
+        constraints = [models.UniqueConstraint(fields=('company', 'slug'), name='career_department_unique_slug')]
 
     def __str__(self):
-        return self.name
+        return f'{self.name} ({self.company})'
 
     def get_absolute_url(self):
-        return reverse('career_connect_department', args=[self.slug])
+        return reverse('career_connect_department', args=[self.company.slug, self.slug])
 
     @property
     def image_url(self):
@@ -218,7 +259,7 @@ class Department(models.Model):
         when a new photo is uploaded."""
         if not self.background:
             return ''
-        return (reverse('career_connect_department_image', args=[self.slug])
+        return (reverse('career_connect_department_image', args=[self.company.slug, self.slug])
                 + '?v=' + quote(os.path.basename(self.background.name)))
 
     @property
@@ -264,14 +305,14 @@ class Role(models.Model):
     is_published = models.BooleanField(default=True)
 
     class Meta:
-        ordering = ('department__order', 'order', 'title')
+        ordering = ('department__company__order', 'department__order', 'order', 'title')
         constraints = [models.UniqueConstraint(fields=('department', 'slug'), name='career_role_unique_slug')]
 
     def __str__(self):
         return f'{self.title} ({self.department})'
 
     def get_absolute_url(self):
-        return reverse('career_connect_role', args=[self.department.slug, self.slug])
+        return reverse('career_connect_role', args=[self.department.company.slug, self.department.slug, self.slug])
 
     @staticmethod
     def _lines(text):

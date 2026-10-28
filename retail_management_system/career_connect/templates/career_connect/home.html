@@ -71,7 +71,7 @@
       <div class="kicker">Ah Liki Career Connect</div>
       <h1 id="hero-title">{{ portal.tagline }}</h1>
       <p>{{ portal.hero_text }}</p>
-      <a class="btn btn-primary" href="{% url 'career_connect_departments' %}"><span class="ring">{% icon 'compass' 15 %}</span>Start Exploring</a>
+      <a class="btn btn-primary" href="{% url 'career_connect_careers' %}"><span class="ring">{% icon 'compass' 15 %}</span>Start Exploring</a>
     </div>
   </div>
 </section>
@@ -100,15 +100,15 @@
       <span class="dot t-cyan">{% icon 'people' 24 %}</span>
       <h3>Career Opportunities</h3>
       <p>Explore our roles and find your place with us.</p>
-      <a class="link-arrow" href="{% url 'career_connect_departments' %}">View Jobs {% icon 'arrow' 15 %}</a>
+      <a class="link-arrow" href="{% url 'career_connect_careers' %}">View Jobs {% icon 'arrow' 15 %}</a>
     </div>
   </section>
 
   <section class="departments" aria-labelledby="dept-title">
     <div class="kicker">Career Opportunities</div>
-    <h2 class="section-title" id="dept-title">Explore Our Departments</h2>
-    <p class="section-lead">Find the right department for your skills and interests. Choose a department to see its roles.</p>
-    {% include 'career_connect/_dept_cards.html' %}
+    <h2 class="section-title" id="dept-title">Companies Under Ah Liki Investment</h2>
+    <p class="section-lead">Choose a company to see its departments and roles.</p>
+    {% include 'career_connect/_company_cards.html' %}
   </section>
 </div>
 

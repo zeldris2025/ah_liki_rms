@@ -13,10 +13,11 @@
 <div class="page-head dept">
   <div class="wrap">
     <nav class="crumbs" aria-label="Breadcrumb">
-      <a href="{% url 'career_connect' %}">Home</a> › <a href="{% url 'career_connect_departments' %}">Career Opportunities</a> ›
+      <a href="{% url 'career_connect' %}">Home</a> › <a href="{% url 'career_connect_careers' %}">Career Opportunities</a> ›
+      <a href="{{ department.company.get_absolute_url }}">{{ department.company.name }}</a> ›
       <a href="{{ department.get_absolute_url }}">{{ department.name }}</a> › {{ role.title }}
     </nav>
-    <div class="kicker">{{ department.name }}</div>
+    <div class="kicker">{{ department.company.name }} · {{ department.name }}</div>
     <h1>{{ role.title }}</h1>
     {% if role.summary %}<p>{{ role.summary }}</p>{% endif %}
     <div class="pills">
@@ -31,8 +32,8 @@
   <div class="two-col">
     <section class="panel" aria-labelledby="desc">
       <h2 id="desc"><span class="icon-dot">{% icon 'briefcase' 22 %}</span>Job description</h2>
-      {% if role.description %}<div class="prose">{{ role.description|linebreaks }}</div>
-      {% else %}{% include 'career_connect/_missing.html' with what='A job description' %}{% endif %}
+      <p>For the full job description, please email
+        <a href="mailto:hr@ahliki.com?subject={{ role.title|urlencode }}%20%E2%80%94%20Job%20description%20request">hr@ahliki.com</a>.</p>
 
       <h3>Responsibilities</h3>
       {% if role.responsibility_list %}
@@ -76,9 +77,9 @@
     {% elif form %}
       <h3>Express your interest</h3>
       {% if sent %}
-        <div class="notice ok" role="status">Thank you! Your interest in this role has been sent to Ah Liki Wholesale.</div>
+        <div class="notice ok" role="status">Thank you! Your interest in this role has been sent to {{ department.company.name }}.</div>
       {% else %}
-        <form method="post" action="{% url 'career_connect_interest' department.slug role.slug %}" novalidate style="max-width:620px">
+        <form method="post" action="{% url 'career_connect_interest' department.company.slug department.slug role.slug %}" novalidate style="max-width:620px">
           {% csrf_token %}
           {% if form.non_field_errors %}<div class="form-errors" role="alert">{{ form.non_field_errors|join:" " }}</div>{% endif %}
           {% for field in form %}

@@ -1,0 +1,15 @@
+{% load career_icons %}{% if companies %}
+<div class="dept-grid">
+  {% for c in companies %}
+  <a class="dept-card company-card" href="{{ c.get_absolute_url }}" style="--c:{{ c.palette.main }};--c-dark:{{ c.palette.dark }};">
+    <span class="mark">{% icon c.symbol 150 %}</span>
+    <span class="badge">{% icon c.symbol 30 %}</span>
+    <span class="name">{{ c.name }}</span>
+    <span class="count">{{ c.position_count }} Available Position{{ c.position_count|pluralize }}</span>
+    <span class="go">{% icon 'arrow' 16 %}</span>
+  </a>
+  {% endfor %}
+</div>
+{% else %}
+{% include 'career_connect/_missing.html' with what='Company information' %}
+{% endif %}

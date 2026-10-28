@@ -203,15 +203,15 @@
     <div class="wrap">
       <a class="brand" href="{% url 'career_connect' %}" aria-label="Ah Liki Wholesale Career Connect — home">
         <span class="brand-badge"><img src="{% static 'imgs/ahliki_logo.png' %}" alt="" width="52" height="52"></span>
-        <span class="wordmark"><span class="w1">AH LIKI</span><span class="w2">WHOLESALE</span></span>
+        <span class="wordmark"><span class="w1">AH LIKI</span><span class="w2">INVESTMENT CORP</span></span>
       </a>
       <nav class="site-nav" aria-label="Career Connect">
         <a href="{% url 'career_connect' %}" {% if nav == 'home' %}aria-current="page"{% endif %}>Home</a>
         <a href="{% url 'career_connect_about' %}" {% if nav == 'about' %}aria-current="page"{% endif %}>About Us</a>
-        <a href="{% url 'career_connect_departments' %}" {% if nav == 'careers' %}aria-current="page"{% endif %}>Career Opportunities</a>
+        <a href="{% url 'career_connect_careers' %}" {% if nav == 'careers' %}aria-current="page"{% endif %}>Career Opportunities</a>
         <a href="{% url 'career_connect_about' %}#contact">Contact</a>
       </nav>
-      <a class="explore" href="{% url 'career_connect_departments' %}">{% icon 'people' 30 %}<span>Explore<br>Your Future</span></a>
+      <a class="explore" href="{% url 'career_connect_careers' %}">{% icon 'people' 30 %}<span>Explore<br>Your Future</span></a>
     </div>
   </header>
 
@@ -230,7 +230,7 @@
         <nav class="footer-nav" aria-label="Footer">
           <a href="{% url 'career_connect' %}">Home</a>
           <a href="{% url 'career_connect_about' %}">About Us</a>
-          <a href="{% url 'career_connect_departments' %}">Career Opportunities</a>
+          <a href="{% url 'career_connect_careers' %}">Career Opportunities</a>
           <a href="{% url 'career_connect_about' %}#contact">Contact</a>
         </nav>
         {% if portal.social_links %}

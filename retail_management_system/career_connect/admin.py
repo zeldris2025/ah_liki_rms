@@ -8,7 +8,7 @@ from django.contrib import admin
 from django.urls import reverse
 from django.utils.html import format_html
 
-from .models import CompanyImage, Department, ExpressionOfInterest, PortalSettings, Role
+from .models import Company, CompanyImage, Department, ExpressionOfInterest, PortalSettings, Role
 
 
 @admin.register(PortalSettings)
@@ -38,6 +38,23 @@ class PortalSettingsAdmin(admin.ModelAdmin):
                            reverse('career_connect'))
 
 
+class DepartmentInline(admin.TabularInline):
+    model = Department
+    fields = ('name', 'slug', 'order', 'is_published')
+    prepopulated_fields = {'slug': ('name',)}
+    show_change_link = True
+    extra = 0
+
+
+@admin.register(Company)
+class CompanyAdmin(admin.ModelAdmin):
+    list_display = ('name', 'symbol', 'colour', 'order', 'is_published')
+    list_editable = ('order', 'is_published')
+    prepopulated_fields = {'slug': ('name',)}
+    fields = ('name', 'slug', 'symbol', 'colour', 'description', 'order', 'is_published')
+    inlines = [DepartmentInline]
+
+
 class RoleInline(admin.TabularInline):
     model = Role
     fields = ('title', 'slug', 'vacancy_status', 'apply_method', 'order', 'is_published')
@@ -48,11 +65,12 @@ class RoleInline(admin.TabularInline):
 
 @admin.register(Department)
 class DepartmentAdmin(admin.ModelAdmin):
-    list_display = ('name', 'thumbnail', 'symbol', 'colour', 'order', 'is_published')
+    list_display = ('name', 'company', 'thumbnail', 'symbol', 'colour', 'order', 'is_published')
     list_editable = ('order', 'is_published')
+    list_filter = ('company',)
     prepopulated_fields = {'slug': ('name',)}
     fieldsets = (
-        (None, {'fields': ('name', 'slug', 'symbol', 'colour', 'description', 'order', 'is_published')}),
+        (None, {'fields': ('company', 'name', 'slug', 'symbol', 'colour', 'description', 'order', 'is_published')}),
         ('Background photo', {
             'fields': ('background', 'background_opacity', 'card_preview'),
             'description': "Upload a photo to show behind this department's card and page heading. It is faded "
@@ -92,12 +110,14 @@ class DepartmentAdmin(admin.ModelAdmin):
 @admin.register(Role)
 class RoleAdmin(admin.ModelAdmin):
     list_display = ('title', 'department', 'vacancy_status', 'apply_method', 'is_published')
-    list_filter = ('department', 'vacancy_status', 'apply_method', 'is_published')
-    search_fields = ('title', 'summary', 'description')
+    list_filter = ('department__company', 'department', 'vacancy_status', 'apply_method', 'is_published')
+    search_fields = ('title', 'summary')
     prepopulated_fields = {'slug': ('title',)}
     fieldsets = (
         (None, {'fields': ('department', 'title', 'slug', 'summary', 'order', 'is_published')}),
-        ('Job details', {'fields': ('description', 'responsibilities', 'qualifications', 'skills')}),
+        ('Job details', {'fields': ('responsibilities', 'qualifications', 'skills'),
+                         'description': 'The full job description is not shown publicly: the role page asks '
+                                        'students to email hr@ahliki.com for it.'}),
         ('Vacancy and applying', {'fields': ('vacancy_status', 'how_to_apply', 'apply_method', 'apply_url',
                                              'apply_email')}),
     )

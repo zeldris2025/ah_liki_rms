@@ -21,7 +21,7 @@ from django.views.decorators.http import require_GET, require_POST
 from . import qr
 from .access import MANAGE_PERMISSION
 from .forms import InterestForm
-from .models import CompanyImage, Department, ExpressionOfInterest, PortalSettings, Role
+from .models import Company, CompanyImage, Department, ExpressionOfInterest, PortalSettings, Role
 
 
 def public_page(view):
@@ -36,9 +36,15 @@ def public_page(view):
     return wrapped
 
 
-def _published_departments():
+def _published_companies():
+    """Published companies, each with the number of published roles in its published departments."""
+    return Company.objects.filter(is_published=True).annotate(position_count=Count(
+        'departments__roles', filter=Q(departments__is_published=True, departments__roles__is_published=True)))
+
+
+def _published_departments(company):
     published_roles = Role.objects.filter(is_published=True)
-    return (Department.objects.filter(is_published=True)
+    return (Department.objects.filter(is_published=True, company=company).select_related('company')
             .annotate(role_count=Count('roles', filter=Q(roles__is_published=True)))
             .prefetch_related(Prefetch('roles', queryset=published_roles, to_attr='published_roles')))
 
@@ -51,7 +57,7 @@ def _context(request, **extra):
 @public_page
 def home(request):
     return render(request, 'career_connect/home.html', _context(
-        request, departments=_published_departments(),
+        request, companies=_published_companies(),
         images=CompanyImage.objects.filter(is_published=True)[:3], nav='home'))
 
 
@@ -64,29 +70,43 @@ def about(request):
 
 @require_GET
 @public_page
-def departments(request):
-    return render(request, 'career_connect/departments.html', _context(
-        request, departments=_published_departments(), nav='careers'))
+def careers(request):
+    return render(request, 'career_connect/careers.html', _context(
+        request, companies=_published_companies(), nav='careers'))
 
 
 @require_GET
 @public_page
-def department(request, dept_slug):
-    dept = get_object_or_404(Department, slug=dept_slug, is_published=True)
+def company(request, company_slug):
+    c = get_object_or_404(Company, slug=company_slug, is_published=True)
+    return render(request, 'career_connect/company.html', _context(
+        request, company=c, departments=_published_departments(c), nav='careers'))
+
+
+def _published_department(company_slug, dept_slug):
+    return get_object_or_404(Department.objects.select_related('company'), slug=dept_slug, is_published=True,
+                             company__slug=company_slug, company__is_published=True)
+
+
+@require_GET
+@public_page
+def department(request, company_slug, dept_slug):
+    dept = _published_department(company_slug, dept_slug)
     return render(request, 'career_connect/department.html', _context(
         request, department=dept, roles=dept.roles.filter(is_published=True), nav='careers'))
 
 
-def _published_role(dept_slug, role_slug):
-    """Only a published role, in a published department, reached through its own department's address."""
-    return get_object_or_404(Role.objects.select_related('department'), slug=role_slug, is_published=True,
-                             department__slug=dept_slug, department__is_published=True)
+def _published_role(company_slug, dept_slug, role_slug):
+    """Only a published role, in a published department of a published company, reached through its own address."""
+    return get_object_or_404(Role.objects.select_related('department__company'), slug=role_slug, is_published=True,
+                             department__slug=dept_slug, department__is_published=True,
+                             department__company__slug=company_slug, department__company__is_published=True)
 
 
 @require_GET
 @public_page
-def role(request, dept_slug, role_slug):
-    r = _published_role(dept_slug, role_slug)
+def role(request, company_slug, dept_slug, role_slug):
+    r = _published_role(company_slug, dept_slug, role_slug)
     form = InterestForm() if r.accepts_interest else None
     return render(request, 'career_connect/role.html', _context(
         request, role=r, department=r.department, form=form, sent=request.GET.get('sent') == '1', nav='careers'))
@@ -113,8 +133,8 @@ def _rate_limited(request):
 
 @require_POST
 @public_page
-def interest(request, dept_slug, role_slug):
-    r = _published_role(dept_slug, role_slug)
+def interest(request, company_slug, dept_slug, role_slug):
+    r = _published_role(company_slug, dept_slug, role_slug)
     if not r.accepts_interest:
         raise Http404('This role does not take expressions of interest.')
     form = InterestForm(request.POST)
@@ -155,9 +175,9 @@ def image(request, image_id):
 
 @require_GET
 @public_page
-def department_image(request, dept_slug):
+def department_image(request, company_slug, dept_slug):
     """A published department's background photo."""
-    dept = get_object_or_404(Department, slug=dept_slug, is_published=True)
+    dept = _published_department(company_slug, dept_slug)
     if not dept.background:
         raise Http404
     return _serve_photo(dept.background)

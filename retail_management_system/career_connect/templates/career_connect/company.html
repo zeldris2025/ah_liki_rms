@@ -1,0 +1,35 @@
+{% extends 'career_connect/base.html' %}
+{% load career_icons %}
+{% block title %}{{ company.name }} — Ah Liki Career Connect{% endblock %}
+{% block extra_style %}
+  .page-head.dept { background: linear-gradient(105deg, var(--navy-deep) 0%, var(--c-dark) 55%, var(--c) 130%); }
+  .head-row { display: flex; align-items: center; gap: 18px; }
+  .head-badge { width: 72px; height: 72px; border-radius: 50%; background: var(--c); border: 2px solid rgba(255,255,255,.4); display: grid; place-items: center; color: #fff; flex-shrink: 0; }
+{% endblock %}
+{% block main %}
+<div class="page-head dept" style="--c:{{ company.palette.main }};--c-dark:{{ company.palette.dark }};">
+  <div class="wrap">
+    <nav class="crumbs" aria-label="Breadcrumb">
+      <a href="{% url 'career_connect' %}">Home</a> › <a href="{% url 'career_connect_careers' %}">Career Opportunities</a> › {{ company.name }}
+    </nav>
+    <div class="head-row">
+      <span class="head-badge">{% icon company.symbol 34 %}</span>
+      <div>
+        <div class="kicker">Ah Liki Investment</div>
+        <h1>{{ company.name }}</h1>
+      </div>
+    </div>
+    {% if company.description %}<p>{{ company.description }}</p>{% endif %}
+  </div>
+</div>
+
+<div class="page-body"><div class="wrap">
+  <div class="kicker">Departments</div>
+  <h2 class="section-title" style="font-size:26px;margin-bottom:18px">Explore Our Departments</h2>
+  {% include 'career_connect/_dept_cards.html' %}
+  <div class="actions" style="margin-top:28px">
+    <a class="btn btn-light" href="{% url 'career_connect_careers' %}">{% icon 'back' 16 %} All companies</a>
+    <a class="btn btn-light" href="{% url 'career_connect' %}">Home</a>
+  </div>
+</div></div>
+{% endblock %}

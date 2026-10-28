@@ -8,7 +8,8 @@ Nothing here reads request.user, and the management pages (the QR page, the Djan
 PUBLIC_URL_NAMES = {
     'career_connect',
     'career_connect_about',
-    'career_connect_departments',
+    'career_connect_careers',
+    'career_connect_company',
     'career_connect_department',
     'career_connect_role',
     'career_connect_interest',

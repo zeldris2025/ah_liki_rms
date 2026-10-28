@@ -10,7 +10,7 @@ from django.urls import URLPattern, URLResolver, get_resolver, reverse
 
 from . import qr
 from .access import PUBLIC_URL_NAMES
-from .models import CompanyImage, Department, ExpressionOfInterest, PortalSettings, Role, video_embed_url
+from .models import Company, CompanyImage, Department, ExpressionOfInterest, PortalSettings, Role, video_embed_url
 
 def _png():
     """A small real PNG (Pillow checks uploads are genuine images)."""
@@ -53,11 +53,12 @@ class PublicPortalTests(TestCase):
         self.assertFalse(Role.objects.exclude(apply_method=Role.APPLY_NONE).exists())
 
     def test_every_public_page_opens_signed_out(self):
-        urls = [reverse('career_connect'), reverse('career_connect_about'), reverse('career_connect_departments')]
+        urls = [reverse('career_connect'), reverse('career_connect_about'), reverse('career_connect_careers')]
+        urls += [c.get_absolute_url() for c in Company.objects.all()]
         for d in Department.objects.all():
             urls.append(d.get_absolute_url())
             urls += [r.get_absolute_url() for r in d.roles.all()]
-        self.assertEqual(len(urls), 3 + 6 + 11)
+        self.assertEqual(len(urls), 3 + 5 + 6 + 11)
         for url in urls:
             r = self.client.get(url)
             self.assertEqual(r.status_code, 200, url)
@@ -65,11 +66,11 @@ class PublicPortalTests(TestCase):
             for text in SMS_ONLY_TEXT:
                 self.assertNotContains(r, text, msg_prefix=url)
 
-    def test_home_lists_departments_with_links(self):
+    def test_home_lists_companies_with_links(self):
         r = self.client.get(reverse('career_connect'))
         self.assertContains(r, 'Discover Opportunities. Build Your Future.')
-        for d in Department.objects.all():
-            self.assertContains(r, f'href="{d.get_absolute_url()}"')
+        for c in Company.objects.all():
+            self.assertContains(r, f'href="{c.get_absolute_url()}"')
         self.assertContains(r, 'not provided yet')
 
     def test_every_link_on_public_pages_works(self):
@@ -96,11 +97,57 @@ class PublicPortalTests(TestCase):
         self.finance.is_published = False
         self.finance.save()
         self.assertEqual(self.client.get(self.finance.get_absolute_url()).status_code, 404)
-        self.assertEqual(self.client.get(reverse('career_connect_role', args=['finance', 'finance-officer'])).status_code, 404)
-        self.assertNotContains(self.client.get(reverse('career_connect_departments')), 'Finance Department')
+        self.assertEqual(self.client.get(reverse('career_connect_role', args=['ah-liki-wholesale', 'finance', 'finance-officer'])).status_code, 404)
+        self.assertNotContains(self.client.get(reverse('career_connect_company', args=['ah-liki-wholesale'])),
+                               'Finance Department')
+
+    def test_careers_page_lists_the_ah_liki_investment_companies(self):
+        r = self.client.get(reverse('career_connect_careers'))
+        self.assertContains(r, 'Companies Under Ah Liki Investment')
+        names = ['Ah Liki Wholesale', 'Farmer Joe', 'Taula', 'Burger Bills', 'Tanumapua Farm']
+        self.assertEqual(list(Company.objects.values_list('name', flat=True)), names)
+        html = r.content.decode()
+        self.assertEqual([html.index(n) for n in names], sorted(html.index(n) for n in names))
+        for c in Company.objects.all():
+            self.assertContains(r, f'href="{c.get_absolute_url()}"')
+        self.assertContains(r, '11 Available Positions')
+        self.assertContains(r, '0 Available Positions', count=4)
+        # Unpublished roles and departments are not counted
+        self.accountant.is_published = False
+        self.accountant.save()
+        Department.objects.filter(slug='trades').update(is_published=False)
+        self.assertContains(self.client.get(reverse('career_connect_careers')), '7 Available Positions')
+
+    def test_company_page_shows_its_departments(self):
+        r = self.client.get(reverse('career_connect_company', args=['ah-liki-wholesale']))
+        for d in Department.objects.all():
+            self.assertContains(r, f'href="{d.get_absolute_url()}"')
+        r = self.client.get(reverse('career_connect_company', args=['farmer-joe']))
+        self.assertNotContains(r, 'Finance Department')
+        self.assertContains(r, 'not provided yet')
+        Company.objects.filter(slug='taula').update(is_published=False)
+        self.assertEqual(self.client.get(reverse('career_connect_company', args=['taula'])).status_code, 404)
+        self.assertNotContains(self.client.get(reverse('career_connect_careers')), 'Taula')
+
+    def test_same_department_name_in_two_companies(self):
+        farmer_joe = Company.objects.get(slug='farmer-joe')
+        dept = Department.objects.create(company=farmer_joe, name='Finance Department', slug='finance')
+        Role.objects.create(department=dept, title='Bookkeeper', slug='bookkeeper')
+        self.assertEqual(dept.get_absolute_url(), '/career-connect/careers/farmer-joe/finance/')
+        self.assertNotContains(self.client.get(self.finance.get_absolute_url()), 'Bookkeeper')
+        self.assertContains(self.client.get(dept.get_absolute_url()), 'Bookkeeper')
+        r = self.client.get(reverse('career_connect_role', args=['ah-liki-wholesale', 'finance', 'bookkeeper']))
+        self.assertEqual(r.status_code, 404)
+
+    def test_role_page_asks_to_email_hr_for_the_job_description(self):
+        self.accountant.description = 'Secret internal description'
+        self.accountant.save()
+        r = self.client.get(self.accountant.get_absolute_url())
+        self.assertContains(r, 'href="mailto:hr@ahliki.com?subject=Accountant')
+        self.assertNotContains(r, 'Secret internal description')
 
     def test_role_only_under_its_own_department(self):
-        r = self.client.get(reverse('career_connect_role', args=['marketing', 'accountant']))
+        r = self.client.get(reverse('career_connect_role', args=['ah-liki-wholesale', 'marketing', 'accountant']))
         self.assertEqual(r.status_code, 404)
 
     def test_portal_switched_off(self):
@@ -144,7 +191,7 @@ class ExpressionOfInterestTests(TestCase):
     def setUp(self):
         cache.clear()
         self.role = Role.objects.get(slug='accountant')
-        self.url = reverse('career_connect_interest', args=['finance', 'accountant'])
+        self.url = reverse('career_connect_interest', args=['ah-liki-wholesale', 'finance', 'accountant'])
         self.data = {'full_name': 'Lagi Student', 'email': 'lagi@example.com', 'school': 'Apia High', 'consent': 'on'}
 
     def enable(self):
@@ -175,7 +222,7 @@ class ExpressionOfInterestTests(TestCase):
 
     def test_cannot_post_to_unpublished_or_mismatched_role(self):
         self.enable()
-        self.assertEqual(self.client.post(reverse('career_connect_interest', args=['sales', 'accountant']),
+        self.assertEqual(self.client.post(reverse('career_connect_interest', args=['ah-liki-wholesale', 'sales', 'accountant']),
                                           self.data).status_code, 404)
         self.role.is_published = False
         self.role.save()
@@ -314,7 +361,7 @@ class IsolationTests(TestCase):
     def test_signed_in_staff_of_every_level_can_open_the_portal(self):
         for name, group in (('s', 'Sales'), ('m', 'Marketing'), ('fe', 'fe_boys'), ('fin', 'Finance Staff')):
             self.client.force_login(_user(name, group))
-            r = self.client.get(reverse('career_connect_role', args=['finance', 'accountant']))
+            r = self.client.get(reverse('career_connect_role', args=['ah-liki-wholesale', 'finance', 'accountant']))
             self.assertEqual(r.status_code, 200, group)
             self.assertNotContains(r, 'Logout')
             # ...but not its management page
@@ -398,13 +445,13 @@ class DesignTests(TestCase):
         r = self.client.get(reverse('career_connect'))
         about = reverse('career_connect_about')
         for text in ('Start Exploring', 'Watch Our HQ Video', 'Our Location', 'About Ah Liki Wholesale',
-                     'Explore Our Departments', 'Our Company', 'Learn More About Us', 'Explore<br>Your Future',
+                     'Companies Under Ah Liki Investment', 'Our Company', 'Learn More About Us', 'Explore<br>Your Future',
                      f'href="{about}#video"', f'href="{about}#location"', f'href="{about}#contact"'):
             self.assertContains(r, text)
-        # Department colours and icons from the design; role counts never claim open vacancies
+        # Company cards, each with the number of published positions in its departments
         self.assertContains(r, '--c:#7C3AED')
-        self.assertContains(r, '3 Roles')
-        self.assertNotContains(r, 'Available Role')
+        self.assertContains(r, '11 Available Positions')
+        self.assertContains(r, '0 Available Positions')
         # The anchors the quick links point at exist
         page = self.client.get(about)
         for anchor in ('id="video"', 'id="location"', 'id="contact"'):
@@ -432,8 +479,8 @@ class DesignTests(TestCase):
         dept.background = SimpleUploadedFile('trades.png', PNG, 'image/png')
         dept.save()
         url = dept.image_url
-        self.assertTrue(url.startswith(reverse('career_connect_department_image', args=['trades']) + '?v='))
-        for page in (reverse('career_connect'), reverse('career_connect_departments'), dept.get_absolute_url()):
+        self.assertTrue(url.startswith(reverse('career_connect_department_image', args=['ah-liki-wholesale', 'trades']) + '?v='))
+        for page in (dept.company.get_absolute_url(), dept.get_absolute_url()):
             r = self.client.get(page)
             self.assertContains(r, f"--photo:url('{url}');--photo-opacity:0.50;")
             self.assertContains(r, 'class="dept-card has-photo"' if page != dept.get_absolute_url() else 'dept has-photo')
@@ -444,7 +491,7 @@ class DesignTests(TestCase):
         dept.is_published = False
         dept.save()
         self.assertEqual(self.client.get(url).status_code, 404)
-        self.assertEqual(self.client.get(reverse('career_connect_department_image', args=['finance'])).status_code, 404)
+        self.assertEqual(self.client.get(reverse('career_connect_department_image', args=['ah-liki-wholesale', 'finance'])).status_code, 404)
         self.assertEqual(self.client.get('/media/' + dept.background.name).status_code, 302)
 
     def test_photo_strength_limits(self):
@@ -467,7 +514,7 @@ class DesignTests(TestCase):
         self.assertContains(form, 'name="background_opacity"')
         self.assertContains(form, 'value="50"')
         self.assertContains(form, 'Preview (after saving)')
-        data = {'name': dept.name, 'slug': dept.slug, 'symbol': dept.symbol, 'colour': dept.colour, 'description': '',
+        data = {'company': dept.company_id, 'name': dept.name, 'slug': dept.slug, 'symbol': dept.symbol, 'colour': dept.colour, 'description': '',
                 'order': dept.order, 'is_published': 'on', 'background_opacity': 50,
                 'background': SimpleUploadedFile('hr.png', PNG, 'image/png'),
                 'roles-TOTAL_FORMS': 0, 'roles-INITIAL_FORMS': 0, 'roles-MIN_NUM_FORMS': 0, 'roles-MAX_NUM_FORMS': 1000}
