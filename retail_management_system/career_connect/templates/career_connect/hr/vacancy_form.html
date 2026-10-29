@@ -1,0 +1,85 @@
+{% extends 'shops/base.html' %}
+{% block content %}
+{% include 'career_connect/hr/_styles.html' %}
+
+<div class="hr-hero">
+  <div>
+    <div class="hr-crumbs"><a href="{% url 'hr_vacancies' %}">Vacancies</a> › {% if role %}Edit{% else %}New{% endif %}</div>
+    <h2>{% if role %}{{ role.title }}{% else %}Post a vacancy{% endif %}</h2>
+    <p>{% if role %}{{ role.department.company }} · {{ role.department.name }}{% else %}Choose the company and department, describe the position and how students can apply.{% endif %}</p>
+  </div>
+  {% if role and role.is_published and role.department.is_published and role.department.company.is_published %}
+  <a href="{{ role.get_absolute_url }}" target="_blank" rel="noopener" class="btn-sms btn-outline-custom" style="color:#fff;border-color:rgba(255,255,255,.35)">↗ View on Career Connect</a>
+  {% endif %}
+</div>
+
+<form method="post" novalidate>
+  {% csrf_token %}
+  {% if form.non_field_errors %}<div class="sms-card" style="padding:12px 16px;margin-bottom:16px;background:#FEF2F2;border-color:#FCA5A5;color:#991B1B">{{ form.non_field_errors }}</div>{% endif %}
+  {% if form.errors %}<div class="sms-card" style="padding:12px 16px;margin-bottom:16px;background:#FEF2F2;border-color:#FCA5A5;color:#991B1B;font-size:14px;font-weight:600">Please check the highlighted fields.</div>{% endif %}
+
+  <div class="hr-form-grid">
+    <div class="sms-card">
+      <div class="hr-section">
+        <div class="hr-section-head"><span class="hr-step">1</span><div><h3>The position</h3><p>Where it sits and what it's called.</p></div></div>
+        {% include 'career_connect/hr/_field.html' with field=form.department %}
+        {% include 'career_connect/hr/_field.html' with field=form.title %}
+        {% include 'career_connect/hr/_field.html' with field=form.summary %}
+        {% include 'career_connect/hr/_field.html' with field=form.vacancy_status %}
+      </div>
+      <div class="hr-section">
+        <div class="hr-section-head"><span class="hr-step">2</span><div><h3>About the role</h3><p>Lists are shown as bullet points: put one item per line.</p></div></div>
+        <div class="hr-two">
+          {% include 'career_connect/hr/_field.html' with field=form.responsibilities %}
+          {% include 'career_connect/hr/_field.html' with field=form.qualifications %}
+        </div>
+        {% include 'career_connect/hr/_field.html' with field=form.skills %}
+      </div>
+      <div class="hr-section">
+        <div class="hr-section-head"><span class="hr-step">3</span><div><h3>How to apply</h3><p>The button students see on the position page.</p></div></div>
+        {% include 'career_connect/hr/_field.html' with field=form.apply_method %}
+        {% include 'career_connect/hr/_field.html' with field=form.apply_email %}
+        {% include 'career_connect/hr/_field.html' with field=form.apply_url %}
+        {% include 'career_connect/hr/_field.html' with field=form.how_to_apply %}
+      </div>
+    </div>
+
+    <aside class="hr-side">
+      <div class="sms-card">
+        <label class="hr-switch" for="{{ form.is_published.id_for_label }}">
+          {{ form.is_published }}
+          <span><b>{{ form.is_published.label }}</b><small>{{ form.is_published.help_text }}</small></span>
+        </label>
+        <div style="display:flex;flex-direction:column;gap:8px;margin-top:18px">
+          <button type="submit" class="btn-sms btn-accent-custom" style="justify-content:center">{% if role %}Save changes{% else %}Post vacancy{% endif %}</button>
+          <a href="{% url 'hr_vacancies' %}" class="btn-sms btn-outline-custom" style="justify-content:center">Cancel</a>
+        </div>
+      </div>
+      <div class="sms-card">
+        <div class="form-section-title">Tips</div>
+        <ul class="hr-tips">
+          <li>Set the status to <b>Currently recruiting</b> so students know they can apply now.</li>
+          <li>Keep the summary to one short sentence.</li>
+          <li>The full job description isn't shown publicly: the page asks students to email hr@ahliki.com for it.</li>
+        </ul>
+      </div>
+    </aside>
+  </div>
+</form>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Only show the email / link field that goes with the chosen apply button
+(function () {
+  var method = document.getElementById('{{ form.apply_method.id_for_label }}');
+  if (!method) return;
+  function sync() {
+    document.getElementById('group-apply_email').style.display = method.value === 'email' ? '' : 'none';
+    document.getElementById('group-apply_url').style.display = method.value === 'external_link' ? '' : 'none';
+  }
+  method.addEventListener('change', sync);
+  sync();
+})();
+</script>
+{% endblock %}

@@ -203,7 +203,7 @@
   <button type="button" class="menu-btn" onclick="toggleMenu(true)" aria-label="Open menu">☰</button>
   <div>
     <div class="label">Ah Liki Investment Corp</div>
-    <div class="title">{% if is_finance %}Finance{% else %}Sales and Marketing{% endif %}</div>
+    <div class="title">{% if is_finance %}Finance{% elif is_hr %}Human Resources{% else %}Sales and Marketing{% endif %}</div>
   </div>
 </header>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="toggleMenu(false)"></div>
@@ -215,10 +215,17 @@
     <button type="button" class="sidebar-close" onclick="toggleMenu(false)" aria-label="Close menu">✕</button>
     <div class="sidebar-brand">
       <div class="label">Ah Liki Investment Corp</div>
-      <div class="title">{% if is_finance %}Finance{% else %}Sales and Marketing{% endif %}</div>
+      <div class="title">{% if is_finance %}Finance{% elif is_hr %}Human Resources{% else %}Sales and Marketing{% endif %}</div>
     </div>
     <nav>
       {% with n=request.resolver_match.url_name %}
+      {% if is_hr %}
+      <!-- HR: Career Connect vacancies only -->
+      <div class="nav-section">Career Connect</div>
+      <a href="{% url 'hr_vacancies' %}"     class="nav-item-custom {% if n == 'hr_vacancies' or n == 'hr_vacancy_edit' %}active{% endif %}"><span class="nav-icon">💼</span>Vacancies</a>
+      <a href="{% url 'hr_vacancy_add' %}"   class="nav-item-custom {% if n == 'hr_vacancy_add' %}active{% endif %}"><span class="nav-icon">➕</span>Post a Vacancy</a>
+      <a href="{% url 'career_connect' %}" target="_blank" rel="noopener" class="nav-item-custom"><span class="nav-icon">🎓</span>View Career Connect ↗</a>
+      {% else %}
       <!-- Main -->
       <a href="{% url 'dashboard' %}"        class="nav-item-custom {% if n == 'dashboard' %}active{% endif %}"><span class="nav-icon">📊</span>Dashboard</a>
       {% if access.analytics %}
@@ -259,6 +266,9 @@
       {% if perms.career_connect.manage_career_connect and not is_finance %}
       <a href="{% url 'career_connect_manage_qr' %}" class="nav-item-custom {% if n == 'career_connect_manage_qr' %}active{% endif %}"><span class="nav-icon">🎓</span>Career Connect</a>
       {% endif %}
+      {% if perms.career_connect.manage_vacancies and not is_finance %}
+      <a href="{% url 'hr_vacancies' %}" class="nav-item-custom {% if n == 'hr_vacancies' or n == 'hr_vacancy_add' or n == 'hr_vacancy_edit' %}active{% endif %}"><span class="nav-icon">💼</span>Vacancies</a>
+      {% endif %}
 
       <!-- FE Ordering -->
       {% if access.fe_ordering %}
@@ -291,6 +301,7 @@
       <a href="{% url 'import_customer_product_sales' %}" class="nav-item-custom nav-small {% if n == 'import_customer_product_sales' %}active{% endif %}"><span class="nav-icon">⬆</span>Import Customer Product Sales</a>
       <a href="{% url 'import_sponsorships' %}" class="nav-item-custom nav-small {% if n == 'import_sponsorships' %}active{% endif %}"><span class="nav-icon">⬆</span>Import Sponsorships</a>
       {% endif %}
+      {% endif %}{# end of the non-HR menu #}
       {% endwith %}
     </nav>
     <div class="sidebar-footer">
@@ -305,7 +316,7 @@
 
   <!-- Main -->
   <main class="main-content">
-    <div class="top-actions">{% include 'car_allocations/_notifications.html' %}</div>
+    <div class="top-actions">{% if not is_hr %}{% include 'car_allocations/_notifications.html' %}{% endif %}</div>
     {% block content %}{% endblock %}
   </main>
 </div>

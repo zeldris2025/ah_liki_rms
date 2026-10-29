@@ -4,11 +4,12 @@ A user's level comes from their group (Sales / Marketing / Manager / Financial C
 Superusers are Managers. Sales and Marketing each have areas they can't open, and neither can download or
 export anything. Staff with no level only get the areas both Sales and Marketing share.
 Finance only get their dashboard, a read-only Ah Liki Atlas and Car Allocations (the Finance cars).
+HR only get the Career Connect vacancies pages (and the public portal).
 """
-from django.shortcuts import render
+from django.shortcuts import redirect, render
 from django.urls import Resolver404, resolve
 
-from career_connect.access import PUBLIC_URL_NAMES as CAREER_CONNECT_PUBLIC
+from career_connect.access import HR_ALLOWED, HR_GROUP, PUBLIC_URL_NAMES as CAREER_CONNECT_PUBLIC
 
 SALES, MARKETING, MANAGER = 'Sales', 'Marketing', 'Manager'
 ROLES = (SALES, MARKETING, MANAGER)
@@ -77,6 +78,12 @@ def is_finance(user):
     return bool(finance_roles_of(user)) and not roles_of(user)
 
 
+def is_hr(user):
+    """In the HR group and no office or Finance level (someone with both keeps their other access)."""
+    return (user.is_authenticated and not user.is_superuser and not roles_of(user) and not finance_roles_of(user)
+            and user.groups.filter(name=HR_GROUP).exists())
+
+
 def blocked_areas(user):
     """Areas this user can't open. Several levels combine: an area is open if any of them allows it."""
     roles = roles_of(user)
@@ -99,6 +106,8 @@ def can_see_sales(request):
 
 
 def role_label(user):
+    if is_hr(user):
+        return HR_GROUP
     if is_finance(user):
         return FINANCIAL_CONTROLLER if FINANCIAL_CONTROLLER in finance_roles_of(user) else FINANCE_STAFF
     roles = roles_of(user)
@@ -117,12 +126,14 @@ class RoleAccessMiddleware:
     def __call__(self, request):
         user = request.user
         # FE users are handled by FEAccessMiddleware; anonymous users by @login_required
-        request.is_finance = False
+        request.is_finance = request.is_hr = False
         if not user.is_authenticated or getattr(request, 'is_fe', False):
             request.blocked_areas, request.can_export = set(), True
             return self.get_response(request)
         if is_finance(user):
             return self.finance(request)
+        if is_hr(user):
+            return self.hr(request)
 
         request.can_export = MANAGER in roles_of(user)
         request.blocked_areas = blocked_areas(user)
@@ -162,6 +173,26 @@ class RoleAccessMiddleware:
             return deny(request, 'downloads and exports')
         return response
 
+    def hr(self, request):
+        """HR: the vacancies pages and the public portal only. The dashboard (where sign-in lands) sends them to
+        the vacancies list."""
+        from django.conf import settings
+        request.is_hr, request.can_export, request.blocked_areas = True, False, set(AREAS)
+        if not request.path_info.startswith((settings.STATIC_URL, settings.MEDIA_URL)):
+            try:
+                match = resolve(request.path_info)
+            except Resolver404:
+                match = None
+            name = (match.url_name or '') if match else ''
+            if match and match.app_name != 'admin' and name == 'dashboard':
+                return redirect('hr_vacancies')
+            if match and (match.app_name == 'admin' or name not in HR_ALLOWED):
+                return deny(request, 'the admin site' if match.app_name == 'admin' else 'this page')
+        response = self.get_response(request)
+        if 'attachment' in response.get('Content-Disposition', ''):
+            return deny(request, 'downloads and exports')
+        return response
+
 
 def deny(request, what):
     """The 'No access' page, e.g. deny(request, 'this page')."""
@@ -175,5 +206,6 @@ def access_context(request):
         'can_export': getattr(request, 'can_export', True),
         'see_sales': can_see_sales(request),
         'is_finance': getattr(request, 'is_finance', False),
+        'is_hr': getattr(request, 'is_hr', False),
         'user_role': role_label(request.user) if getattr(request, 'user', None) else '',
     }

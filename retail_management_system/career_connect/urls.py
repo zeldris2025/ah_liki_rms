@@ -1,6 +1,6 @@
 from django.urls import path
 
-from . import views
+from . import hr_views, views
 
 urlpatterns = [
     # Public (no sign-in) — every name here is listed in access.PUBLIC_URL_NAMES
@@ -21,4 +21,10 @@ urlpatterns = [
          name='career_connect_department_image'),
     # Staff only (signed in + permission)
     path('manage/career-connect/qr/',                          views.manage_qr,   name='career_connect_manage_qr'),
+    # HR (signed in + manage_vacancies) — every name here is listed in access.HR_URL_NAMES
+    path('manage/career-connect/vacancies/',                   hr_views.vacancies,      name='hr_vacancies'),
+    path('manage/career-connect/vacancies/new/',               hr_views.vacancy_add,    name='hr_vacancy_add'),
+    path('manage/career-connect/vacancies/<int:role_id>/',     hr_views.vacancy_edit,   name='hr_vacancy_edit'),
+    path('manage/career-connect/vacancies/<int:role_id>/status/', hr_views.vacancy_status, name='hr_vacancy_status'),
+    path('manage/career-connect/vacancies/<int:role_id>/delete/', hr_views.vacancy_delete, name='hr_vacancy_delete'),
 ]

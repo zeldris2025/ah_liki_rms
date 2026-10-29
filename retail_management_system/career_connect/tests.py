@@ -571,3 +571,96 @@ class DesignTests(TestCase):
         self.assertContains(r, 'aria-label="Ah Liki Wholesale on Facebook"')
         self.assertNotContains(r, 'on Instagram')
         self.assertContains(r, 'Building People | Growing Futures')
+
+
+class HRVacancyTests(TestCase):
+    """HR: post and update vacancies for every company, and nothing else of the SMS."""
+
+    def setUp(self):
+        self.hr = _user('hr', 'HR')
+        self.client.force_login(self.hr)
+        self.fj_finance = Department.objects.get(company__slug='farmer-joe', slug='finance')
+
+    def _post(self, **extra):
+        data = {'department': self.fj_finance.pk, 'title': 'Accounts Assistant', 'summary': 'Daily bookkeeping',
+                'vacancy_status': Role.OPEN, 'responsibilities': 'Invoices\nReconciliations', 'qualifications': '',
+                'skills': '', 'apply_method': Role.APPLY_NONE, 'apply_email': '', 'apply_url': '',
+                'how_to_apply': '', 'is_published': 'on', **extra}
+        return self.client.post(reverse('hr_vacancy_add'), data)
+
+    def test_group_has_only_the_vacancy_permission(self):
+        group = Group.objects.get(name='HR')
+        self.assertEqual(list(group.permissions.values_list('codename', flat=True)), ['manage_vacancies'])
+        self.assertTrue(Group.objects.get(name='Career Connect Admin').permissions.filter(codename='manage_vacancies').exists())
+
+    def test_sign_in_lands_on_vacancies_and_the_rest_of_the_sms_is_closed(self):
+        r = self.client.get(reverse('dashboard'))
+        self.assertRedirects(r, reverse('hr_vacancies'))
+        r = self.client.get(reverse('hr_vacancies'))
+        self.assertContains(r, 'Human Resources')
+        self.assertNotContains(r, 'All Clients')
+        self.assertNotContains(r, 'Car Allocations')
+        for url in (reverse('shop_list'), reverse('car_allocations'), reverse('career_connect_manage_qr'), '/admin/'):
+            self.assertEqual(self.client.get(url).status_code, 403, url)
+        self.assertEqual(self.client.get(reverse('career_connect_careers')).status_code, 200)
+
+    def test_every_company_and_department_can_be_chosen(self):
+        r = self.client.get(reverse('hr_vacancy_add'))
+        for c in Company.objects.all():
+            self.assertContains(r, f'<optgroup label="{c.name}">')
+        self.assertContains(r, f'value="{self.fj_finance.pk}"')
+
+    def test_post_a_vacancy_for_another_company(self):
+        r = self._post()
+        self.assertRedirects(r, reverse('hr_vacancies'))
+        role = Role.objects.get(department=self.fj_finance)
+        self.assertEqual((role.slug, role.vacancy_status, role.is_published), ('accounts-assistant', Role.OPEN, True))
+        self.assertContains(self.client.get(self.fj_finance.get_absolute_url()), 'Accounts Assistant')
+        page = self.client.get(role.get_absolute_url())
+        self.assertContains(page, 'Invoices')
+        # Same title again in the same department gets its own address
+        self._post()
+        self.assertEqual(sorted(Role.objects.filter(department=self.fj_finance).values_list('slug', flat=True)),
+                         ['accounts-assistant', 'accounts-assistant-2'])
+        listing = self.client.get(reverse('hr_vacancies'), {'company': 'farmer-joe'})
+        self.assertContains(listing, 'class="hr-title"', count=2)
+        self.assertNotContains(listing, 'Welders')
+
+    def test_apply_button_needs_its_address(self):
+        r = self._post(apply_method=Role.APPLY_EMAIL)
+        self.assertContains(r, 'Enter the email address applications should go to.')
+        self.assertFalse(Role.objects.filter(department=self.fj_finance).exists())
+
+    def test_edit_status_and_remove(self):
+        self._post()
+        role = Role.objects.get(department=self.fj_finance)
+        r = self.client.post(reverse('hr_vacancy_edit', args=[role.pk]), {
+            'department': self.fj_finance.pk, 'title': 'Senior Accounts Assistant', 'vacancy_status': Role.OPEN,
+            'apply_method': Role.APPLY_NONE, 'is_published': 'on'})
+        self.assertRedirects(r, reverse('hr_vacancies'))
+        role.refresh_from_db()
+        self.assertEqual((role.title, role.slug), ('Senior Accounts Assistant', 'accounts-assistant'))
+        status = reverse('hr_vacancy_status', args=[role.pk])
+        self.client.post(status, {'action': 'closed'})
+        self.client.post(status, {'action': 'hide'})
+        role.refresh_from_db()
+        self.assertEqual((role.vacancy_status, role.is_published), (Role.CLOSED, False))
+        self.assertEqual(self.client.get(role.get_absolute_url()).status_code, 404)
+        # Never sent back to another site
+        r = self.client.post(status, {'action': 'publish', 'next': 'https://evil.example/'})
+        self.assertRedirects(r, reverse('hr_vacancies'))
+        r = self.client.post(reverse('hr_vacancy_delete', args=[role.pk]), {'next': reverse('hr_vacancies') + '?status=draft'})
+        self.assertRedirects(r, reverse('hr_vacancies') + '?status=draft')
+        self.assertFalse(Role.objects.filter(pk=role.pk).exists())
+        self.assertEqual(self.client.get(status).status_code, 405)
+
+    def test_others_cannot_use_the_hr_pages(self):
+        self.client.logout()
+        self.assertRedirects(self.client.get(reverse('hr_vacancies')), reverse('login') + '?next=' + reverse('hr_vacancies'),
+                             fetch_redirect_response=False)
+        self.client.force_login(_user('sales', 'Sales'))
+        self.assertEqual(self.client.get(reverse('hr_vacancies')).status_code, 403)
+        self.client.force_login(_user('boss', is_superuser=True))
+        r = self.client.get(reverse('hr_vacancies'))
+        self.assertContains(r, 'Welders')
+        self.assertContains(r, 'href="' + reverse('hr_vacancies') + '"')

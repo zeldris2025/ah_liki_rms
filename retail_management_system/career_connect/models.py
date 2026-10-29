@@ -333,6 +333,7 @@ class Role(models.Model):
     class Meta:
         ordering = ('department__company__order', 'department__order', 'order', 'title')
         constraints = [models.UniqueConstraint(fields=('department', 'slug'), name='career_role_unique_slug')]
+        permissions = [('manage_vacancies', 'Can post and update vacancies on the HR vacancies page')]
 
     def __str__(self):
         return f'{self.title} ({self.department})'

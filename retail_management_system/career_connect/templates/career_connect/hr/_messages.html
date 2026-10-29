@@ -1,0 +1,5 @@
+{% if messages %}
+<div class="hr-flash" role="status">
+  {% for m in messages %}<div class="hr-flash-item">✓ {{ m }}</div>{% endfor %}
+</div>
+{% endif %}

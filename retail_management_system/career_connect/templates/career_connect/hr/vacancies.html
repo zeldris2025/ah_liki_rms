@@ -1,0 +1,118 @@
+{% extends 'shops/base.html' %}
+{% block content %}
+{% include 'career_connect/hr/_styles.html' %}
+
+<div class="hr-hero">
+  <div>
+    <div class="eyebrow">Ah Liki Career Connect · HR</div>
+    <h2>Vacancies</h2>
+    <p>Post and update the open positions for every company in Ah Liki Investment. Live vacancies appear on Career Connect straight away.</p>
+  </div>
+  <a href="{% url 'hr_vacancy_add' %}" class="btn-sms btn-accent-custom">＋ Post a vacancy</a>
+</div>
+
+{% include 'career_connect/hr/_messages.html' %}
+
+<div class="hr-stats">
+  <div class="stat-card">
+    <span class="hr-stat-icon" style="background:#DCFCE7">🟢</span>
+    <div><div class="stat-label">Recruiting now</div><div class="stat-value">{{ stats.open }}</div><div class="stat-sub">live and marked recruiting</div></div>
+  </div>
+  <div class="stat-card">
+    <span class="hr-stat-icon" style="background:#DBEAFE">🌐</span>
+    <div><div class="stat-label">Live positions</div><div class="stat-value">{{ stats.live }}</div><div class="stat-sub">showing on Career Connect</div></div>
+  </div>
+  <div class="stat-card">
+    <span class="hr-stat-icon" style="background:#F3F4F6">📝</span>
+    <div><div class="stat-label">Hidden drafts</div><div class="stat-value">{{ stats.drafts }}</div><div class="stat-sub">not visible to students</div></div>
+  </div>
+  <div class="stat-card">
+    <span class="hr-stat-icon" style="background:#EDE9FE">🏢</span>
+    <div><div class="stat-label">Companies</div><div class="stat-value">{{ company_count }}</div><div class="stat-sub">in the group</div></div>
+  </div>
+</div>
+
+<form method="get" class="sms-card hr-filters" role="search" aria-label="Filter vacancies">
+  {{ filters.q }}
+  {{ filters.company }}
+  {{ filters.status }}
+  <div class="actions">
+    <button type="submit" class="btn-sms btn-primary-custom">Filter</button>
+    {% if filtered %}<a href="{% url 'hr_vacancies' %}" class="btn-sms btn-outline-custom">Clear</a>{% endif %}
+  </div>
+</form>
+
+{% for company, roles in groups %}
+<section class="sms-card hr-company" style="--c:{{ company.palette.main }};--c-soft:{{ company.palette.soft }}" aria-label="{{ company.name }}">
+  <div class="hr-company-head">
+    <span class="dot">{{ company.name|first }}</span>
+    <div>
+      <h3>{{ company.name }}</h3>
+      <small>{{ roles|length }} position{{ roles|length|pluralize }}{% if not company.is_published %} · company hidden on Career Connect{% endif %}</small>
+    </div>
+  </div>
+  <table class="sms-table">
+    <thead>
+      <tr><th>Position</th><th>Department</th><th>Status</th><th>Visibility</th><th>New interest</th><th style="text-align:right">Actions</th></tr>
+    </thead>
+    <tbody>
+      {% for r in roles %}
+      <tr>
+        <td>
+          <a class="hr-title" href="{% url 'hr_vacancy_edit' r.pk %}">{{ r.title }}</a>
+          {% if r.summary %}<div class="hr-summary" title="{{ r.summary }}">{{ r.summary }}</div>{% endif %}
+        </td>
+        <td>{{ r.department.name }}</td>
+        <td>
+          {% if r.vacancy_status == Role.OPEN %}<span class="badge-custom badge-green">● Recruiting</span>
+          {% elif r.vacancy_status == Role.CLOSED %}<span class="badge-custom badge-gray">Not recruiting</span>
+          {% else %}<span class="badge-custom badge-amber">Status not set</span>{% endif %}
+        </td>
+        <td>{% if r.is_published %}<span class="badge-custom badge-blue">Live</span>{% else %}<span class="badge-custom badge-gray">Hidden</span>{% endif %}</td>
+        <td>{% if r.interest_count %}<span class="badge-custom badge-purple">{{ r.interest_count }} new</span>{% else %}<span style="color:var(--muted)">—</span>{% endif %}</td>
+        <td>
+          <div class="hr-actions">
+            <a href="{% url 'hr_vacancy_edit' r.pk %}" class="btn-sms sm btn-outline-custom">Edit</a>
+            <div class="dropdown hr-menu">
+              <button type="button" class="btn-sms sm btn-outline-custom" data-bs-toggle="dropdown" aria-expanded="false" aria-label="More actions for {{ r.title }}">⋯</button>
+              <div class="dropdown-menu dropdown-menu-end shadow-sm">
+                <form method="post" action="{% url 'hr_vacancy_status' r.pk %}">
+                  {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
+                  {% if r.vacancy_status != Role.OPEN %}<button class="dropdown-item" name="action" value="open">🟢 Mark as recruiting</button>{% endif %}
+                  {% if r.vacancy_status != Role.CLOSED %}<button class="dropdown-item" name="action" value="closed">⏸ Mark as not recruiting</button>{% endif %}
+                  {% if r.is_published %}<button class="dropdown-item" name="action" value="hide">🙈 Hide from Career Connect</button>
+                  {% else %}<button class="dropdown-item" name="action" value="publish">🌐 Show on Career Connect</button>{% endif %}
+                </form>
+                {% if r.is_published and company.is_published and r.department.is_published %}
+                <a class="dropdown-item" href="{{ r.get_absolute_url }}" target="_blank" rel="noopener">↗ View on Career Connect</a>
+                {% endif %}
+                <div class="dropdown-divider"></div>
+                <form method="post" action="{% url 'hr_vacancy_delete' r.pk %}"
+                      onsubmit="return confirm('Remove “{{ r.title|escapejs }}” from {{ company.name|escapejs }}? This can’t be undone.')">
+                  {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
+                  <button class="dropdown-item danger">🗑 Remove</button>
+                </form>
+              </div>
+            </div>
+          </div>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% empty %}
+<div class="sms-card hr-empty">
+  <div class="icon">{% if filtered %}🔍{% else %}💼{% endif %}</div>
+  {% if filtered %}
+  <h3>No vacancies match these filters</h3>
+  <p>Try another company or status, or clear the search.</p>
+  <a href="{% url 'hr_vacancies' %}" class="btn-sms btn-outline-custom">Clear filters</a>
+  {% else %}
+  <h3>No vacancies yet</h3>
+  <p>Post the first open position and it will show on Career Connect for students.</p>
+  <a href="{% url 'hr_vacancy_add' %}" class="btn-sms btn-accent-custom">＋ Post a vacancy</a>
+  {% endif %}
+</div>
+{% endfor %}
+{% endblock %}

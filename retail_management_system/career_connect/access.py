@@ -21,3 +21,10 @@ PUBLIC_URL_NAMES = {
 # Who may print the QR code and see the Career Connect link in the sidebar (content itself is edited in the admin
 # with the usual per-model permissions). Nobody gets it automatically: add people to the 'Career Connect Admin' group.
 MANAGE_PERMISSION = 'career_connect.manage_career_connect'
+
+# HR: posts and updates the vacancies (roles) of every company on the HR vacancies page. People in the 'HR' group
+# (and no office level) are an access level of their own: they only get these pages plus the public portal.
+HR_GROUP = 'HR'
+VACANCY_PERMISSION = 'career_connect.manage_vacancies'
+HR_URL_NAMES = {'hr_vacancies', 'hr_vacancy_add', 'hr_vacancy_edit', 'hr_vacancy_status', 'hr_vacancy_delete'}
+HR_ALLOWED = {'login', 'logout'} | HR_URL_NAMES | PUBLIC_URL_NAMES
