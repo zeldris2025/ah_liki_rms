@@ -156,7 +156,7 @@
     <div id="territories"></div>
     <details class="unmapped" id="unmapped">
       <summary><span class="section-label" id="unmapped-label"></span></summary>
-      <div class="unmapped-hint">These shops have no recognisable village in their address.{% if not is_finance %} Click <b>Place</b>, then click the map to pin them.{% endif %}</div>
+      <div class="unmapped-hint">These shops have no recognisable village in their address.{% if not is_finance and not is_social %} Click <b>Place</b>, then click the map to pin them.{% endif %}</div>
       <div id="unmapped-list"></div>
     </details>
   </div>

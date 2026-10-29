@@ -5,21 +5,27 @@ Superusers are Managers. Sales and Marketing each have areas they can't open, an
 export anything. Staff with no level only get the areas both Sales and Marketing share.
 Finance only get their dashboard, a read-only Ah Liki Atlas and Car Allocations (the Finance cars).
 HR only get the Career Connect vacancies pages (and the public portal).
+Social only get their dashboard, the Social analytics, a read-only Ah Liki Atlas, Social #s and Car Allocations.
 """
 from django.shortcuts import redirect, render
 from django.urls import Resolver404, resolve
 
 from career_connect.access import HR_ALLOWED, HR_GROUP, PUBLIC_URL_NAMES as CAREER_CONNECT_PUBLIC
+from social.access import SOCIAL_GROUP, SOCIAL_URL_NAMES
 
 SALES, MARKETING, MANAGER = 'Sales', 'Marketing', 'Manager'
 ROLES = (SALES, MARKETING, MANAGER)
 FINANCIAL_CONTROLLER, FINANCE_STAFF = 'Financial Controller', 'Finance Staff'
 FINANCE_ROLES = (FINANCIAL_CONTROLLER, FINANCE_STAFF)
 
+# Car Allocations and the bell, for the access levels with an allow-list
+CAR_URL_NAMES = {'car_allocations', 'car_bookings', 'car_booking_search', 'car_book', 'car_booking_edit',
+                 'car_booking_cancel', 'car_booking_approve', 'car_booking_decline',
+                 'notifications', 'notifications_read'}
 # The only pages Finance can open (the Atlas without its pin-moving URL, so it's read-only)
-FINANCE_ALLOWED = {'login', 'logout', 'dashboard', 'atlas', 'car_allocations', 'car_bookings', 'car_booking_search',
-                   'car_book', 'car_booking_edit', 'car_booking_cancel', 'car_booking_approve',
-                   'car_booking_decline', 'notifications', 'notifications_read'} | CAREER_CONNECT_PUBLIC
+FINANCE_ALLOWED = {'login', 'logout', 'dashboard', 'atlas'} | CAR_URL_NAMES | CAREER_CONNECT_PUBLIC
+# The only pages Social can open (the Atlas read-only too; their dashboard is the Social one)
+SOCIAL_ALLOWED = {'login', 'logout', 'dashboard', 'atlas'} | CAR_URL_NAMES | SOCIAL_URL_NAMES | CAREER_CONNECT_PUBLIC
 
 # URL names in each restricted area. Anything not listed (dashboard, clients, territories, atlas) is open to everyone.
 AREAS = {
@@ -34,6 +40,7 @@ AREAS = {
                         'product_delete', 'product_import', 'product_template', 'product_export'},  # plus every fe_* URL
     'monthly_sales':   {'monthly_sales'},
     'analytics':       {'analytics'},   # Managers only
+    'social':          SOCIAL_URL_NAMES,   # Social #s and their analytics: Managers (and the Social level)
     'surveys':         {'survey_list', 'add_survey', 'survey_detail', 'edit_survey', 'delete_survey', 'survey_analysis',
                         'add_survey_response', 'import_survey_responses', 'import_surveys', 'edit_survey_response', 'delete_survey_response'},
     'reports':         {'reports', 'download_report'},
@@ -47,8 +54,8 @@ AREAS = {
 
 BLOCKED = {
     SALES:     {'product_sales', 'promotions', 'sponsorships', 'fe_ordering',
-                'monthly_sales', 'surveys', 'reports', 'bulk_import', 'analytics'},   # Insights = monthly sales, surveys, reports
-    MARKETING: {'corporate_sales', 'product_sales', 'monthly_sales', 'reports', 'bulk_import', 'analytics'},
+                'monthly_sales', 'surveys', 'reports', 'bulk_import', 'analytics', 'social'},   # Insights = monthly sales, surveys, reports
+    MARKETING: {'corporate_sales', 'product_sales', 'monthly_sales', 'reports', 'bulk_import', 'analytics', 'social'},
     MANAGER:   set(),
 }
 
@@ -84,6 +91,12 @@ def is_hr(user):
             and user.groups.filter(name=HR_GROUP).exists())
 
 
+def is_social(user):
+    """In the Social group and no office, Finance or HR level (someone with both keeps their other access)."""
+    return (user.is_authenticated and not user.is_superuser and not roles_of(user) and not finance_roles_of(user)
+            and user.groups.filter(name=SOCIAL_GROUP).exists() and not is_hr(user))
+
+
 def blocked_areas(user):
     """Areas this user can't open. Several levels combine: an area is open if any of them allows it."""
     roles = roles_of(user)
@@ -108,6 +121,8 @@ def can_see_sales(request):
 def role_label(user):
     if is_hr(user):
         return HR_GROUP
+    if is_social(user):
+        return SOCIAL_GROUP
     if is_finance(user):
         return FINANCIAL_CONTROLLER if FINANCIAL_CONTROLLER in finance_roles_of(user) else FINANCE_STAFF
     roles = roles_of(user)
@@ -126,7 +141,7 @@ class RoleAccessMiddleware:
     def __call__(self, request):
         user = request.user
         # FE users are handled by FEAccessMiddleware; anonymous users by @login_required
-        request.is_finance = request.is_hr = False
+        request.is_finance = request.is_hr = request.is_social = False
         if not user.is_authenticated or getattr(request, 'is_fe', False):
             request.blocked_areas, request.can_export = set(), True
             return self.get_response(request)
@@ -134,6 +149,8 @@ class RoleAccessMiddleware:
             return self.finance(request)
         if is_hr(user):
             return self.hr(request)
+        if is_social(user):
+            return self.social(request)
 
         request.can_export = MANAGER in roles_of(user)
         request.blocked_areas = blocked_areas(user)
@@ -193,6 +210,24 @@ class RoleAccessMiddleware:
             return deny(request, 'downloads and exports')
         return response
 
+    def social(self, request):
+        """Social: an allow-list of SMS pages (their dashboard, Social #s and analytics, the Atlas, the cars),
+        no admin, no downloads."""
+        from django.conf import settings
+        request.is_social, request.can_export = True, False
+        request.blocked_areas = set(AREAS) - {'social'}
+        if not request.path_info.startswith((settings.STATIC_URL, settings.MEDIA_URL)):
+            try:
+                match = resolve(request.path_info)
+            except Resolver404:
+                match = None
+            if match and (match.app_name == 'admin' or (match.url_name or '') not in SOCIAL_ALLOWED):
+                return deny(request, 'the admin site' if match.app_name == 'admin' else 'this page')
+        response = self.get_response(request)
+        if 'attachment' in response.get('Content-Disposition', ''):
+            return deny(request, 'downloads and exports')
+        return response
+
 
 def deny(request, what):
     """The 'No access' page, e.g. deny(request, 'this page')."""
@@ -207,5 +242,6 @@ def access_context(request):
         'see_sales': can_see_sales(request),
         'is_finance': getattr(request, 'is_finance', False),
         'is_hr': getattr(request, 'is_hr', False),
+        'is_social': getattr(request, 'is_social', False),
         'user_role': role_label(request.user) if getattr(request, 'user', None) else '',
     }

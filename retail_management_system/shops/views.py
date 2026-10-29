@@ -71,7 +71,10 @@ def dashboard(request):
     if getattr(request, 'is_finance', False):
         from car_allocations.views import finance_dashboard
         return finance_dashboard(request)
-    shops        = Shop.objects.prefetch_related('photos').all()
+    if getattr(request, 'is_social', False):
+        from social.views import dashboard as social_dashboard
+        return social_dashboard(request)
+    shops       = Shop.objects.prefetch_related('photos').all()
     businesses   = Business.objects.prefetch_related('photos').all()
     sponsorships = Sponsorship.objects.prefetch_related('photos').all()
 

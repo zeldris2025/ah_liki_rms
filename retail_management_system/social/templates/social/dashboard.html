@@ -1,0 +1,69 @@
+{% extends 'shops/base.html' %}
+{% load social_tags %}
+{% block content %}
+{% include 'social/_styles.html' %}
+
+<div class="so-hero">
+  <div>
+    <div class="eyebrow">Ah Liki Investment Corp · Social</div>
+    <h2>Social Dashboard</h2>
+    <p>Facebook and Instagram followers for each of our companies, updated every Monday and Saturday.</p>
+  </div>
+  <div class="actions">
+    <a href="{% url 'social_analytics' %}" class="btn-sms btn-outline-custom">🔎 Analytics</a>
+    <a href="{% url 'social_numbers' %}" class="btn-sms btn-accent-custom">📱 Social #s</a>
+  </div>
+</div>
+
+{% include 'social/_status.html' %}
+
+<div class="so-grid">
+  {% for c in companies %}
+  <a href="{% url 'social_numbers' %}?company={{ c.key }}" class="sms-card so-company" style="--c:{{ c.color }}">
+    <div class="so-company-head">
+      <span class="so-dot" aria-hidden="true">{{ c.name|first }}</span>
+      <div><h3>{{ c.name }}</h3><small>{% if c.latest %}As of {{ c.latest.date|date:"D j M Y" }}{% else %}No numbers yet{% endif %}</small></div>
+    </div>
+    {% for p in c.platforms %}
+    <div class="so-platform">
+      <span class="label">{{ p.label }}</span>
+      <span><span class="value">{{ p.value|num }}</span>{% include 'social/_delta.html' with change=p.change %}</span>
+    </div>
+    {% endfor %}
+  </a>
+  {% endfor %}
+</div>
+
+<style>
+  .dash-two { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+  .panel-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 10px; }
+  .panel-head b { font-size: 14px; color: var(--primary); }
+  .panel-head a { font-size: 12px; font-weight: 600; color: var(--accent); text-decoration: none; }
+  .dash-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border); text-decoration: none; color: inherit; }
+  .dash-row:last-child { border-bottom: none; }
+  .dash-title { font-weight: 600; font-size: 14px; color: var(--primary); }
+  .dash-meta { color: var(--muted); font-size: 12px; margin-top: 2px; }
+  .dash-empty { color: var(--muted); font-size: 13px; padding: 18px 0; text-align: center; }
+  @media (max-width: 900px) { .dash-two { grid-template-columns: 1fr; } }
+</style>
+
+<div class="dash-two">
+  <div class="sms-card" style="padding:20px">
+    <div class="panel-head"><b>Your car bookings</b><a href="{% url 'car_allocations' %}">Book a car →</a></div>
+    {% for b in my_bookings %}
+    <a class="dash-row" href="{% url 'car_allocations' %}?car={{ b.car|urlencode }}&date={{ b.start|date:'Y-m-d' }}">
+      <div><div class="dash-title">{{ b.car }}</div>
+        <div class="dash-meta">{{ b.start|date:"D j M, g:i A" }} – {{ b.end|date:"D j M, g:i A" }} · {{ b.reason }}</div></div>
+      <span class="badge-custom {% if b.status == 'pending' %}badge-amber{% else %}badge-green{% endif %}">{% if b.status == 'pending' %}Waiting{% else %}{{ b.get_status_display }}{% endif %}</span>
+    </a>
+    {% empty %}
+    <div class="dash-empty">You have no upcoming bookings</div>
+    {% endfor %}
+  </div>
+  <a href="{% url 'atlas' %}" class="stat-card" style="text-decoration:none;color:inherit">
+    <div class="stat-label">Ah Liki Atlas</div>
+    <div class="stat-value" style="color:var(--accent)">{{ shop_count|num }}</div>
+    <div class="stat-sub">clients on the map · view only</div>
+  </a>
+</div>
+{% endblock %}

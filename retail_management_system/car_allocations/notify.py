@@ -13,7 +13,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from fe_orders import office365
-from shops.access import FINANCIAL_CONTROLLER, FINANCE_ROLES, MANAGER, ROLES
+from shops.access import FINANCIAL_CONTROLLER, FINANCE_ROLES, MANAGER, ROLES, SOCIAL_GROUP
 
 FE_GROUP = 'fe_boys'   # FE staff don't get car booking emails
 
@@ -33,11 +33,12 @@ def controllers():
 
 def team(car):
     """Who hears about a car's bookings: for a Finance car only the Financial Controllers, otherwise the active
-    Sales, Marketing and Manager users and admins (FE staff never book cars)."""
+    Sales, Marketing, Manager and Social users and admins (FE staff never book cars)."""
     if car in FINANCE_CARS:
         return controllers()
     User = get_user_model()
-    return User.objects.filter(is_active=True).filter(Q(is_superuser=True) | Q(groups__name__in=ROLES)).distinct()
+    return (User.objects.filter(is_active=True)
+            .filter(Q(is_superuser=True) | Q(groups__name__in=ROLES + (SOCIAL_GROUP,))).distinct())
 
 
 def _time(dt):

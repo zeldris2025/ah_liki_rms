@@ -1,0 +1,19 @@
+{% extends 'shops/_upload_page.html' %}
+{% block upload_title %}⬆ Import Social #s{% endblock %}
+{% block upload_sub %}Add or update Facebook and Instagram numbers from a CSV file (Excel → Save As → CSV UTF-8). Safe to upload the same file again.{% endblock %}
+{% block back_url %}{% url 'social_numbers' %}{% endblock %}
+{% block back_label %}← Social #s{% endblock %}
+{% block upload_rules %}
+  <b>How rows are matched</b><br>
+  • One row per company per update day. Every row needs a <b>Date</b> and a <b>Company</b>.<br>
+  • Dates must be a <b>Monday or Saturday</b>, and not in the future.<br>
+  • A row with the same <b>Company + Date</b> as numbers already saved <b>updates them</b>, so re-uploading never adds duplicates.<br>
+  • Blank cells never wipe a saved number. Rows with an unknown company, a bad date or a number that isn't whole are skipped and listed.
+{% endblock %}
+{% block column_rows %}
+  <tr><td><code>Date</code></td><td><b>Required.</b> A Monday or Saturday, e.g. 2026-10-26 or 26/10/2026 (day first)</td></tr>
+  <tr><td><code>Company</code></td><td><b>Required.</b> {% for key, name in companies %}{{ name }}{% if not forloop.last %}, {% endif %}{% endfor %}</td></tr>
+  <tr><td><code>Facebook</code></td><td>Page followers, e.g. 5200 or 5,200</td></tr>
+  <tr><td><code>Instagram</code></td><td>Account followers, e.g. 1800</td></tr>
+{% endblock %}
+{% block template_url %}{% url 'social_template' %}{% endblock %}

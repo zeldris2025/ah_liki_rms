@@ -1,0 +1,68 @@
+{% extends 'shops/base.html' %}
+{% load social_tags %}
+{% block content %}
+{% include 'social/_styles.html' %}
+
+<div class="so-hero">
+  <div>
+    <div class="eyebrow">Ah Liki Investment Corp · Social</div>
+    <h2>Social #s</h2>
+    <p>Followers on each company's Facebook and Instagram. Update them every Monday and Saturday.</p>
+  </div>
+  <div class="actions">
+    <a href="{% url 'social_analytics' %}" class="btn-sms btn-outline-custom">🔎 Analytics</a>
+    <a href="{% url 'social_import' %}" class="btn-sms btn-outline-custom">⬆ Import CSV</a>
+    <a href="{% url 'social_update' %}?company={{ company }}" class="btn-sms btn-accent-custom">＋ Update numbers</a>
+  </div>
+</div>
+
+{% for m in messages %}<div class="so-flash" role="status">✓ {{ m }}</div>{% endfor %}
+
+{% include 'social/_status.html' %}
+
+<nav class="so-tabs" aria-label="Companies">
+  {% for c in companies %}
+  <a href="?company={{ c.key }}" class="so-tab {% if c.key == company %}active{% endif %}" style="--c:{{ c.color }}"{% if c.key == company %} aria-current="page"{% endif %}><span class="swatch" aria-hidden="true"></span>{{ c.name }}</a>
+  {% endfor %}
+</nav>
+
+<section class="sms-card" aria-label="{{ company_name }}">
+  {% if rows %}
+  <div style="overflow-x:auto">
+  <table class="sms-table so-table">
+    <thead>
+      <tr><th>Date</th><th class="n">Facebook</th><th class="n">Instagram</th><th>Updated by</th><th style="text-align:right"></th></tr>
+    </thead>
+    <tbody>
+      {% for r in rows %}
+      <tr>
+        <td><b style="color:var(--primary)">{{ r.count.date|date:"D j M Y" }}</b></td>
+        {% for p in r.platforms %}
+        <td class="n"><b>{{ p.value|num }}</b>{% include 'social/_delta.html' with change=p.change %}</td>
+        {% endfor %}
+        <td style="color:var(--muted)">{% if r.count.updated_by %}{{ r.count.updated_by.get_full_name|default:r.count.updated_by.username }}{% else %}—{% endif %}</td>
+        <td style="text-align:right"><a href="{% url 'social_update' %}?date={{ r.count.date|date:'Y-m-d' }}&company={{ company }}" class="btn-sms sm btn-outline-custom">Edit</a></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% if page_obj.has_other_pages %}
+  <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border-top:1px solid var(--border);font-size:13px;color:var(--muted)">
+    <span>Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }} · {{ count }} update{{ count|pluralize }}</span>
+    <span style="display:flex;gap:8px">
+      {% if page_obj.has_previous %}<a class="btn-sms btn-outline-custom sm" href="?company={{ company }}&page={{ page_obj.previous_page_number }}">← Prev</a>{% endif %}
+      {% if page_obj.has_next %}<a class="btn-sms btn-outline-custom sm" href="?company={{ company }}&page={{ page_obj.next_page_number }}">Next →</a>{% endif %}
+    </span>
+  </div>
+  {% endif %}
+  {% else %}
+  <div class="so-empty">
+    <div class="icon">📱</div>
+    <h3>No numbers for {{ company_name }} yet</h3>
+    <p>Add this week's Facebook and Instagram followers to start the table.</p>
+    <a href="{% url 'social_update' %}?company={{ company }}" class="btn-sms btn-accent-custom">＋ Update numbers</a>
+  </div>
+  {% endif %}
+</section>
+{% endblock %}

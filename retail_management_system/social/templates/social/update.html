@@ -1,0 +1,66 @@
+{% extends 'shops/base.html' %}
+{% load social_tags %}
+{% block content %}
+{% include 'social/_styles.html' %}
+
+<div class="so-hero">
+  <div>
+    <div class="eyebrow"><a href="{% url 'social_numbers' %}{% if company %}?company={{ company }}{% endif %}" style="color:inherit;text-decoration:none">Social #s</a> · {% if is_new %}New update{% else %}Edit update{% endif %}</div>
+    <h2>{% if is_new %}Update numbers{% else %}Edit numbers{% endif %} · {{ day|date:"l j F Y" }}</h2>
+    <p>Type each company's followers as they show today. Leave a box empty if you couldn't check it; clear both boxes to remove that company's numbers for the day.</p>
+  </div>
+</div>
+
+<form method="post" class="sms-card" novalidate>
+  {% csrf_token %}
+  <input type="hidden" name="company" value="{{ company }}">
+  <div class="so-form-head">
+    <div class="form-group">
+      <label class="sms-label" for="{{ form.date.id_for_label }}">Update day <span style="color:var(--danger)">*</span></label>
+      {{ form.date }}
+      <div class="help">{{ form.date.help_text }}</div>
+      {% if form.date.errors %}<ul class="so-errors">{% for e in form.date.errors %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}
+    </div>
+  </div>
+  <div style="overflow-x:auto">
+  <table class="sms-table so-form-table">
+    <thead><tr><th>Company</th><th class="n" style="text-align:right">Facebook</th><th class="n" style="text-align:right">Instagram</th></tr></thead>
+    <tbody>
+      {% for row in rows %}
+      <tr>
+        <td><b style="color:var(--primary)">{{ row.name }}</b></td>
+        {% for box, was in row.boxes %}
+        <td>
+          <label class="visually-hidden" for="{{ box.id_for_label }}">{{ row.name }} {{ box.label }}</label>
+          {{ box }}
+          {% if box.errors %}<ul class="so-errors" style="text-align:right">{% for e in box.errors %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}
+          {% if row.was %}<div class="was">Last: {{ was|num }} on {{ row.was.date|date:"j M" }}</div>{% endif %}
+        </td>
+        {% endfor %}
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  <div class="so-form-foot">
+    <a href="{% url 'social_numbers' %}{% if company %}?company={{ company }}{% endif %}" class="btn-sms btn-outline-custom">Cancel</a>
+    <button type="submit" class="btn-sms btn-primary-custom">Save numbers</button>
+  </div>
+</form>
+
+<script>
+  // Picking another Monday or Saturday reloads the page with that day's saved numbers, so they're edited rather
+  // than typed over (any other day is left for the server to explain when saving)
+  (function () {
+    var input = document.getElementById('{{ form.date.id_for_label }}');
+    if (!input) return;
+    input.addEventListener('change', function () {
+      var day = input.value && new Date(input.value + 'T00:00:00Z').getUTCDay();
+      if (day !== 1 && day !== 6) return;
+      var url = new URL(window.location.href);
+      url.searchParams.set('date', input.value);
+      window.location = url.toString();
+    });
+  })();
+</script>
+{% endblock %}

@@ -1,0 +1,14 @@
+{# This update's progress: status from social.views._status #}
+<div class="sms-card so-status {% if status.missing %}due{% else %}done{% endif %}">
+  <span class="icon" aria-hidden="true">{% if status.missing %}⏳{% else %}✅{% endif %}</span>
+  <div>
+    {% if status.missing %}
+    <b>{{ status.done }} of {{ status.total }} companies updated for {% if status.is_today %}today{% else %}{{ status.day|date:"l j F" }}{% endif %}</b>
+    <div class="meta">Still to do: {{ status.missing|join:", " }}</div>
+    {% else %}
+    <b>All {{ status.total }} companies are up to date for {% if status.is_today %}today{% else %}{{ status.day|date:"l j F" }}{% endif %}</b>
+    <div class="meta">Next update: {{ status.next|date:"l j F" }}</div>
+    {% endif %}
+  </div>
+  <a href="{% url 'social_update' %}?date={{ status.day|date:'Y-m-d' }}{% if company %}&company={{ company }}{% endif %}" class="btn-sms {% if status.missing %}btn-accent-custom{% else %}btn-outline-custom{% endif %}">{% if status.missing %}＋ Update numbers{% else %}Edit {{ status.day|date:"D j M" }}{% endif %}</a>
+</div>

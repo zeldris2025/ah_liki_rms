@@ -1,0 +1,132 @@
+{% extends 'shops/base.html' %}
+{% load social_tags %}
+{% block content %}
+{% include 'social/_styles.html' %}
+
+<div class="so-hero">
+  <div>
+    <div class="eyebrow">Ah Liki Investment Corp · Social</div>
+    <h2>Social Analytics</h2>
+    <p>How each company's Facebook and Instagram following has grown, from the numbers recorded every Monday and Saturday.</p>
+  </div>
+  <div class="actions">
+    <a href="{% url 'social_numbers' %}" class="btn-sms btn-outline-custom">📱 Social #s</a>
+    <a href="{% url 'social_update' %}" class="btn-sms btn-accent-custom">＋ Update numbers</a>
+  </div>
+</div>
+
+<nav class="so-filters" aria-label="Time range">
+  {% for key, label in ranges %}
+  <a href="?range={{ key }}" class="{% if key == range %}active{% endif %}"{% if key == range %} aria-current="page"{% endif %}>{{ label }}</a>
+  {% endfor %}
+</nav>
+
+{% if not has_data %}
+<div class="sms-card so-empty">
+  <div class="icon">📈</div>
+  <h3>No social numbers yet</h3>
+  <p>Once the first Monday or Saturday update is in, the growth of each company's pages shows here.</p>
+  <a href="{% url 'social_update' %}" class="btn-sms btn-accent-custom">＋ Update numbers</a>
+</div>
+{% else %}
+
+<div class="so-totals">
+  {% for t in totals %}
+  <div class="stat-card">
+    <div class="stat-label">{{ t.label }} · all companies</div>
+    <div class="stat-value" style="color:var(--primary)">{{ t.value|num }}</div>
+    <div class="stat-sub">{% if t.change %}{% include 'social/_delta.html' with change=t.change %} {{ range_label|lower }}{% else %}latest followers{% endif %}</div>
+  </div>
+  {% endfor %}
+  <div class="stat-card">
+    <div class="stat-label">Latest update</div>
+    <div class="stat-value" style="color:var(--primary);font-size:22px">{{ status.day|date:"D j M" }}</div>
+    <div class="stat-sub">{{ status.done }} of {{ status.total }} companies in · next {{ status.next|date:"D j M" }}</div>
+  </div>
+</div>
+
+<h3 class="so-section-title">Growth by company · {{ range_label }}</h3>
+<div class="so-charts">
+  {% for c in charts %}
+  <div class="sms-card so-chart">
+    <div class="so-chart-head">
+      <b style="color:var(--primary);font-size:14px">{{ c.name }}</b>
+      <div class="so-legend" aria-hidden="true">
+        <span><i style="background:#2a78d6"></i>Facebook</span>
+        <span><i style="background:#eb6834"></i>Instagram</span>
+      </div>
+    </div>
+    {% if c.labels %}
+    <div class="so-chart-box"><canvas id="chart-{{ c.key }}" role="img" aria-label="{{ c.name }} Facebook and Instagram followers, {{ range_label|lower }}"></canvas></div>
+    {% else %}
+    <div class="so-chart-empty">No numbers in this range</div>
+    {% endif %}
+  </div>
+  {% endfor %}
+</div>
+
+<h3 class="so-section-title">Summary · change {{ range_label|lower }}</h3>
+<div class="sms-card" style="overflow-x:auto">
+  <table class="sms-table so-table">
+    <thead>
+      <tr><th>Company</th><th>Latest update</th>
+        <th class="n">Facebook</th><th class="n">Since last</th><th class="n">{{ range_label }}</th>
+        <th class="n">Instagram</th><th class="n">Since last</th><th class="n">{{ range_label }}</th></tr>
+    </thead>
+    <tbody>
+      {% for r in summary %}
+      <tr>
+        <td><a href="{% url 'social_numbers' %}?company={{ r.key }}" style="font-weight:600;color:var(--primary);text-decoration:none">{{ r.name }}</a></td>
+        <td style="color:var(--muted)">{% if r.latest %}{{ r.latest.date|date:"D j M Y" }}{% else %}—{% endif %}</td>
+        {% for p in r.platforms %}
+        <td class="n"><b>{{ p.value|num }}</b></td>
+        <td class="n">{% if p.change %}{% include 'social/_delta.html' with change=p.change %}{% else %}<span style="color:var(--muted)">—</span>{% endif %}</td>
+        <td class="n">{% if p.since %}{% include 'social/_delta.html' with change=p.since %}{% else %}<span style="color:var(--muted)">—</span>{% endif %}</td>
+        {% endfor %}
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{{ charts|json_script:"social-charts" }}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+(function () {
+  // Facebook and Instagram keep their colour on every chart; both are follower counts, so they share one axis
+  var SERIES = [{key: 'facebook', label: 'Facebook', color: '#2a78d6'}, {key: 'instagram', label: 'Instagram', color: '#eb6834'}];
+  var fmt = new Intl.NumberFormat('en-US');
+  var charts = JSON.parse(document.getElementById('social-charts').textContent);
+  charts.forEach(function (c) {
+    var canvas = document.getElementById('chart-' + c.key);
+    if (!canvas) return;
+    new Chart(canvas, {
+      type: 'line',
+      data: {
+        labels: c.labels,
+        datasets: SERIES.map(function (s) {
+          return {label: s.label, data: c[s.key], borderColor: s.color, backgroundColor: s.color,
+                  borderWidth: 2, pointRadius: c.labels.length > 40 ? 0 : 4, pointHoverRadius: 5,
+                  pointBorderColor: '#fff', pointBorderWidth: 2, tension: 0.25, spanGaps: true};
+        })
+      },
+      options: {
+        maintainAspectRatio: false,
+        interaction: {mode: 'index', intersect: false},
+        plugins: {
+          legend: {display: false},
+          tooltip: {backgroundColor: '#0F172A', padding: 10, boxPadding: 4, usePointStyle: true,
+                    callbacks: {label: function (ctx) { return ' ' + ctx.dataset.label + ': ' + (ctx.parsed.y == null ? '—' : fmt.format(ctx.parsed.y)); }}}
+        },
+        scales: {
+          x: {grid: {display: false}, ticks: {color: '#6B7280', font: {size: 11}, maxRotation: 0, autoSkip: true, maxTicksLimit: 6}},
+          y: {grid: {color: '#EEF2F6'}, border: {display: false}, ticks: {color: '#6B7280', font: {size: 11},
+              callback: function (v) { return fmt.format(v); }}}
+        }
+      }
+    });
+  });
+})();
+</script>
+{% endif %}
+{% endblock %}

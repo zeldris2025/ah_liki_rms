@@ -106,6 +106,7 @@ INSTALLED_APPS = [
     'fe_orders',
     'car_allocations',
     'career_connect',
+    'social',
     'import_export',
 ]
 

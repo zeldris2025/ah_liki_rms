@@ -230,9 +230,11 @@
       <a href="{% url 'dashboard' %}"        class="nav-item-custom {% if n == 'dashboard' %}active{% endif %}"><span class="nav-icon">📊</span>Dashboard</a>
       {% if access.analytics %}
       <a href="{% url 'analytics' %}"        class="nav-item-custom {% if n == 'analytics' %}active{% endif %}"><span class="nav-icon">🔎</span>Analytics</a>
+      {% elif is_social %}
+      <a href="{% url 'social_analytics' %}" class="nav-item-custom {% if n == 'social_analytics' %}active{% endif %}"><span class="nav-icon">🔎</span>Analytics</a>
       {% endif %}
       <a href="{% url 'atlas' %}"            class="nav-item-custom {% if n == 'atlas' %}active{% endif %}"><span class="nav-icon">🗺️</span>Ah Liki Atlas</a>
-      {% if not is_finance %}
+      {% if not is_finance and not is_social %}
       <a href="{% url 'shop_list' %}"        class="nav-item-custom {% if n == 'shop_list' or n == 'shop_detail' or n == 'add_shop' or n == 'edit_shop' %}active{% endif %}"><span class="nav-icon">🏪</span>All Clients</a>
       <details class="nav-group" {% if n == 'territory_shops' %}open{% endif %}>
         <summary>Sales Territories</summary>
@@ -252,6 +254,9 @@
       {% endif %}
       {% if access.corporate_sales %}
       <a href="{% url 'corporate_sales' %}"  class="nav-item-custom {% if n == 'corporate_sales' or n == 'corporate_targets' or n == 'business_list' or n == 'add_business' or n == 'edit_business' %}active{% endif %}"><span class="nav-icon">🏢</span>Corporate Sales</a>
+      {% endif %}
+      {% if access.social %}
+      <a href="{% url 'social_numbers' %}"   class="nav-item-custom {% if n == 'social_numbers' or n == 'social_update' or n == 'social_import' or n == 'social_analytics' and not is_social %}active{% endif %}"><span class="nav-icon">📱</span>Social #s</a>
       {% endif %}
       {% if access.product_sales %}
       <a href="{% url 'product_sales' %}"    class="nav-item-custom {% if n == 'product_sales' or n == 'product_group_add' or n == 'product_group_edit' %}active{% endif %}"><span class="nav-icon">📈</span>Product Sales</a>
