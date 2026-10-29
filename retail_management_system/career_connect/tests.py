@@ -727,3 +727,16 @@ class HRVacancyTests(TestCase):
         # Without a date, HR's own choice stands
         self.assertEqual(Role.objects.get(department__company__slug='ah-liki-wholesale', slug='welders').recruiting_status,
                          Role.NOT_STATED)
+
+    def test_new_vacancy_defaults_to_the_email_apply_button(self):
+        p = PortalSettings.load()
+        p.contact_email = 'careers@ahliki.com'
+        p.save()
+        form = self.client.get(reverse('hr_vacancy_add')).context['form']
+        self.assertEqual((form['apply_method'].value(), form['apply_email'].value()),
+                         (Role.APPLY_EMAIL, 'careers@ahliki.com'))
+        # Editing keeps the position's own choice
+        self._post()
+        role = Role.objects.get(department=self.fj_finance)
+        form = self.client.get(reverse('hr_vacancy_edit', args=[role.pk])).context['form']
+        self.assertEqual(form['apply_method'].value(), Role.APPLY_NONE)

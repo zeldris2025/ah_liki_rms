@@ -1,7 +1,7 @@
 from django import forms
 from django.utils.text import slugify
 
-from .models import Company, Department, ExpressionOfInterest, Role, office_today
+from .models import Company, Department, ExpressionOfInterest, PortalSettings, Role, office_today
 
 
 class InterestForm(forms.ModelForm):
@@ -36,6 +36,9 @@ class VacancyForm(forms.ModelForm):
         for d in self.fields['department'].queryset:
             groups.setdefault(d.company.name, []).append((d.pk, d.name))
         self.fields['department'].choices = [('', 'Choose a company and department…'), *groups.items()]
+        if not self.instance.pk:   # new vacancies: apply by email, to the portal's contact address if there is one
+            self.initial.setdefault('apply_method', Role.APPLY_EMAIL)
+            self.initial.setdefault('apply_email', PortalSettings.load().contact_email)
         self.fields['expires_on'].required = True
         self.fields['expires_on'].help_text = ('Shown as currently recruiting until this date; on the date it comes off '
                                                'Career Connect automatically.')
