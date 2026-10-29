@@ -6,11 +6,15 @@ made-up text. Only published departments, roles and images ever reach the public
 import os
 import re
 from urllib.parse import parse_qs, quote, urlparse
+from zoneinfo import ZoneInfo
 
+from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.core.validators import FileExtensionValidator, MaxValueValidator, MinValueValidator
 from django.db import models
+from django.db.models import Q
 from django.urls import reverse
+from django.utils import timezone
 
 
 class PortalSettings(models.Model):
@@ -298,6 +302,33 @@ class Department(models.Model):
         return {'main': main, 'dark': dark, 'soft': soft}
 
 
+def office_today():
+    """Today's date in the office (Samoa), which is when expiry dates take effect."""
+    return timezone.localdate(timezone=ZoneInfo(settings.CAREER_CONNECT_TIME_ZONE))
+
+
+def live_roles_q(prefix=''):
+    """Roles students can see: published and not past their expiry date. prefix='roles__' etc. for related lookups."""
+    return (Q(**{f'{prefix}is_published': True})
+            & (Q(**{f'{prefix}expires_on__isnull': True}) | Q(**{f'{prefix}expires_on__gt': office_today()})))
+
+
+def recruiting_q(status):
+    """Roles whose recruiting status (see Role.recruiting_status) is `status`, as a database filter."""
+    today = office_today()
+    dated, undated = Q(expires_on__isnull=False), Q(expires_on__isnull=True)
+    if status == 'open':
+        return (dated & Q(expires_on__gt=today)) | (undated & Q(vacancy_status=status))
+    if status == 'closed':
+        return (dated & Q(expires_on__lte=today)) | (undated & Q(vacancy_status=status))
+    return undated & Q(vacancy_status=status)
+
+
+class RoleQuerySet(models.QuerySet):
+    def live(self):
+        return self.filter(live_roles_q())
+
+
 class Role(models.Model):
     NOT_STATED, OPEN, CLOSED = 'not_stated', 'open', 'closed'
     VACANCY_CHOICES = [
@@ -327,8 +358,13 @@ class Role(models.Model):
     apply_method = models.CharField('apply button', max_length=20, choices=APPLY_CHOICES, default=APPLY_NONE)
     apply_url = models.URLField('external application link', blank=True)
     apply_email = models.EmailField('application email', blank=True)
+    expires_on = models.DateField(
+        'expiry date', null=True, blank=True,
+        help_text='Optional. From this date the position is taken off Career Connect automatically.')
     order = models.PositiveIntegerField(default=0)
     is_published = models.BooleanField(default=True)
+
+    objects = RoleQuerySet.as_manager()
 
     class Meta:
         ordering = ('department__company__order', 'department__order', 'order', 'title')
@@ -356,6 +392,27 @@ class Role(models.Model):
     @property
     def skill_list(self):
         return self._lines(self.skills)
+
+    @property
+    def is_expired(self):
+        return self.expires_on is not None and self.expires_on <= office_today()
+
+    @property
+    def recruiting_status(self):
+        """What students and HR see. With an expiry date it follows the date: currently recruiting until the date is
+        due, then not currently recruiting. Without one, it's the status HR chose."""
+        if self.expires_on is None:
+            return self.vacancy_status
+        return self.CLOSED if self.is_expired else self.OPEN
+
+    @property
+    def recruiting_status_label(self):
+        return dict(self.VACANCY_CHOICES)[self.recruiting_status]
+
+    def save(self, *args, **kwargs):
+        if self.expires_on is not None:   # keep the stored status in step with the date
+            self.vacancy_status = self.recruiting_status
+        super().save(*args, **kwargs)
 
     @property
     def accepts_interest(self):

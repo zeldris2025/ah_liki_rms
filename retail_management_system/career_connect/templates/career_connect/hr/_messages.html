@@ -1,5 +1,5 @@
 {% if messages %}
 <div class="hr-flash" role="status">
-  {% for m in messages %}<div class="hr-flash-item">✓ {{ m }}</div>{% endfor %}
+  {% for m in messages %}<div class="hr-flash-item{% if m.level_tag == 'error' %} error{% endif %}">{% if m.level_tag == 'error' %}⚠{% else %}✓{% endif %} {{ m }}</div>{% endfor %}
 </div>
 {% endif %}

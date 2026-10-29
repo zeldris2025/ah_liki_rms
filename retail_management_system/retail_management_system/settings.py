@@ -239,6 +239,9 @@ CAREER_CONNECT_INTEREST_LIMIT = int(os.environ.get('CAREER_CONNECT_INTEREST_LIMI
 # Car Allocations shows and checks bookings in office time (the rest of the system still uses TIME_ZONE).
 CAR_TIME_ZONE = os.environ.get('CAR_TIME_ZONE', 'Pacific/Apia')
 
+# Career Connect position expiry dates take effect at midnight office time
+CAREER_CONNECT_TIME_ZONE = os.environ.get('CAREER_CONNECT_TIME_ZONE', CAR_TIME_ZONE)
+
 # Microsoft 365 (Office 365) email notifications, sent through Microsoft Graph with an Azure app
 # registration (application permission Mail.Send). Leave blank to turn email off.
 # Send a test with: python manage.py office365 test --to you@yourcompany.com

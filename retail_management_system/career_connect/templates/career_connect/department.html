@@ -39,8 +39,8 @@
       <span class="body">
         <span class="t">{{ r.title }}</span>
         <span class="s" style="display:block">{{ r.summary|default:"Tap to see the role details." }}</span>
-        <span class="pill {% if r.vacancy_status == 'open' %}open{% elif r.vacancy_status == 'closed' %}closed{% else %}light{% endif %}">
-          {% if r.vacancy_status == 'not_stated' %}Vacancy status not stated{% else %}{{ r.get_vacancy_status_display }}{% endif %}</span>
+        <span class="pill {% if r.recruiting_status == 'open' %}open{% elif r.recruiting_status == 'closed' %}closed{% else %}light{% endif %}">
+          {% if r.recruiting_status == 'not_stated' %}Vacancy status not stated{% else %}{{ r.recruiting_status_label }}{% endif %}</span>
       </span>
       <span class="go">{% icon 'arrow' 18 %}</span>
     </a>

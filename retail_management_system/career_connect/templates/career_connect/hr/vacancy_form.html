@@ -8,7 +8,7 @@
     <h2>{% if role %}{{ role.title }}{% else %}Post a vacancy{% endif %}</h2>
     <p>{% if role %}{{ role.department.company }} · {{ role.department.name }}{% else %}Choose the company and department, describe the position and how students can apply.{% endif %}</p>
   </div>
-  {% if role and role.is_published and role.department.is_published and role.department.company.is_published %}
+  {% if role and role.is_published and not role.is_expired and role.department.is_published and role.department.company.is_published %}
   <a href="{{ role.get_absolute_url }}" target="_blank" rel="noopener" class="btn-sms btn-outline-custom" style="color:#fff;border-color:rgba(255,255,255,.35)">↗ View on Career Connect</a>
   {% endif %}
 </div>
@@ -25,7 +25,8 @@
         {% include 'career_connect/hr/_field.html' with field=form.department %}
         {% include 'career_connect/hr/_field.html' with field=form.title %}
         {% include 'career_connect/hr/_field.html' with field=form.summary %}
-        {% include 'career_connect/hr/_field.html' with field=form.vacancy_status %}
+        {% include 'career_connect/hr/_field.html' with field=form.expires_on %}
+        {% if role.is_expired %}<div class="sms-card" style="padding:10px 14px;margin-top:-4px;background:#FEF2F2;border-color:#FCA5A5;color:#991B1B;font-size:13px">This position expired on {{ role.expires_on|date:"j M Y" }} and is no longer on Career Connect. Choose a later date (or clear it) to show it again.</div>{% endif %}
       </div>
       <div class="hr-section">
         <div class="hr-section-head"><span class="hr-step">2</span><div><h3>About the role</h3><p>Lists are shown as bullet points: put one item per line.</p></div></div>
@@ -58,7 +59,7 @@
       <div class="sms-card">
         <div class="form-section-title">Tips</div>
         <ul class="hr-tips">
-          <li>Set the status to <b>Currently recruiting</b> so students know they can apply now.</li>
+          <li>Students see the position as <b>currently recruiting</b> until the <b>expiry date</b>; on that day it comes off Career Connect by itself.</li>
           <li>Keep the summary to one short sentence.</li>
           <li>The full job description isn't shown publicly: the page asks students to email hr@ahliki.com for it.</li>
         </ul>

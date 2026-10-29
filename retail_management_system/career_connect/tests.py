@@ -581,9 +581,14 @@ class HRVacancyTests(TestCase):
         self.client.force_login(self.hr)
         self.fj_finance = Department.objects.get(company__slug='farmer-joe', slug='finance')
 
+    def _tomorrow(self):
+        import datetime
+        from .models import office_today
+        return (office_today() + datetime.timedelta(days=1)).isoformat()
+
     def _post(self, **extra):
         data = {'department': self.fj_finance.pk, 'title': 'Accounts Assistant', 'summary': 'Daily bookkeeping',
-                'vacancy_status': Role.OPEN, 'responsibilities': 'Invoices\nReconciliations', 'qualifications': '',
+                'expires_on': self._tomorrow(), 'responsibilities': 'Invoices\nReconciliations', 'qualifications': '',
                 'skills': '', 'apply_method': Role.APPLY_NONE, 'apply_email': '', 'apply_url': '',
                 'how_to_apply': '', 'is_published': 'on', **extra}
         return self.client.post(reverse('hr_vacancy_add'), data)
@@ -635,16 +640,15 @@ class HRVacancyTests(TestCase):
         self._post()
         role = Role.objects.get(department=self.fj_finance)
         r = self.client.post(reverse('hr_vacancy_edit', args=[role.pk]), {
-            'department': self.fj_finance.pk, 'title': 'Senior Accounts Assistant', 'vacancy_status': Role.OPEN,
+            'department': self.fj_finance.pk, 'title': 'Senior Accounts Assistant', 'expires_on': self._tomorrow(),
             'apply_method': Role.APPLY_NONE, 'is_published': 'on'})
         self.assertRedirects(r, reverse('hr_vacancies'))
         role.refresh_from_db()
         self.assertEqual((role.title, role.slug), ('Senior Accounts Assistant', 'accounts-assistant'))
         status = reverse('hr_vacancy_status', args=[role.pk])
-        self.client.post(status, {'action': 'closed'})
         self.client.post(status, {'action': 'hide'})
         role.refresh_from_db()
-        self.assertEqual((role.vacancy_status, role.is_published), (Role.CLOSED, False))
+        self.assertEqual((role.recruiting_status, role.is_published), (Role.OPEN, False))
         self.assertEqual(self.client.get(role.get_absolute_url()).status_code, 404)
         # Never sent back to another site
         r = self.client.post(status, {'action': 'publish', 'next': 'https://evil.example/'})
@@ -664,3 +668,62 @@ class HRVacancyTests(TestCase):
         r = self.client.get(reverse('hr_vacancies'))
         self.assertContains(r, 'Welders')
         self.assertContains(r, 'href="' + reverse('hr_vacancies') + '"')
+
+    def test_position_comes_off_career_connect_on_its_expiry_date(self):
+        import datetime
+        from .models import office_today
+        today = office_today()
+        role = Role.objects.get(department__company__slug='ah-liki-wholesale', slug='welders')
+        role.expires_on = today + datetime.timedelta(days=1)
+        role.save()
+        self.assertContains(self.client.get(role.get_absolute_url()), 'Closes')
+        self.assertContains(self.client.get(role.department.get_absolute_url()), 'Welders')
+        careers = reverse('career_connect_careers')
+        self.assertContains(self.client.get(careers), '11 Available Positions')
+        # On the expiry date it disappears everywhere students look, and HR sees it as expired
+        Role.objects.filter(pk=role.pk).update(expires_on=today)
+        self.assertEqual(self.client.get(role.get_absolute_url()).status_code, 404)
+        self.assertNotContains(self.client.get(role.department.get_absolute_url()), 'Welders')
+        self.assertContains(self.client.get(careers), '10 Available Positions')
+        listing = self.client.get(reverse('hr_vacancies'), {'status': 'expired'})
+        self.assertContains(listing, 'class="hr-title"', count=1)
+        self.assertContains(listing, 'badge-red">Expired')
+
+    def test_expiry_date_is_required_and_status_is_not_on_the_form(self):
+        r = self._post(expires_on='')
+        self.assertContains(r, 'This field is required.')
+        self.assertNotContains(r, 'name="vacancy_status"')
+        self.assertFalse(Role.objects.filter(department=self.fj_finance).exists())
+
+    def test_expiry_date_must_be_after_today(self):
+        from .models import office_today
+        r = self._post(expires_on=office_today().isoformat())
+        self.assertContains(r, 'Choose a date after today')
+        self.assertFalse(Role.objects.filter(department=self.fj_finance).exists())
+
+    def test_expiry_date_sets_the_recruiting_status(self):
+        import datetime
+        from .models import office_today
+        tomorrow = office_today() + datetime.timedelta(days=1)
+        # Saved as 'not recruiting' with a date: it's recruiting until the date
+        self._post(vacancy_status=Role.CLOSED, expires_on=tomorrow.isoformat())
+        role = Role.objects.get(department=self.fj_finance)
+        self.assertEqual((role.vacancy_status, role.recruiting_status), (Role.OPEN, Role.OPEN))
+        self.assertContains(self.client.get(role.get_absolute_url()), 'Currently recruiting')
+        listing = self.client.get(reverse('hr_vacancies'), {'company': 'farmer-joe', 'status': Role.OPEN})
+        self.assertContains(listing, '● Recruiting')
+        # The quick status actions don't apply while a date is set
+        self.assertNotContains(listing, 'name="action" value="closed"')
+        self.client.post(reverse('hr_vacancy_status', args=[role.pk]), {'action': 'closed'})
+        role.refresh_from_db()
+        self.assertEqual(role.recruiting_status, Role.OPEN)
+        # Once due: not currently recruiting
+        Role.objects.filter(pk=role.pk).update(expires_on=office_today())
+        role.refresh_from_db()
+        self.assertEqual((role.recruiting_status, role.recruiting_status_label), (Role.CLOSED, 'Not currently recruiting'))
+        listing = self.client.get(reverse('hr_vacancies'), {'company': 'farmer-joe', 'status': Role.CLOSED})
+        self.assertContains(listing, 'class="hr-title"', count=1)
+        self.assertContains(listing, 'Not recruiting')
+        # Without a date, HR's own choice stands
+        self.assertEqual(Role.objects.get(department__company__slug='ah-liki-wholesale', slug='welders').recruiting_status,
+                         Role.NOT_STATED)

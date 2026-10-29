@@ -24,7 +24,7 @@
   </div>
   <div class="stat-card">
     <span class="hr-stat-icon" style="background:#F3F4F6">📝</span>
-    <div><div class="stat-label">Hidden drafts</div><div class="stat-value">{{ stats.drafts }}</div><div class="stat-sub">not visible to students</div></div>
+    <div><div class="stat-label">Hidden drafts</div><div class="stat-value">{{ stats.drafts }}</div><div class="stat-sub">{% if stats.expired %}plus {{ stats.expired }} expired{% else %}not visible to students{% endif %}</div></div>
   </div>
   <div class="stat-card">
     <span class="hr-stat-icon" style="background:#EDE9FE">🏢</span>
@@ -64,11 +64,16 @@
         </td>
         <td>{{ r.department.name }}</td>
         <td>
-          {% if r.vacancy_status == Role.OPEN %}<span class="badge-custom badge-green">● Recruiting</span>
-          {% elif r.vacancy_status == Role.CLOSED %}<span class="badge-custom badge-gray">Not recruiting</span>
+          {% if r.recruiting_status == Role.OPEN %}<span class="badge-custom badge-green">● Recruiting</span>
+          {% elif r.recruiting_status == Role.CLOSED %}<span class="badge-custom badge-gray">Not recruiting</span>
           {% else %}<span class="badge-custom badge-amber">Status not set</span>{% endif %}
         </td>
-        <td>{% if r.is_published %}<span class="badge-custom badge-blue">Live</span>{% else %}<span class="badge-custom badge-gray">Hidden</span>{% endif %}</td>
+        <td>
+          {% if not r.is_published %}<span class="badge-custom badge-gray">Hidden</span>
+          {% elif r.is_expired %}<span class="badge-custom badge-red">Expired</span>
+          {% else %}<span class="badge-custom badge-blue">Live</span>{% endif %}
+          {% if r.expires_on %}<div class="hr-summary">{% if r.is_expired %}Since{% else %}Expires{% endif %} {{ r.expires_on|date:"j M Y" }}</div>{% endif %}
+        </td>
         <td>{% if r.interest_count %}<span class="badge-custom badge-purple">{{ r.interest_count }} new</span>{% else %}<span style="color:var(--muted)">—</span>{% endif %}</td>
         <td>
           <div class="hr-actions">
@@ -78,12 +83,14 @@
               <div class="dropdown-menu dropdown-menu-end shadow-sm">
                 <form method="post" action="{% url 'hr_vacancy_status' r.pk %}">
                   {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
+                  {% if not r.expires_on %}{# with an expiry date, the date sets the status #}
                   {% if r.vacancy_status != Role.OPEN %}<button class="dropdown-item" name="action" value="open">🟢 Mark as recruiting</button>{% endif %}
                   {% if r.vacancy_status != Role.CLOSED %}<button class="dropdown-item" name="action" value="closed">⏸ Mark as not recruiting</button>{% endif %}
+                  {% endif %}
                   {% if r.is_published %}<button class="dropdown-item" name="action" value="hide">🙈 Hide from Career Connect</button>
                   {% else %}<button class="dropdown-item" name="action" value="publish">🌐 Show on Career Connect</button>{% endif %}
                 </form>
-                {% if r.is_published and company.is_published and r.department.is_published %}
+                {% if r.is_published and not r.is_expired and company.is_published and r.department.is_published %}
                 <a class="dropdown-item" href="{{ r.get_absolute_url }}" target="_blank" rel="noopener">↗ View on Career Connect</a>
                 {% endif %}
                 <div class="dropdown-divider"></div>

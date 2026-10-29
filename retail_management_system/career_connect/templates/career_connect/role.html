@@ -22,8 +22,9 @@
     {% if role.summary %}<p>{{ role.summary }}</p>{% endif %}
     <div class="pills">
       <span class="pill">{% icon department.symbol 14 %} {{ department.name }}</span>
-      <span class="pill {% if role.vacancy_status == 'open' %}open{% elif role.vacancy_status == 'closed' %}closed{% endif %}">
-        {% if role.vacancy_status == 'not_stated' %}Vacancy status not stated{% else %}{{ role.get_vacancy_status_display }}{% endif %}</span>
+      <span class="pill {% if role.recruiting_status == 'open' %}open{% elif role.recruiting_status == 'closed' %}closed{% endif %}">
+        {% if role.recruiting_status == 'not_stated' %}Vacancy status not stated{% else %}{{ role.recruiting_status_label }}{% endif %}</span>
+      {% if role.expires_on %}<span class="pill">{% icon 'clock' 14 %} Closes {{ role.expires_on|date:"j F Y" }}</span>{% endif %}
     </div>
   </div>
 </div>

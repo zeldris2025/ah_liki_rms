@@ -145,7 +145,7 @@ class DepartmentAdmin(admin.ModelAdmin):
 
 @admin.register(Role)
 class RoleAdmin(admin.ModelAdmin):
-    list_display = ('title', 'department', 'vacancy_status', 'apply_method', 'is_published')
+    list_display = ('title', 'department', 'vacancy_status', 'expires_on', 'apply_method', 'is_published')
     list_filter = ('department__company', 'department', 'vacancy_status', 'apply_method', 'is_published')
     search_fields = ('title', 'summary')
     prepopulated_fields = {'slug': ('title',)}
@@ -154,7 +154,7 @@ class RoleAdmin(admin.ModelAdmin):
         ('Job details', {'fields': ('responsibilities', 'qualifications', 'skills'),
                          'description': 'The full job description is not shown publicly: the role page asks '
                                         'students to email hr@ahliki.com for it.'}),
-        ('Vacancy and applying', {'fields': ('vacancy_status', 'how_to_apply', 'apply_method', 'apply_url',
+        ('Vacancy and applying', {'fields': ('vacancy_status', 'expires_on', 'how_to_apply', 'apply_method', 'apply_url',
                                              'apply_email')}),
     )
 

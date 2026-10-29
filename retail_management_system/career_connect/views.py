@@ -21,7 +21,7 @@ from django.views.decorators.http import require_GET, require_POST
 from . import qr
 from .access import MANAGE_PERMISSION
 from .forms import InterestForm
-from .models import Company, CompanyImage, Department, ExpressionOfInterest, PortalSettings, Role
+from .models import Company, CompanyImage, Department, ExpressionOfInterest, PortalSettings, Role, live_roles_q
 
 
 def public_page(view):
@@ -37,15 +37,15 @@ def public_page(view):
 
 
 def _published_companies():
-    """Published companies, each with the number of published roles in its published departments."""
+    """Published companies, each with the number of live roles (published, not expired) in its published departments."""
     return Company.objects.filter(is_published=True).annotate(position_count=Count(
-        'departments__roles', filter=Q(departments__is_published=True, departments__roles__is_published=True)))
+        'departments__roles', filter=Q(departments__is_published=True) & live_roles_q('departments__roles__')))
 
 
 def _published_departments(company):
-    published_roles = Role.objects.filter(is_published=True)
+    published_roles = Role.objects.live()
     return (Department.objects.filter(is_published=True, company=company).select_related('company')
-            .annotate(role_count=Count('roles', filter=Q(roles__is_published=True)))
+            .annotate(role_count=Count('roles', filter=live_roles_q('roles__')))
             .prefetch_related(Prefetch('roles', queryset=published_roles, to_attr='published_roles')))
 
 
@@ -93,12 +93,13 @@ def _published_department(company_slug, dept_slug):
 def department(request, company_slug, dept_slug):
     dept = _published_department(company_slug, dept_slug)
     return render(request, 'career_connect/department.html', _context(
-        request, department=dept, roles=dept.roles.filter(is_published=True), nav='careers'))
+        request, department=dept, roles=dept.roles.live(), nav='careers'))
 
 
 def _published_role(company_slug, dept_slug, role_slug):
-    """Only a published role, in a published department of a published company, reached through its own address."""
-    return get_object_or_404(Role.objects.select_related('department__company'), slug=role_slug, is_published=True,
+    """Only a live role (published, not expired), in a published department of a published company, reached through
+    its own address."""
+    return get_object_or_404(Role.objects.live().select_related('department__company'), slug=role_slug,
                              department__slug=dept_slug, department__is_published=True,
                              department__company__slug=company_slug, department__company__is_published=True)
 

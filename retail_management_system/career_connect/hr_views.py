@@ -12,7 +12,7 @@ from django.views.decorators.http import require_POST
 
 from .access import VACANCY_PERMISSION
 from .forms import VacancyFilterForm, VacancyForm
-from .models import Company, Role
+from .models import Company, Role, live_roles_q, office_today, recruiting_q
 
 
 def hr_page(view):
@@ -32,11 +32,14 @@ def _back(request):
 def vacancies(request):
     roles = Role.objects.select_related('department__company').annotate(
         interest_count=Count('interests', filter=Q(interests__reviewed=False)))
+    live = live_roles_q()
+    expired = Q(expires_on__lte=office_today())
     stats = roles.aggregate(
         total=Count('id'),
-        open=Count('id', filter=Q(is_published=True, vacancy_status=Role.OPEN)),
-        live=Count('id', filter=Q(is_published=True)),
-        drafts=Count('id', filter=Q(is_published=False)))
+        open=Count('id', filter=live & recruiting_q(Role.OPEN)),
+        live=Count('id', filter=live),
+        drafts=Count('id', filter=Q(is_published=False)),
+        expired=Count('id', filter=Q(is_published=True) & expired))
 
     filters = VacancyFilterForm(request.GET or None)
     if filters.is_valid():
@@ -47,8 +50,10 @@ def vacancies(request):
             roles = roles.filter(department__company=company)
         if status == 'draft':
             roles = roles.filter(is_published=False)
+        elif status == 'expired':
+            roles = roles.filter(expired)
         elif status:
-            roles = roles.filter(vacancy_status=status)
+            roles = roles.filter(recruiting_q(status))
 
     groups = {}
     for role in roles:
@@ -91,8 +96,12 @@ STATUS_ACTIONS = {
 @hr_page
 def vacancy_status(request, role_id):
     role = get_object_or_404(Role, pk=role_id)
-    change = STATUS_ACTIONS.get(request.POST.get('action'))
-    if change:
+    action = request.POST.get('action')
+    change = STATUS_ACTIONS.get(action)
+    if change and action in ('open', 'closed') and role.expires_on:
+        messages.error(request, f'“{role.title}” has an expiry date, which sets its recruiting status. '
+                                'Change or clear the date instead.')
+    elif change:
         fields, said = change
         for name, value in fields.items():
             setattr(role, name, value)
