@@ -214,9 +214,15 @@
           <div class="cs-chart-top">
             <div class="cs-chart-title">Actual vs target by stream</div>
             <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+              {% if overall.has_past %}
+              <select class="sms-input cs-past" style="width:auto;padding:5px 10px;font-size:12px" aria-label="Past month">
+                <option value="">Past month…</option>
+                {% for t in overall.tables %}{% if t.past %}<option value="{{ t.key }}">{{ t.label }}</option>{% endif %}{% endfor %}
+              </select>
+              {% endif %}
               {% if overall.tables|length > 1 %}
               <div class="cs-period" role="group" aria-label="Period">
-                {% for t in overall.tables %}<button type="button" data-period="{{ t.key }}" aria-pressed="{% if forloop.first %}true{% else %}false{% endif %}">{{ t.label }}</button>{% endfor %}
+                {% for t in overall.tables %}{% if not t.past %}<button type="button" data-period="{{ t.key }}" aria-pressed="{% if forloop.first %}true{% else %}false{% endif %}">{{ t.label }}</button>{% endif %}{% endfor %}
               </div>
               {% endif %}
               {% if overall.tables %}<button type="button" class="btn-sms btn-accent-custom sm" id="sum-png" title="Download this table as a PNG image">⬇ PNG</button>{% endif %}
@@ -507,13 +513,22 @@
         }
       }
     });
-    var periodButtons = document.querySelectorAll('.cs-period button');
+    var periodButtons = document.querySelectorAll('.cs-period button'), pastSelect = document.querySelector('.cs-past');
+    function showTable(key) {
+      document.querySelectorAll('[data-table]').forEach(function (t) { t.hidden = t.getAttribute('data-table') !== key; });
+    }
     periodButtons.forEach(function (b) {
       b.addEventListener('click', function () {
-        var key = b.getAttribute('data-period');
         periodButtons.forEach(function (x) { x.setAttribute('aria-pressed', x === b ? 'true' : 'false'); });
-        document.querySelectorAll('[data-table]').forEach(function (t) { t.hidden = t.getAttribute('data-table') !== key; });
+        if (pastSelect) pastSelect.value = '';
+        showTable(b.getAttribute('data-period'));
       });
+    });
+    // a past month from the dropdown replaces the period buttons' table; clearing it goes back to year to date
+    if (pastSelect) pastSelect.addEventListener('change', function () {
+      var key = pastSelect.value || 'ytd';
+      periodButtons.forEach(function (x) { x.setAttribute('aria-pressed', x.getAttribute('data-period') === key ? 'true' : 'false'); });
+      showTable(key);
     });
 
     // PNG of the table on screen (whichever period is showing), drawn on a canvas with a title and white background

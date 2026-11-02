@@ -129,6 +129,8 @@ def year_summary(year, today=None):
             'ytd_target_months': month_span(targeted),
             'ytd_missing_months': month_span([i for i in done if i not in targeted]),
             'ytd_months': month_span(list(done)),
+            'year': year,
+            'month_index': month_i,
             'month_label': f'{MONTH_LABELS[month_i]} {year}' if month_i >= 0 else '',
             'month_actual': actual[month_i] or 0 if month_i >= 0 else 0,
             'month_previous': previous[month_i] or 0 if month_i >= 0 else 0,
@@ -176,6 +178,12 @@ def combined_summary(summary):
     ytd_rows, ytd_total = table([row(m, m['ytd_actual_on_target'] if m['ytd_target'] else m['ytd_actual'],
                                      m['ytd_previous'], m['ytd_target'] or None) for m in summary])
     month_rows, month_total = table([row(m, m['month_actual'] or 0, m['month_previous'], m['month_target'] or None) for m in summary])
+    # every finished month before the current one, latest first, for the past month dropdown
+    past = []
+    for i in reversed(range(first.get('month_index', 0))):
+        rows, tot = table([row(m, m['actual'][i] or 0, m['previous'][i] or 0, m['target'][i] or None) for m in summary])
+        past.append({'key': f'm{i + 1}', 'label': f"{MONTH_LABELS[i]} {first['year']}", 'rows': rows, 'total': tot,
+                     'past': True})
     return {
         'actual': [total(m['actual'][i] for m in summary) for i in range(12)],
         'previous': [total(m['previous'][i] for m in summary) for i in range(12)],
@@ -185,9 +193,10 @@ def combined_summary(summary):
         'month_label': first.get('month_label', ''),
         'ytd_months': first.get('ytd_months', ''),
         'missing': [f"{m['name']} ({m['ytd_missing_months']})" for m in summary if m['ytd_target'] and m['ytd_missing_months']],
-        # the table's two periods; year to date shows first
+        # the table's periods: year to date shows first, then the current month, then the past months
         'tables': [t for t in (
             {'key': 'ytd', 'label': f"Year to date · {first.get('ytd_months', '')}", 'rows': ytd_rows, 'total': ytd_total},
             {'key': 'month', 'label': first.get('month_label', ''), 'rows': month_rows, 'total': month_total},
-        ) if first.get('month_label')],
+        ) if first.get('month_label')] + past,
+        'has_past': bool(past),
     }
