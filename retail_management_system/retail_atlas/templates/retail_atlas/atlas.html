@@ -90,6 +90,17 @@
     }
     .banner button { background: rgba(255,255,255,.15); color: #fff; border: none; border-radius: 7px; padding: 5px 12px; font-size: 12px; cursor: pointer; }
     .banner.error { background: var(--danger); }
+    .banner button.here { background: var(--accent); font-weight: 600; }
+
+    /* ── Live location ── */
+    .me { width: 18px; height: 18px; border-radius: 50%; background: #2563EB; border: 3px solid #fff; box-shadow: 0 0 0 0 rgba(37,99,235,.6); animation: me-pulse 2s infinite; }
+    .me.stale { background: #94A3B8; animation: none; }
+    @keyframes me-pulse { 0% { box-shadow: 0 0 0 0 rgba(37,99,235,.55); } 70% { box-shadow: 0 0 0 14px rgba(37,99,235,0); } 100% { box-shadow: 0 0 0 0 rgba(37,99,235,0); } }
+    .locate-btn { width: 34px; height: 34px; display: flex; align-items: center; justify-content: center; background: #fff; border: none; cursor: pointer; font-size: 18px; color: var(--primary); }
+    .locate-btn:hover { background: #F4F4F4; }
+    .locate-btn.on { color: #2563EB; }
+    .locate-btn.busy { animation: spin 1s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
 
     /* ── Markers & popups ── */
     .pin { width: 14px; height: 14px; border-radius: 50%; border: 2px solid #fff; box-shadow: 0 1px 4px rgba(0,0,0,.45); }
@@ -156,7 +167,7 @@
     <div id="territories"></div>
     <details class="unmapped" id="unmapped">
       <summary><span class="section-label" id="unmapped-label"></span></summary>
-      <div class="unmapped-hint">These shops have no recognisable village in their address.{% if not is_finance and not is_social %} Click <b>Place</b>, then click the map to pin them.{% endif %}</div>
+      <div class="unmapped-hint">These shops have no recognisable village in their address.{% if not is_finance and not is_social %} Click <b>Place</b>, then click the map to pin them — or, when you're standing at the shop, choose <b>Use my location</b>.{% endif %}</div>
       <div id="unmapped-list"></div>
     </details>
   </div>
@@ -172,7 +183,7 @@
   <div class="results" id="results"></div>
 </div>
 
-<div class="banner" id="banner"><span id="banner-text"></span><button id="banner-btn">Cancel</button></div>
+<div class="banner" id="banner"><span id="banner-text"></span><button class="here" id="banner-here" style="display:none">🎯 Use my location</button><button id="banner-btn">Cancel</button></div>
 
 {{ atlas_data|json_script:"atlas-data" }}
 <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -191,7 +202,7 @@
     colorOf[t] = t === 'Unassigned' ? UNASSIGNED_COLOR : PALETTE[i % PALETTE.length];
   });
 
-  var state = { territory: ALL, placing: null };
+  var state = { territory: ALL, placing: null, pickForHere: false };
   var shopsById = {};
   DATA.shops.forEach(function (s) { shopsById[s.id] = s; });
 
@@ -266,6 +277,7 @@
       (DATA.read_only ? '' : '<div class="pp-actions">' +
         '<a class="primary" href="' + DATA.order_url + '?shop=' + s.id + '">🛒 Place order</a>' +
         (DATA.is_fe ? '' : '<a href="' + s.url + '">Open shop →</a>') +
+        '<button data-act="here" data-id="' + s.id + '">🎯 Pin to my location</button>' +
         '<button data-act="move" data-id="' + s.id + '">📍 Move pin</button>' +
         (s.manual ? '<button data-act="reset" data-id="' + s.id + '">↺ Use village</button>' : '') +
       '</div>') +
@@ -395,6 +407,7 @@
   function choose(s) {
     resultsEl.style.display = 'none';
     input.blur();
+    if (state.pickForHere) { state.pickForHere = false; input.value = ''; runSearch(); pinHere(s.id); return; }
     if (s.lat == null) { if (!DATA.read_only) startPlacing(s.id); return; }
     cluster.zoomToShowLayer(markers[s.id], function () {
       map.setView([s.lat, s.lng], Math.max(map.getZoom(), 15));
@@ -427,11 +440,13 @@
   var banner = document.getElementById('banner');
   var bannerText = document.getElementById('banner-text');
   var bannerBtn = document.getElementById('banner-btn');
+  var bannerHere = document.getElementById('banner-here');
   var toastTimer;
 
-  function showBanner(html, isError, btnLabel) {
+  function showBanner(html, isError, btnLabel, withHere) {
     clearTimeout(toastTimer);
     bannerText.innerHTML = html;
+    bannerHere.style.display = withHere ? '' : 'none';
     banner.classList.toggle('error', !!isError);
     bannerBtn.textContent = btnLabel || 'Cancel';
     banner.style.display = 'flex';
@@ -442,6 +457,7 @@
   }
   function stopPlacing() {
     state.placing = null;
+    state.pickForHere = false;
     document.getElementById('map').classList.remove('placing');
     banner.style.display = 'none';
   }
@@ -451,11 +467,152 @@
     map.closePopup();
     state.placing = id;
     document.getElementById('map').classList.add('placing');
-    showBanner('📍 Click the map where <b>' + esc(s.name) + '</b> is located');
+    showBanner('📍 Click the map where <b>' + esc(s.name) + '</b> is located — or, if you are standing at the shop, use your location', false, 'Cancel', GEO_OK);
     if (window.innerWidth <= 760) document.getElementById('panel').classList.remove('open');
   }
   bannerBtn.addEventListener('click', stopPlacing);
-  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && state.placing) stopPlacing(); });
+  bannerHere.addEventListener('click', function () {
+    var id = state.placing;
+    stopPlacing();
+    if (id) pinHere(id);
+  });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && (state.placing || state.pickForHere)) stopPlacing(); });
+
+  // ── Live location ("where am I") ───────────────────────────────────────
+  // Browsers only allow geolocation on HTTPS (or localhost).
+  var GEO_OK = !!navigator.geolocation && window.isSecureContext;
+  var MAX_GOOD_ACCURACY = 50;   // metres; worse than this asks before pinning
+  var me = null;                // { lat, lng, acc, at }
+  var meMarker = null, meCircle = null, watchId = null, follow = false, firstFix = true;
+  var locateBtn;
+
+  function geoError(err) {
+    if (!window.isSecureContext) return 'Location only works when the site is opened over https://';
+    if (!navigator.geolocation) return 'This browser cannot share its location';
+    if (err && err.code === 1) return 'Location permission was denied — allow it in your browser/phone settings and try again';
+    if (err && err.code === 3) return 'Could not get a GPS fix in time — step outside or try again';
+    return 'Could not find your location';
+  }
+
+  function inSamoa(lat, lng) {
+    return lat >= b.south && lat <= b.north && lng >= b.west && lng <= b.east;
+  }
+
+  function meIcon(stale) {
+    return L.divIcon({ html: '<div class="me' + (stale ? ' stale' : '') + '"></div>', className: '', iconSize: [18, 18], iconAnchor: [9, 9], popupAnchor: [0, -10] });
+  }
+
+  function mePopupHtml() {
+    return '<div class="pp-name">You are here</div>' +
+      '<div class="pp-sub">Accurate to about ' + Math.round(me.acc) + ' m</div>' +
+      (DATA.read_only ? '' : '<div class="pp-actions"><button data-act="pickhere">📍 Pin a shop here</button></div>' +
+        '<div class="pp-note">Standing at a shop? Tap above, then pick the shop.</div>');
+  }
+
+  function updateMe(pos) {
+    me = { lat: pos.coords.latitude, lng: pos.coords.longitude, acc: pos.coords.accuracy, at: Date.now() };
+    var ll = [me.lat, me.lng];
+    if (!meMarker) {
+      meCircle = L.circle(ll, { radius: me.acc, color: '#2563EB', weight: 1, fillColor: '#2563EB', fillOpacity: 0.12, interactive: false }).addTo(map);
+      meMarker = L.marker(ll, { icon: meIcon(false), zIndexOffset: 1000, title: 'You are here' }).addTo(map);
+      meMarker.bindPopup(mePopupHtml);
+    } else {
+      meMarker.setLatLng(ll).setIcon(meIcon(false));
+      meCircle.setLatLng(ll).setRadius(me.acc);
+      if (meMarker.isPopupOpen()) meMarker.setPopupContent(mePopupHtml());
+    }
+    locateBtn.classList.remove('busy');
+    locateBtn.classList.add('on');
+    if (firstFix) {
+      firstFix = false;
+      if (!inSamoa(me.lat, me.lng)) toast('You appear to be outside Samoa — shops can only be pinned inside Samoa', true);
+      else map.setView(ll, Math.max(map.getZoom(), 17));
+    } else if (follow) {
+      map.panTo(ll);
+    }
+  }
+
+  function startWatching() {
+    if (watchId != null) return;
+    if (!GEO_OK) { toast(geoError(), true); return; }
+    locateBtn.classList.add('busy');
+    firstFix = true;
+    watchId = navigator.geolocation.watchPosition(updateMe, function (err) {
+      locateBtn.classList.remove('busy');
+      if (err.code === 1) stopWatching();
+      if (meMarker) meMarker.setIcon(meIcon(true));
+      toast(esc(geoError(err)), true);
+    }, { enableHighAccuracy: true, maximumAge: 5000, timeout: 30000 });
+  }
+
+  function stopWatching() {
+    if (watchId != null) navigator.geolocation.clearWatch(watchId);
+    watchId = null; follow = false;
+    locateBtn.classList.remove('on', 'busy');
+    if (meMarker) { map.removeLayer(meMarker); map.removeLayer(meCircle); meMarker = meCircle = null; }
+    me = null;
+  }
+
+  var LocateControl = L.Control.extend({
+    options: { position: 'topright' },
+    onAdd: function () {
+      var wrap = L.DomUtil.create('div', 'leaflet-bar');
+      locateBtn = L.DomUtil.create('button', 'locate-btn', wrap);
+      locateBtn.type = 'button';
+      locateBtn.title = 'Show my location';
+      locateBtn.innerHTML = '◎';
+      L.DomEvent.disableClickPropagation(wrap);
+      L.DomEvent.on(locateBtn, 'click', function () {
+        if (watchId == null) { follow = true; startWatching(); }
+        else if (me && !follow) { follow = true; map.setView([me.lat, me.lng], Math.max(map.getZoom(), 17)); }
+        else stopWatching();   // third tap turns it off
+      });
+      return wrap;
+    },
+  });
+  new LocateControl().addTo(map);
+  map.on('dragstart', function () { follow = false; });   // stop following once the user pans away
+
+  // A fresh, high-accuracy fix for pinning (doesn't trust an old reading).
+  function freshFix() {
+    return new Promise(function (resolve, reject) {
+      if (!GEO_OK) { reject(new Error(geoError())); return; }
+      if (me && Date.now() - me.at < 10000 && me.acc <= MAX_GOOD_ACCURACY) { resolve(me); return; }
+      navigator.geolocation.getCurrentPosition(function (pos) {
+        if (watchId == null) startWatching();
+        updateMe(pos);
+        resolve(me);
+      }, function (err) { reject(new Error(geoError(err))); },
+      { enableHighAccuracy: true, maximumAge: 0, timeout: 20000 });
+    });
+  }
+
+  function pinHere(id) {
+    if (DATA.read_only) return;
+    var s = shopsById[id];
+    map.closePopup();
+    showBanner('🎯 Getting your location for <b>' + esc(s.name) + '</b>…', false, 'OK');
+    freshFix().then(function (pos) {
+      banner.style.display = 'none';
+      if (!inSamoa(pos.lat, pos.lng)) throw new Error('You appear to be outside Samoa');
+      var msg = s.manual ? 'Move the pin for "' + s.name + '" to where you are standing now?' : 'Pin "' + s.name + '" where you are standing now?';
+      if (pos.acc > MAX_GOOD_ACCURACY) msg += '\n\nYour GPS is only accurate to about ' + Math.round(pos.acc) + ' m right now. Stepping outside or waiting a few seconds may help.';
+      if (!window.confirm(msg)) return;
+      return saveLocation(id, { lat: pos.lat, lng: pos.lng }).then(function (saved) {
+        toast('✓ <b>' + esc(saved.name) + '</b> pinned at your location (±' + Math.round(pos.acc) + ' m)');
+        if (inTerritory(saved)) cluster.zoomToShowLayer(markers[saved.id], function () { markers[saved.id].openPopup(); });
+      });
+    }).catch(function (err) { toast(esc(err.message), true); });
+  }
+
+  function pickShopForHere() {
+    if (DATA.read_only) return;
+    map.closePopup();
+    stopPlacing();
+    state.pickForHere = true;
+    showBanner('🔍 Search for the shop you are standing at', false, 'Cancel');
+    input.focus();
+  }
 
   function saveLocation(id, body) {
     var s = shopsById[id];
@@ -519,8 +676,11 @@
     });
     e.popup.getElement().querySelectorAll('[data-act]').forEach(function (btn) {
       btn.addEventListener('click', function () {
+        var act = btn.getAttribute('data-act');
+        if (act === 'pickhere') { pickShopForHere(); return; }
         var id = +btn.getAttribute('data-id');
-        if (btn.getAttribute('data-act') === 'move') { startPlacing(id); return; }
+        if (act === 'here') { pinHere(id); return; }
+        if (act === 'move') { startPlacing(id); return; }
         saveLocation(id, { reset: true }).then(function (s) {
           map.closePopup();
           toast(s.lat == null ? '<b>' + esc(s.name) + '</b> moved to “Not on map”' : '✓ <b>' + esc(s.name) + '</b> reset to its village');
