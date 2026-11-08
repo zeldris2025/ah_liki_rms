@@ -55,6 +55,7 @@
         <span><i style="background:#2a78d6"></i>Facebook</span>
         <span><i style="background:#eb6834"></i>Instagram</span>
       </div>
+      {% if c.labels %}<button type="button" class="so-png" data-png="{{ c.name }}" data-html2canvas-ignore title="Download {{ c.name }} chart as PNG">⬇ PNG</button>{% endif %}
     </div>
     {% if c.labels %}
     <div class="so-chart-box"><canvas id="chart-{{ c.key }}" role="img" aria-label="{{ c.name }} Facebook and Instagram followers, {{ range_label|lower }}"></canvas></div>
@@ -65,8 +66,11 @@
   {% endfor %}
 </div>
 
-<h3 class="so-section-title">Summary · change {{ range_label|lower }}</h3>
-<div class="sms-card" style="overflow-x:auto">
+<div class="so-section-head">
+  <h3 class="so-section-title">Summary · change {{ range_label|lower }}</h3>
+  <button type="button" class="so-png" data-png-target="summary-card" data-png="Summary" title="Download summary table as PNG">⬇ PNG</button>
+</div>
+<div class="sms-card" id="summary-card" data-png-title="Summary · change {{ range_label|lower }}" style="overflow-x:auto">
   <table class="sms-table so-table">
     <thead>
       <tr><th>Company</th><th>Latest update</th>
@@ -91,6 +95,15 @@
 
 {{ charts|json_script:"social-charts" }}
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+<style>
+  .so-chart-head .so-legend { margin-left: auto; }
+  .so-section-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 12px; }
+  .so-section-head .so-section-title { margin: 0; }
+  .so-png { font-size: 11px; font-weight: 600; color: var(--primary); background: #fff; border: 1px solid #E2E8F0; border-radius: 7px; padding: 3px 9px; cursor: pointer; white-space: nowrap; }
+  .so-png:hover { background: #F1F5F9; }
+  .so-png:disabled { opacity: .6; cursor: wait; }
+</style>
 <script>
 (function () {
   // Facebook and Instagram keep their colour on every chart; both are follower counts, so they share one axis
@@ -124,6 +137,50 @@
               callback: function (v) { return fmt.format(v); }}}
         }
       }
+    });
+  });
+})();
+
+// ── PNG downloads: each chart card and the summary table ──
+(function () {
+  var rangeLabel = '{{ range_label|escapejs }}';
+  function slug(s) { return String(s).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''); }
+
+  document.addEventListener('click', function (e) {
+    var btn = e.target.closest('.so-png');
+    if (!btn || btn.disabled) return;
+    var card = btn.getAttribute('data-png-target')
+      ? document.getElementById(btn.getAttribute('data-png-target'))
+      : btn.closest('.so-chart');
+    if (!card || !window.html2canvas) return;
+    var title = card.getAttribute('data-png-title');
+    var oldText = btn.textContent;
+    btn.disabled = true; btn.textContent = '…';
+
+    card.setAttribute('data-png-capturing', '1');
+    html2canvas(card, {
+      backgroundColor: '#FFFFFF', scale: 2, useCORS: true, logging: false,
+      // Capture the full table even when it scrolls sideways
+      width: card.scrollWidth, windowWidth: Math.max(document.documentElement.clientWidth, card.scrollWidth + 64),
+      onclone: function (doc) {
+        var c = doc.querySelector('[data-png-capturing]');
+        c.style.overflow = 'visible';
+        c.style.width = card.scrollWidth + 'px';
+        var cap = doc.createElement('div');
+        cap.style.cssText = 'font:600 12px system-ui,sans-serif;color:#6B7280;margin-bottom:10px';
+        cap.textContent = (title ? title + ' · ' : 'Social followers · ' + rangeLabel + ' · ') + 'Ah Liki Investment Corp';
+        c.insertBefore(cap, c.firstChild);
+      }
+    }).then(function (canvas) {
+      var a = document.createElement('a');
+      a.download = 'social-' + slug(btn.getAttribute('data-png')) + '-' + slug(rangeLabel) + '.png';
+      a.href = canvas.toDataURL('image/png');
+      document.body.appendChild(a); a.click(); a.remove();
+    }).catch(function () {
+      alert('Sorry — the PNG could not be created.');
+    }).then(function () {
+      card.removeAttribute('data-png-capturing');
+      btn.disabled = false; btn.textContent = oldText;
     });
   });
 })();
