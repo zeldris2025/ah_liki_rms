@@ -1,0 +1,228 @@
+{% extends 'shops/base.html' %}
+{% load aj_tags %}
+{% block content %}
+{% include 'aj_sales/_styles.html' %}
+<style>
+  .aj-star { border: none; background: none; cursor: pointer; font-size: 16px; line-height: 1.2; color: #CBD5E1; padding: 0; }
+  .aj-star:hover, .aj-star.on { color: #F59E0B; }
+</style>
+
+<div class="aj-hero">
+  <div>
+    <div class="eyebrow">Product QTY Sales · Products</div>
+    <h2>Product QTY</h2>
+    <p>Units sold per product in {{ f.year }} beside {{ f.compare }}, {{ period_label|lower }}. Sort by the change to find what's growing or slowing.</p>
+  </div>
+  <div class="actions">
+    {% if can_export %}<a href="?{{ query }}&export=1" class="btn-sms btn-outline-custom">⬇ Export CSV</a>{% endif %}
+    <a href="{% url 'aj_import' %}" class="btn-sms btn-accent-custom">⬆ Import CSV</a>
+  </div>
+</div>
+
+{% if not has_data %}
+<div class="sms-card aj-empty">
+  <div class="icon">📦</div>
+  <h3>No product QTY yet</h3>
+  <p>Upload a CSV of quantities sold per product and month to get started. Include last year so there's something to compare.</p>
+  <a href="{% url 'aj_import' %}" class="btn-sms btn-accent-custom">⬆ Import CSV</a>
+</div>
+{% else %}
+
+<!-- Top: whatever is picked in the quick links (a product, a group, or all products), month by month -->
+<div class="sms-card aj-card" style="margin-bottom:18px">
+  <div class="aj-card-head">
+    <div><h3>{% if f.group %}🗂 {% endif %}{{ trend.title }} · {{ f.year }} vs {{ f.compare }}</h3>
+      <small>QTY each month · {{ f.year }} solid, {{ f.compare }} dashed{% if trend.has_target %}, 🎯 targets set by hand dotted{% endif %} · pick a quick link on the right to change it</small></div>
+    <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+      <div class="aj-legend" aria-hidden="true">
+        <span><i style="width:18px;height:0;border-radius:0;border-top:3px solid var(--aj-this)"></i>{{ f.year }}</span>
+        <span><i style="width:18px;height:0;border-radius:0;border-top:3px dashed #94A3B8"></i>{{ f.compare }}</span>
+        {% if trend.has_target %}<span><i style="width:18px;height:0;border-radius:0;border-top:3px dotted #7C3AED"></i>Target</span>{% endif %}
+      </div>
+      <button type="button" class="btn-sms btn-outline-custom sm" id="aj-trend-png" title="Download this chart as a PNG image">⬇ PNG</button>
+    </div>
+  </div>
+  <div class="aj-chart tall"><canvas id="aj-trend" role="img" aria-label="{{ trend.title }}: QTY each month, {{ f.year }} against {{ f.compare }}"></canvas></div>
+</div>
+
+{% include 'aj_sales/_filters.html' with search=True %}
+
+<div class="aj-layout">
+<div>
+  <div class="aj-kpis">
+    <div class="aj-kpi main">
+      <div class="label">QTY {{ f.year }}</div>
+      <div class="value">{{ summary.this|qty }}</div>
+      <div class="sub">{% include 'aj_sales/_delta.html' with change=summary.change %} <span>vs {{ summary.last|qty }} in {{ f.compare }}</span></div>
+    </div>
+    <div class="aj-kpi">
+      <div class="label">Products growing</div>
+      <div class="value" style="color:var(--aj-up)">{{ summary.up }}</div>
+      <div class="sub">of {{ summary.products }} sold in {{ f.year }}</div>
+    </div>
+    <div class="aj-kpi">
+      <div class="label">Products slowing</div>
+      <div class="value" style="color:var(--aj-down)">{{ summary.down }}</div>
+      <div class="sub">fewer units than {{ f.compare }}</div>
+    </div>
+  </div>
+
+  <div class="aj-section">
+    <nav class="aj-seg" aria-label="Show">
+      {% for key, label in views %}<a href="?{{ keep_no_view }}&view={{ key }}" class="{% if key == view %}active{% endif %}">{{ label }}</a>{% endfor %}
+    </nav>
+    {% if view != 'rows' %}
+    <nav class="aj-seg" aria-label="Sort">
+      <a href="?{{ keep_no_sort }}&sort=this" class="{% if sort == 'this' %}active{% endif %}">Most sold</a>
+      <a href="?{{ keep_no_sort }}&sort=change" class="{% if sort == 'change' %}active{% endif %}">▲ Growth</a>
+      <a href="?{{ keep_no_sort }}&sort=drop" class="{% if sort == 'drop' %}active{% endif %}">▼ Drop</a>
+      <a href="?{{ keep_no_sort }}&sort=name" class="{% if sort == 'name' %}active{% endif %}">A–Z</a>
+    </nav>
+    {% endif %}
+  </div>
+
+  <div class="sms-card" style="overflow-x:auto">
+    {% if page_obj %}
+    {% if view == 'rows' %}
+    <table class="sms-table aj-table">
+      <thead><tr><th>Product Code</th><th>Product Name</th><th>Month</th><th class="n">QTY</th></tr></thead>
+      <tbody>
+        {% for r in page_obj %}
+        <tr>
+          <td style="color:var(--muted);white-space:nowrap">{{ r.product_code }}</td>
+          <td><a href="{% url 'aj_analytics' %}?{{ query }}&product={{ r.product_code|urlencode }}" style="font-weight:600;color:var(--primary);text-decoration:none">{{ r.product_name|default:r.product_code }}</a></td>
+          <td style="white-space:nowrap">{{ r.month|date:"M Y" }}</td>
+          <td class="n"><b>{{ r.qty|qty }}</b></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <table class="sms-table aj-table">
+      <thead><tr>
+        <th>Product</th>
+        <th style="min-width:140px">{{ f.year }} vs {{ f.compare }}</th>
+        <th class="n"><a href="?{{ keep_no_sort }}&sort=last" class="{% if sort == 'last' %}on{% endif %}">{{ f.compare }}</a></th>
+        <th class="n"><a href="?{{ keep_no_sort }}&sort=this" class="{% if sort == 'this' %}on{% endif %}">{{ f.year }}</a></th>
+        <th class="n"><a href="?{{ keep_no_sort }}&sort=change" class="{% if sort == 'change' or sort == 'drop' %}on{% endif %}">Change</a></th>
+        <th class="n"><a href="?{{ keep_no_sort }}&sort=pct" class="{% if sort == 'pct' %}on{% endif %}">%</a></th>
+        <th class="n">Share</th>
+      </tr></thead>
+      <tbody>
+        {% for r in page_obj %}
+        <tr>
+          <td style="display:flex;gap:8px;align-items:flex-start">
+            <form method="post" action="{% url 'aj_pin' %}" style="margin:0">{% csrf_token %}
+              <input type="hidden" name="code" value="{{ r.code }}"><input type="hidden" name="next" value="{{ page_url }}">
+              {% if r.code in quick.pinned %}<button type="submit" class="aj-star on" title="Remove from quick links" aria-label="Unpin {{ r.name }}">★</button>
+              {% else %}<button type="submit" class="aj-star" title="Pin to quick links (QTY vs last year’s)" aria-label="Pin {{ r.name }}">☆</button>{% endif %}
+            </form>
+            <div>
+            <a href="{% url 'aj_analytics' %}?{{ query }}&product={{ r.code|urlencode }}" style="font-weight:600;color:var(--primary);text-decoration:none">{{ r.name }}</a>
+            {% if r.is_new %}<span class="aj-tag new">New</span>{% elif r.is_lost %}<span class="aj-tag lost">None this year</span>{% endif %}
+            {% if r.code != r.name %}<div style="color:var(--muted);font-size:11px">{{ r.code }}</div>{% endif %}
+            </div>
+          </td>
+          <td><div class="aj-pair" title="{{ f.year }}: {{ r.this|qty }} · {{ f.compare }}: {{ r.last|qty }}">
+            <i style="width:{{ r.this|bar:biggest }}%;background:var(--aj-this)"></i>
+            <i style="width:{{ r.last|bar:biggest }}%;background:var(--aj-last)"></i>
+          </div></td>
+          <td class="n" style="color:var(--text-secondary)">{{ r.last|qty }}</td>
+          <td class="n"><b>{{ r.this|qty }}</b></td>
+          <td class="n" style="font-weight:700;color:{% if r.change.dir == 'up' %}var(--aj-up){% elif r.change.dir == 'down' %}var(--aj-down){% else %}var(--muted){% endif %}">{{ r.change.n|signed_qty }}</td>
+          <td class="n">{% if r.change.pct is not None %}{% include 'aj_sales/_delta.html' with change=r.change %}{% else %}<span style="color:var(--muted)">—</span>{% endif %}</td>
+          <td class="n" style="color:var(--muted)">{{ r.share|floatformat:1 }}%</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+    {% if page_obj.has_other_pages %}
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border-top:1px solid var(--border);font-size:13px;color:var(--muted)">
+      <span>Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }} · {{ page_obj.paginator.count }} {% if view == 'rows' %}rows{% else %}products{% endif %}</span>
+      <span style="display:flex;gap:8px">
+        {% if page_obj.has_previous %}<a class="btn-sms btn-outline-custom sm" href="?{{ query }}&page={{ page_obj.previous_page_number }}">← Prev</a>{% endif %}
+        {% if page_obj.has_next %}<a class="btn-sms btn-outline-custom sm" href="?{{ query }}&page={{ page_obj.next_page_number }}">Next →</a>{% endif %}
+      </span>
+    </div>
+    {% endif %}
+    {% else %}
+    <div style="padding:48px;text-align:center;color:var(--muted)">Nothing matches these filters.</div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Right: quick links (clicking one updates the chart on top) -->
+<aside class="aj-side" aria-label="Quick links">
+  {% include 'aj_sales/_quick_links.html' %}
+</aside>
+</div>
+
+{{ trend|json_script:"aj-trend-data" }}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+(function () {
+  var MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  var fmt = new Intl.NumberFormat('en-US', {maximumFractionDigits: 2});
+  var d = JSON.parse(document.getElementById('aj-trend-data').textContent);
+  var THIS = '#2563EB', LAST = '#94A3B8', TARGET = '#7C3AED';
+  var sets = [
+    {label: String(d.year), data: d.this, borderColor: THIS, backgroundColor: 'rgba(37,99,235,.10)', fill: 'origin',
+     borderWidth: 3, tension: .3, spanGaps: true, pointRadius: 3, pointHoverRadius: 5, pointBackgroundColor: THIS,
+     pointBorderColor: '#fff', pointBorderWidth: 2},
+    {label: String(d.compare), data: d.last, borderColor: LAST, backgroundColor: LAST, borderDash: [6, 4],
+     borderWidth: 2, tension: .3, spanGaps: true, pointRadius: 2, pointHoverRadius: 4}
+  ];
+  if (d.has_target) sets.push({label: 'Target', data: d.target, borderColor: TARGET, backgroundColor: TARGET, borderDash: [2, 3],
+                               borderWidth: 2, tension: 0, spanGaps: false, pointRadius: 3, pointStyle: 'rectRot'});
+  var chart = new Chart(document.getElementById('aj-trend'), {
+    type: 'line', data: {labels: MONTHS, datasets: sets},
+    options: {maintainAspectRatio: false, interaction: {mode: 'index', intersect: false},
+      plugins: {legend: {display: false}, tooltip: {backgroundColor: '#0F172A', padding: 10, boxPadding: 4, usePointStyle: true,
+        callbacks: {
+          label: function (x) { return ' ' + x.dataset.label + ': ' + (x.parsed.y == null ? '—' : fmt.format(x.parsed.y)); },
+          footer: function (items) {
+            var i = items[0].dataIndex, now = d.this[i], before = d.last[i];
+            if (now == null || before == null) return '';
+            var n = now - before, p = before ? ' (' + (n >= 0 ? '+' : '') + (n / before * 100).toFixed(1) + '%)' : '';
+            return (n > 0 ? '▲ +' : n < 0 ? '▼ ' : '■ ') + fmt.format(n) + p + ' vs ' + d.compare;
+          }}}},
+      scales: {x: {grid: {display: false}, ticks: {color: '#6B7280', font: {size: 11}}},
+               y: {grid: {color: '#EEF2F6'}, border: {display: false}, beginAtZero: true,
+                   ticks: {color: '#6B7280', font: {size: 11}, callback: function (v) { return fmt.format(v); }}}}}
+  });
+
+  // ⬇ PNG: the chart on a white background, with its title and a legend above it so the image stands on its own
+  document.getElementById('aj-trend-png').addEventListener('click', function () {
+    var src = chart.canvas, scale = src.width / src.clientWidth, pad = 20 * scale, head = 64 * scale;
+    var out = document.createElement('canvas');
+    out.width = src.width + pad * 2;
+    out.height = src.height + head + pad;
+    var ctx = out.getContext('2d'), font = getComputedStyle(document.body).fontFamily;
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, out.width, out.height);
+    ctx.fillStyle = '#0F172A';
+    ctx.font = '700 ' + 16 * scale + 'px ' + font;
+    ctx.fillText(d.title + ' · ' + d.year + ' vs ' + d.compare + ' · QTY each month', pad, pad + 14 * scale);
+    var x = pad, y = pad + 38 * scale;
+    ctx.font = 600 + ' ' + 12 * scale + 'px ' + font;
+    sets.forEach(function (s) {
+      ctx.strokeStyle = s.borderColor;
+      ctx.lineWidth = 3 * scale;
+      ctx.setLineDash((s.borderDash || []).map(function (n) { return n * scale; }));
+      ctx.beginPath(); ctx.moveTo(x, y - 4 * scale); ctx.lineTo(x + 22 * scale, y - 4 * scale); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = '#334155';
+      ctx.fillText(s.label, x + 28 * scale, y);
+      x += 28 * scale + ctx.measureText(s.label).width + 20 * scale;
+    });
+    ctx.drawImage(src, pad, head + pad / 2);
+    var a = document.createElement('a');
+    a.download = ('qty_' + d.title + '_' + d.year + '_vs_' + d.compare).replace(/[^\w-]+/g, '_').replace(/_+/g, '_') + '.png';
+    a.href = out.toDataURL('image/png');
+    a.click();
+  });
+})();
+</script>
+{% endif %}
+{% endblock %}

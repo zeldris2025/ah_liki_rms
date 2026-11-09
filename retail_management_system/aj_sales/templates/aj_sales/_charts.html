@@ -1,0 +1,82 @@
+{% comment %}Draws whichever of the Product QTY Sales charts are on the page (canvas ids aj-monthly, aj-cumulative, aj-top, aj-movers)
+from the {{ chart }} data. This year is always blue, the comparison year grey.{% endcomment %}
+{{ chart|json_script:"aj-chart" }}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+(function () {
+  var d = JSON.parse(document.getElementById('aj-chart').textContent);
+  var THIS = '#2563EB', LAST = '#A5B4C8', UP = '#16A34A', DOWN = '#DC2626', GRID = '#EEF2F6', TICK = '#6B7280';
+  var fmt = new Intl.NumberFormat('en-US', {maximumFractionDigits: 2});
+  var short = function (v) { return Math.abs(v) >= 1e6 ? (v / 1e6).toFixed(1) + 'M' : Math.abs(v) >= 1e3 ? (v / 1e3).toFixed(1).replace(/\.0$/, '') + 'k' : fmt.format(v); };
+  var cut = function (s) { return s.length > 26 ? s.slice(0, 25) + '…' : s; };
+  Chart.defaults.font.family = getComputedStyle(document.body).fontFamily;
+  var tooltip = {backgroundColor: '#0F172A', padding: 10, boxPadding: 4, usePointStyle: true,
+                 callbacks: {label: function (c) { var v = c.parsed[c.chart.options.indexAxis === 'y' ? 'x' : 'y'];
+                   return ' ' + c.dataset.label + ': ' + (v == null ? '—' : fmt.format(v)); }}};
+  var axis = function (extra) { return Object.assign({grid: {color: GRID}, border: {display: false},
+                                 ticks: {color: TICK, font: {size: 11}, callback: function (v) { return short(v); }}}, extra || {}); };
+  var plain = {grid: {display: false}, ticks: {color: TICK, font: {size: 11}}};
+  var el = function (id) { return document.getElementById(id); };
+
+  if (el('aj-monthly')) {
+    // Months outside the picked period are faded, so the comparison being made stands out
+    var fade = function (color, alpha) { return d.months.map(function (_, i) { return d.picked.indexOf(i + 1) >= 0 ? color : color + alpha; }); };
+    new Chart(el('aj-monthly'), {
+      type: 'bar',
+      data: {labels: d.months, datasets: [
+        {label: String(d.compare), data: d.monthly.last, backgroundColor: fade(LAST, '55'), borderRadius: 5, maxBarThickness: 26},
+        {label: String(d.year), data: d.monthly.this, backgroundColor: fade(THIS, '40'), borderRadius: 5, maxBarThickness: 26}]},
+      options: {maintainAspectRatio: false, interaction: {mode: 'index', intersect: false},
+        plugins: {legend: {display: false}, tooltip: Object.assign({}, tooltip, {callbacks: Object.assign({}, tooltip.callbacks, {
+          footer: function (items) {
+            var last = items.find(function (i) { return i.datasetIndex === 0; }), now = items.find(function (i) { return i.datasetIndex === 1; });
+            if (!last || !now || last.parsed.y == null || now.parsed.y == null || !last.parsed.y) return '';
+            var p = (now.parsed.y - last.parsed.y) / last.parsed.y * 100;
+            return (p >= 0 ? '▲ +' : '▼ ') + p.toFixed(1) + '% vs ' + d.compare;
+          }})})},
+        scales: {x: plain, y: axis({beginAtZero: true})}}
+    });
+  }
+
+  if (el('aj-cumulative')) {
+    new Chart(el('aj-cumulative'), {
+      type: 'line',
+      data: {labels: d.months, datasets: [
+        {label: String(d.compare), data: d.cumulative.last, borderColor: LAST, backgroundColor: LAST, borderDash: [6, 4],
+         borderWidth: 2, pointRadius: 0, pointHoverRadius: 4, tension: .3},
+        {label: String(d.year), data: d.cumulative.this, borderColor: THIS, backgroundColor: 'rgba(37,99,235,.10)', fill: 'origin',
+         borderWidth: 3, pointRadius: 3, pointBackgroundColor: THIS, pointBorderColor: '#fff', pointBorderWidth: 2, tension: .3}]},
+      options: {maintainAspectRatio: false, interaction: {mode: 'index', intersect: false},
+        plugins: {legend: {display: false}, tooltip: tooltip},
+        scales: {x: plain, y: axis({beginAtZero: true})}}
+    });
+  }
+
+  if (el('aj-top') && d.top.labels.length) {
+    new Chart(el('aj-top'), {
+      type: 'bar',
+      data: {labels: d.top.labels.map(cut), datasets: [
+        {label: String(d.compare), data: d.top.last, backgroundColor: LAST, borderRadius: 4, barPercentage: .9, categoryPercentage: .7},
+        {label: String(d.year), data: d.top.this, backgroundColor: THIS, borderRadius: 4, barPercentage: .9, categoryPercentage: .7}]},
+      options: {indexAxis: 'y', maintainAspectRatio: false, interaction: {mode: 'index', intersect: false},
+        plugins: {legend: {display: false}, tooltip: Object.assign({}, tooltip, {callbacks: Object.assign({}, tooltip.callbacks, {
+          title: function (items) { return d.top.labels[items[0].dataIndex]; }})})},
+        scales: {x: axis({beginAtZero: true}), y: plain}}
+    });
+  }
+
+  if (el('aj-movers') && d.movers.labels.length) {
+    new Chart(el('aj-movers'), {
+      type: 'bar',
+      data: {labels: d.movers.labels.map(cut), datasets: [
+        {label: 'Change vs ' + d.compare, data: d.movers.values, borderRadius: 4, barPercentage: .8,
+         backgroundColor: d.movers.values.map(function (v) { return v >= 0 ? UP : DOWN; })}]},
+      options: {indexAxis: 'y', maintainAspectRatio: false,
+        plugins: {legend: {display: false}, tooltip: Object.assign({}, tooltip, {callbacks: {
+          title: function (items) { return d.movers.labels[items[0].dataIndex]; },
+          label: function (c) { var v = c.parsed.x; return ' ' + (v > 0 ? '+' : '') + fmt.format(v) + ' vs ' + d.compare; }}})},
+        scales: {x: axis(), y: plain}}
+    });
+  }
+})();
+</script>

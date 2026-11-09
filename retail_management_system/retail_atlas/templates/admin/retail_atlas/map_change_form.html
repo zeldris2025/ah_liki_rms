@@ -1,0 +1,63 @@
+{% extends "admin/change_form.html" %}
+{% comment %}Shop and company locations: a map under the form. Clicking it (or dragging the pin) fills in Latitude and
+Longitude; typing coordinates moves the pin.{% endcomment %}
+
+{% block after_field_sets %}
+{{ block.super }}
+{% if company_names %}<datalist id="company-names">{% for n in company_names %}<option value="{{ n }}">{% endfor %}</datalist>{% endif %}
+<fieldset class="module aligned">
+  <h2>Map</h2>
+  <div style="padding:12px">
+    <p class="help" style="margin:0 0 8px;padding:0">Click the map to place the pin, or drag it. Zoom in and switch to <b>Satellite</b> to find the exact building.</p>
+    <div id="location-map" style="height:460px;border-radius:8px;border:1px solid var(--border-color, #ccc)"></div>
+    <p class="help" id="location-map-note" style="margin:8px 0 0;padding:0"></p>
+  </div>
+</fieldset>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  var lat = document.getElementById('id_latitude'), lng = document.getElementById('id_longitude');
+  var note = document.getElementById('location-map-note');
+  if (!lat || !lng || !window.L) return;
+  var SAMOA = L.latLngBounds([-14.20, -172.85], [-13.30, -171.30]);
+  var map = L.map('location-map', {maxBounds: SAMOA.pad(0.6), maxBoundsViscosity: 0.8, minZoom: 8});
+  // OSM's tile policy needs a Referer, which Django's default Referrer-Policy strips; send just our origin
+  var streets = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19, referrerPolicy: 'strict-origin-when-cross-origin',
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'}).addTo(map);
+  var satellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+    maxZoom: 19, attribution: 'Imagery &copy; Esri'});
+  L.control.layers({'Streets': streets, 'Satellite': satellite}).addTo(map);
+
+  var pin = null;
+  function current() {
+    var a = parseFloat(lat.value), b = parseFloat(lng.value);
+    return isNaN(a) || isNaN(b) ? null : L.latLng(a, b);
+  }
+  function show(point) {
+    if (!pin) {
+      pin = L.marker(point, {draggable: true}).addTo(map);
+      pin.on('dragend', function () { fill(pin.getLatLng()); });
+    } else {
+      pin.setLatLng(point);
+    }
+    note.textContent = SAMOA.contains(point) ? '' : '⚠ That point is outside Samoa.';
+  }
+  function fill(point) {
+    lat.value = point.lat.toFixed(6);
+    lng.value = point.lng.toFixed(6);
+    show(point);
+  }
+  map.on('click', function (e) { fill(e.latlng); });
+  [lat, lng].forEach(function (input) {
+    input.addEventListener('change', function () {
+      var p = current();
+      if (p) { show(p); map.setView(p, Math.max(map.getZoom(), 15)); }
+    });
+  });
+
+  var start = current();
+  if (start) { show(start); map.setView(start, 16); }
+  else { map.fitBounds([[-14.08, -172.80], [-13.43, -171.40]]); note.textContent = 'Not placed yet: click the map.'; }
+});
+</script>
+{% endblock %}

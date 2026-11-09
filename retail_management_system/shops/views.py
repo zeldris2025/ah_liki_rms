@@ -74,6 +74,9 @@ def dashboard(request):
     if getattr(request, 'is_social', False):
         from social.views import dashboard as social_dashboard
         return social_dashboard(request)
+    if getattr(request, 'is_aj', False):
+        from aj_sales.views import dashboard as aj_dashboard
+        return aj_dashboard(request)
     shops       = Shop.objects.prefetch_related('photos').all()
     businesses   = Business.objects.prefetch_related('photos').all()
     sponsorships = Sponsorship.objects.prefetch_related('photos').all()
@@ -1341,7 +1344,7 @@ def product_sales_export(request):
         response, w = _csv_response('product_sales')
         w.writerow([h for _, h in product_sales.COLUMNS])
         for r in product_sales.table(f).iterator():
-            w.writerow([r.product_code, r.product_name, f'{r.month:%y-%m}', r.total_sales])
+            w.writerow([r.product_code, r.product_name, f'{r.month:%y-%m}', r.total_sales, '' if r.qty is None else r.qty])
         return response
     sheet = request.GET.get('sheet') or None
     if sheet not in (None, 'summary', 'trend', 'yoy', 'cumulative', 'top', 'data'):
@@ -1366,8 +1369,8 @@ def download_product_sales_template(request):
     response['Content-Disposition'] = 'attachment; filename="product_sales_template.csv"'
     w = csv.writer(response)
     w.writerow([h for _, h in product_sales.COLUMNS])
-    w.writerow(['AL10002999', 'Tip Top Banana Split 16L', '26-09', '45210.50'])
-    w.writerow(['AL10002999', 'Tip Top Banana Split 16L', '26-08', '39875.00'])
+    w.writerow(['AL10002999', 'Tip Top Banana Split 16L', '26-09', '45210.50', '1250'])
+    w.writerow(['AL10002999', 'Tip Top Banana Split 16L', '26-08', '39875.00', '1102'])
     return response
 
 

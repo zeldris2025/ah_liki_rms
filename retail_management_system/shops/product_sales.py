@@ -19,12 +19,14 @@ COLUMNS = [
     ('product_name', 'Product Name'),
     ('month',        'Date (YY-MM)'),
     ('total_sales',  'Total Sales'),
+    ('qty',          'QTY'),   # optional; also fills Product QTY Sales
 ]
 ALIASES = {
     'product_code': ['code', 'productno', 'productnumber', 'itemno', 'itemcode', 'no', 'sku'],
     'product_name': ['name', 'description', 'itemname', 'product'],
     'month':        ['date', 'dateyymm', 'yymm', 'period', 'salesmonth'],
     'total_sales':  ['sales', 'totalsales', 'amount', 'total', 'salesamount', 'value'],
+    'qty':          ['quantity', 'qtysold', 'quantitysold', 'units', 'unitssold', 'totalqty'],
 }
 # Quick link colours: this month's sales against the same month last year (the target)
 CLOSE_PCT = 70   # 70–99% of target is "almost there" (orange); below is red, 100%+ is green
@@ -43,8 +45,12 @@ def parse_yy_mm(value):
 
 
 def import_product_sales(uploaded):
+    """A QTY column is optional. When a row has one, the QTY is kept beside the sales and also saved to Product QTY Sales
+    (same Product Code + Month, replacing what's there). A blank QTY never wipes one already saved."""
+    from aj_sales.models import QtySales
+
     present, rows = client_import.read_rows(uploaded, COLUMNS, ALIASES)
-    missing = [h for f, h in COLUMNS if f not in present]
+    missing = [h for f, h in COLUMNS if f != 'qty' and f not in present]
     if missing:
         raise client_import.ImportFileError(
             f'The file needs these columns: {", ".join(missing)}. Download the template to see the format.')
@@ -68,23 +74,45 @@ def import_product_sales(uploaded):
             except (InvalidOperation, ValueError):
                 client_import.skip(result, number, item, f'Total Sales "{row.get("total_sales", "")}" is not a number.')
                 continue
+            qty = None
+            if row.get('qty'):
+                try:
+                    qty = client_import.parse_money(row['qty'])
+                except (InvalidOperation, ValueError):
+                    client_import.skip(result, number, item, f'QTY "{row["qty"]}" is not a number.')
+                    continue
 
             item += f' · {month:%b %Y}'
+            shown = f'Total Sales {client_import.money(amount)}' + (f', QTY {_qty(qty)}' if qty is not None else '')
             record = existing.get((code.casefold(), month))
             if record is None:
                 existing[(code.casefold(), month)] = ProductSales.objects.create(
-                    product_code=code, product_name=name[:255], month=month, total_sales=amount)
+                    product_code=code, product_name=name[:255], month=month, total_sales=amount, qty=qty)
                 result['created'] += 1
-                client_import.log(result, 'added', number, item, f'Total Sales {client_import.money(amount)}')
-            elif record.total_sales != amount or record.product_name != name[:255]:
-                client_import.log(result, 'updated', number, item, _changes(record, 'total_sales', amount, name[:255]))
+                client_import.log(result, 'added', number, item, shown)
+            elif (record.total_sales != amount or record.product_name != name[:255]
+                  or (qty is not None and record.qty != qty)):
+                changes = _changes(record, 'total_sales', amount, name[:255])
+                if qty is not None and record.qty != qty:
+                    changes = '; '.join(v for v in (changes, f'QTY {_qty(record.qty)} → {_qty(qty)}') if v)
+                client_import.log(result, 'updated', number, item, changes)
                 record.total_sales, record.product_name = amount, name[:255]
-                record.save(update_fields=['total_sales', 'product_name', 'updated_at'])
+                if qty is not None:
+                    record.qty = qty
+                record.save(update_fields=['total_sales', 'product_name', 'qty', 'updated_at'])
                 result['updated'] += 1
             else:
                 result['unchanged'] += 1
-                client_import.log(result, 'unchanged', number, item, f'Total Sales {client_import.money(amount)}')
+                client_import.log(result, 'unchanged', number, item, shown)
+            if qty is not None:
+                QtySales.objects.update_or_create(product_code=code.upper(), month=month,
+                                                  defaults={'product_name': name[:255], 'qty': qty})
     return client_import.finish(result)
+
+
+def _qty(value):
+    """1200 → '1,200', 12.5 → '12.5', nothing → 'blank'"""
+    return 'blank' if value is None else f'{value:,.2f}'.rstrip('0').rstrip('.')
 
 
 def _changes(record, sales_field, amount, name):

@@ -1,0 +1,1 @@
+{% load aj_tags %}{% if change %}<span class="aj-delta {{ change.dir }}" title="{{ change.n|signed_qty }} vs {{ f.compare }}">{% if change.dir == 'up' %}▲{% elif change.dir == 'down' %}▼{% else %}■{% endif %} {% if change.pct is not None %}{{ change.pct|floatformat:1 }}%{% else %}{{ change.n|signed_qty }}{% endif %}</span>{% endif %}

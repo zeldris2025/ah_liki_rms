@@ -1,0 +1,137 @@
+{% load aj_tags %}
+{% comment %}★ Quick links on Product QTY: groups and pinned products, one month's QTY against target (lowest first).
+Same look as the Product Sales quick links. Needs `quick` (quick_links.panel), `f`, `keep_links` and `page_url`.{% endcomment %}
+<style>
+  .ql { padding: 0; display: flex; flex-direction: column; max-height: 640px; }
+  .ql-head { padding: 14px 14px 10px; border-bottom: 1px solid var(--border); }
+  .ql-head h3 { margin: 0; font-size: 15px; font-weight: 750; color: var(--primary); }
+  .ql-head > p { margin: 6px 0 8px; color: var(--muted); font-size: 12px; }
+  .ql-targets { font-size: 12px; font-weight: 600; color: #7C3AED; text-decoration: none; border: 1px solid #DDD6FE; background: #F5F3FF; padding: 3px 9px; border-radius: 999px; }
+  .ql-targets:hover { background: #EDE9FE; }
+  .ql-lm { display: flex; align-items: center; gap: 6px; margin-top: 8px; color: var(--muted); font-size: 12px; }
+  .ql-lm select { width: auto; padding: 3px 8px; font-size: 12px; height: auto; }
+  .ql-key { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+  .ql-key button { display: inline-flex; align-items: center; gap: 5px; border: 1px solid var(--border); background: var(--card); border-radius: 999px;
+                   padding: 3px 9px; font: inherit; font-size: 11.5px; color: var(--text-secondary); cursor: pointer; }
+  .ql-key button b { font-weight: 700; color: var(--primary); }
+  .ql-key button[data-status="good"][aria-pressed="true"]   { background: #DCFCE7; border-color: #16A34A; color: #166534; }
+  .ql-key button[data-status="close"][aria-pressed="true"]  { background: #FEF3C7; border-color: #F59E0B; color: #92400E; }
+  .ql-key button[data-status="behind"][aria-pressed="true"] { background: #FEE2E2; border-color: #DC2626; color: #991B1B; }
+  .ql-key button[aria-pressed="true"] b { color: inherit; }
+  .ql-key i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; }
+  .ql-key i.s-good { background: #16A34A; } .ql-key i.s-close { background: #F59E0B; } .ql-key i.s-behind { background: #DC2626; }
+  .ql-find { padding: 10px 14px 0; }
+  .ql-find input { width: 100%; height: 32px; padding: 0 10px; border: 1px solid var(--border); border-radius: 8px; font-size: 12.5px; outline: none; }
+  .ql-find input:focus { border-color: var(--aj-this); box-shadow: 0 0 0 3px rgba(37,99,235,.15); }
+  .ql-list { overflow-y: auto; padding: 0 14px 12px; flex: 1; min-height: 0; overscroll-behavior: contain; scrollbar-width: thin; }
+  .ql-sec { position: sticky; top: 0; z-index: 2; display: flex; justify-content: space-between; align-items: center; margin: 0 -14px 6px;
+            padding: 10px 14px 6px; background: var(--card); color: var(--muted); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; }
+  .ql-sec a { color: var(--aj-this); text-decoration: none; text-transform: none; letter-spacing: 0; font-size: 12px; font-weight: 600; }
+  .ql-empty { color: var(--muted); font-size: 12px; padding: 2px 2px 6px; line-height: 1.5; }
+  .ql-empty a { color: var(--aj-this); }
+  .ql-item { position: relative; }
+  .ql-link { display: block; border: 1px solid var(--border); border-radius: 10px; padding: 7px 10px 8px 12px; margin-bottom: 6px; text-decoration: none; color: inherit; background: var(--card); }
+  .ql-link:hover { border-color: var(--aj-this); }
+  .ql-link.all { display: flex; justify-content: space-between; align-items: center; margin: 0; padding: 8px 12px; }
+  .ql-link.all .tgt { color: var(--muted); font-size: 11px; }
+  .ql-link.on { outline: 2px solid var(--primary); outline-offset: 1px; }
+  .ql-link .n { font-weight: 600; font-size: 12.5px; color: var(--primary); padding-right: 18px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ql-link .n small { color: var(--muted); font-weight: 400; }
+  .ql-link .mid { display: flex; align-items: baseline; gap: 6px; margin-top: 2px; }
+  .ql-link .t { font-weight: 700; font-size: 14px; color: var(--primary); font-variant-numeric: tabular-nums; }
+  .ql-link .tgt { color: var(--muted); font-size: 11px; }
+  .ql-link .pct { margin-left: auto; font-weight: 700; font-size: 11px; padding: 1px 7px; border-radius: 999px; }
+  .ql-link.s-good   { border-color: #86EFAC; background: #F0FDF4; box-shadow: inset 4px 0 0 #16A34A; }
+  .ql-link.s-close  { border-color: #FCD34D; background: #FFFBEB; box-shadow: inset 4px 0 0 #F59E0B; }
+  .ql-link.s-behind { border-color: #FCA5A5; background: #FEF2F2; box-shadow: inset 4px 0 0 #DC2626; }
+  .pct.s-good { background: #DCFCE7; color: #166534; } .pct.s-close { background: #FEF3C7; color: #92400E; } .pct.s-behind { background: #FEE2E2; color: #991B1B; }
+  .ql-bar { height: 4px; border-radius: 999px; background: rgba(15,23,42,.08); overflow: hidden; margin-top: 5px; }
+  .ql-bar span { display: block; height: 100%; border-radius: 999px; }
+  .ql-bar.s-good span { background: #16A34A; } .ql-bar.s-close span { background: #F59E0B; } .ql-bar.s-behind span { background: #DC2626; }
+  .ql-ytd { color: var(--muted); font-size: 10.5px; margin-top: 4px; font-variant-numeric: tabular-nums; }
+  .ql-act { position: absolute; top: 5px; right: 6px; margin: 0; opacity: 0; transition: opacity .15s; }
+  .ql-item:hover .ql-act, .ql-act:focus-within { opacity: 1; }
+  .ql-act, .ql-act button { color: #94A3B8; text-decoration: none; font-size: 12px; line-height: 1; }
+  .ql-act button { border: none; background: none; cursor: pointer; padding: 2px 3px; }
+  .ql-act:hover, .ql-act button:hover { color: var(--danger); }
+  a.ql-act:hover { color: var(--aj-this); }
+</style>
+
+<div class="sms-card ql" aria-label="Quick links">
+  <div class="ql-head">
+    <div style="display:flex;justify-content:space-between;align-items:center"><h3>★ Quick links</h3>
+      <a href="{% url 'aj_targets' %}?year={{ f.year }}" class="ql-targets" title="Set QTY targets by hand">🎯 Targets</a></div>
+    <form method="get" class="ql-lm">
+      {% for k, v in request.GET.items %}{% if k != 'lm' and k != 'page' and k != 'export' %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endif %}{% endfor %}
+      <select name="lm" class="sms-input" aria-label="Month the quick links are measured on" onchange="this.form.submit()">
+        {% for n, label in quick.month_choices %}<option value="{{ n }}" {% if n == quick.month_i %}selected{% endif %}>{{ label }} {{ f.year }}</option>{% endfor %}
+      </select>
+      <span>QTY vs target</span>
+    </form>
+    <p>🎯 = set by hand, otherwise {{ quick.target_label }} QTY{% if quick.month_label and not quick.uploaded %} · <b style="color:#B45309">no {{ quick.month_label }} QTY uploaded yet</b>{% endif %}</p>
+    <div class="ql-key" role="group" aria-label="Show quick links by target">
+      <button type="button" data-status="good" aria-pressed="false"><i class="s-good"></i>Reached <b>{{ quick.counts.good }}</b></button>
+      <button type="button" data-status="close" aria-pressed="false"><i class="s-close"></i>{{ quick.close_pct }}–99% <b>{{ quick.counts.close }}</b></button>
+      <button type="button" data-status="behind" aria-pressed="false"><i class="s-behind"></i>Below {{ quick.close_pct }}% <b>{{ quick.counts.behind }}</b></button>
+    </div>
+    <a href="?{{ keep_links }}" class="ql-link all {% if not f.product and not f.group %}on{% endif %}">
+      <span class="n">All products</span><span class="tgt">{{ summary.products }} sold</span>
+    </a>
+  </div>
+
+  <div class="ql-find"><input type="search" id="ql-find" placeholder="Filter quick links…" aria-label="Filter quick links" autocomplete="off"></div>
+  <div class="ql-list">
+    <div class="ql-sec"><span>Lowest first · {{ quick.links|length }}</span><a href="{% url 'aj_group_add' %}" title="Create a group of products">＋ New group</a></div>
+    {% for q in quick.links %}
+    <div class="ql-item" data-status="{{ q.status }}">
+      <a href="?{{ keep_links }}{% if keep_links %}&{% endif %}{% if q.kind == 'group' %}group={{ q.id }}{% else %}product={{ q.code|urlencode }}{% endif %}"
+         class="ql-link s-{{ q.status }} {% if q.kind == 'group' and f.group.pk == q.id or q.kind == 'product' and f.product|upper == q.code %}on{% endif %}"
+         title="{% if q.kind == 'group' %}Group: {{ q.name }} · {{ q.products }} product{{ q.products|pluralize }}{% else %}{{ q.name }} · {{ q.code }}{% endif %}&#10;{{ quick.month_label }}: {{ q.month_qty|qty }}{% if q.target %} of {{ q.target|qty }} ({% if q.manual_target %}target set by hand{% else %}{{ quick.target_label }}{% endif %}){% endif %}&#10;YTD {{ q.total|qty }}{% if q.growth is not None %} · {{ q.growth }}% vs {{ f.compare }}{% endif %}">
+        <div class="n">{% if q.kind == 'group' %}🗂 {{ q.name }} <small>· {{ q.products }}</small>{% else %}{{ q.name }}{% endif %}</div>
+        <div class="mid"><span class="t">{{ q.month_qty|qty }}</span>
+          {% if q.target %}<span class="tgt">of {% if q.manual_target %}🎯{% endif %}{{ q.target_short }}</span>{% endif %}
+          {% if q.pct is not None %}<span class="pct s-{{ q.status }}">{{ q.pct }}%</span>{% else %}<span class="tgt" style="margin-left:auto">no target</span>{% endif %}</div>
+        {% if q.pct is not None %}<div class="ql-bar s-{{ q.status }}"><span style="width:{% if q.pct > 100 %}100{% else %}{{ q.pct }}{% endif %}%"></span></div>{% endif %}
+        <div class="ql-ytd">YTD {{ q.total|qty }}{% if q.growth is not None %} · <b style="color:{% if q.growth >= 0 %}var(--aj-up){% else %}var(--aj-down){% endif %}">{% if q.growth > 0 %}+{% endif %}{{ q.growth }}%</b> vs {{ f.compare }}{% endif %}</div>
+      </a>
+      {% if q.kind == 'group' %}
+      <a href="{% url 'aj_group_edit' q.id %}" class="ql-act" title="Edit group" aria-label="Edit group {{ q.name }}">✎</a>
+      {% else %}
+      <form method="post" action="{% url 'aj_pin' %}" class="ql-act">{% csrf_token %}
+        <input type="hidden" name="code" value="{{ q.code }}"><input type="hidden" name="next" value="{{ page_url }}">
+        <button type="submit" title="Remove from quick links" aria-label="Unpin {{ q.name }}">✕</button>
+      </form>
+      {% endif %}
+    </div>
+    {% empty %}
+    <div class="ql-empty"><a href="{% url 'aj_group_add' %}">Create a group</a> (e.g. “Tip Top”), or click <b style="color:#F59E0B">☆</b> next to a product in the table to pin it here.</div>
+    {% endfor %}
+    <div class="ql-none ql-empty" hidden>No quick links match.</div>
+  </div>
+</div>
+
+<script>
+(function () {
+  // Filter the quick links by typing, and by the Reached / 70–99% / Below buttons (both work together)
+  var find = document.getElementById('ql-find'), statusOn = '';
+  function filter() {
+    var q = find.value.trim().toLowerCase(), shown = 0;
+    document.querySelectorAll('.ql-list .ql-item').forEach(function (el) {
+      var hit = (!q || el.querySelector('.ql-link').getAttribute('title').toLowerCase().indexOf(q) !== -1) &&
+                (!statusOn || el.getAttribute('data-status') === statusOn);
+      el.hidden = !hit; if (hit) shown++;
+    });
+    document.querySelector('.ql-none').hidden = !(q || statusOn) || shown > 0;
+  }
+  find.addEventListener('input', filter);
+  document.querySelectorAll('.ql-key button').forEach(function (b) {
+    b.addEventListener('click', function () {
+      statusOn = statusOn === b.getAttribute('data-status') ? '' : b.getAttribute('data-status');   // click again to show all
+      document.querySelectorAll('.ql-key button').forEach(function (x) {
+        x.setAttribute('aria-pressed', x.getAttribute('data-status') === statusOn ? 'true' : 'false');
+      });
+      filter();
+    });
+  });
+})();
+</script>

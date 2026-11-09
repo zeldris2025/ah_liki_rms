@@ -12,6 +12,7 @@ urlpatterns = [
     path('', include('car_allocations.urls')),
     path('', include('career_connect.urls')),   # public student portal + its staff QR page
     path('', include('social.urls')),           # Social #s and their analytics
+    path('', include('aj_sales.urls')),         # Product QTY Sales: this year vs last year
     # Uploaded photos (shops, HORECA, sponsorships, FE issues): signed-in users only, also in production
     re_path(r'^%s(?P<path>.*)$' % settings.MEDIA_URL.lstrip('/'), login_required(serve),
             {'document_root': settings.MEDIA_ROOT}, name='media'),

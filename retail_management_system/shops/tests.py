@@ -648,6 +648,24 @@ class ProductSalesTests(TestCase):
                            'TT1,Tip Top Vanilla 2L,26-01,150\nTT1,Tip Top Vanilla 2L,26-02,250\n'
                            'CK1,Coke 1.5L,26-01,"1,000"\nCK1,Coke 1.5L,26-02,500\n')
 
+    def test_qty_column_is_kept_and_fills_aj_product_qty(self):
+        from aj_sales.models import QtySales
+        from .models import ProductSales
+        header = 'Product Code,Product Name,Date (YY-MM),Total Sales,QTY\n'
+        r = self.upload(header + 'tt1,Tip Top Vanilla 2L,26-01,150,"1,200"\nCK1,Coke 1.5L,26-01,90,\n')
+        self.assertEqual((r['created'], r['skipped']), (2, []))
+        self.assertEqual(ProductSales.objects.get(product_code='tt1').qty, 1200)
+        self.assertIsNone(ProductSales.objects.get(product_code='CK1').qty)
+        aj = QtySales.objects.get()   # only the row with a QTY
+        self.assertEqual((aj.product_code, aj.product_name, aj.month, aj.qty), ('TT1', 'Tip Top Vanilla 2L', date(2026, 1, 1), 1200))
+        # A new QTY replaces the old one in both places; a blank QTY leaves it alone
+        r = self.upload(header + 'tt1,Tip Top Vanilla 2L,26-01,150,1300\n')
+        self.assertEqual(r['updated'], 1)
+        self.assertEqual(QtySales.objects.get().qty, 1300)
+        self.upload(header + 'tt1,Tip Top Vanilla 2L,26-01,150,\n')
+        self.assertEqual(ProductSales.objects.get(product_code='tt1').qty, 1300)
+        self.assertEqual(len(self.upload(header + 'CK1,Coke 1.5L,26-02,90,lots\n')['skipped']), 1)
+
     def test_upload_parses_yy_mm_and_is_safe_to_repeat(self):
         from .models import ProductSales
         first = self.seed()
@@ -720,7 +738,7 @@ class ProductSalesTests(TestCase):
         one = load_workbook(BytesIO(self.client.get(reverse('product_sales_export'), {'sheet': 'top'}).content))
         self.assertEqual(one.sheetnames, ['Top Products'])
         csv_rows = self.client.get(reverse('product_sales_export'), {'format': 'csv', 'product': 'CK1'}).content.decode('utf-8-sig').splitlines()
-        self.assertEqual(csv_rows, ['Product Code,Product Name,Date (YY-MM),Total Sales', 'CK1,Coke 1.5L,26-02,500.00', 'CK1,Coke 1.5L,26-01,1000.00'])
+        self.assertEqual(csv_rows, ['Product Code,Product Name,Date (YY-MM),Total Sales,QTY', 'CK1,Coke 1.5L,26-02,500.00,', 'CK1,Coke 1.5L,26-01,1000.00,'])
 
     def test_empty_page_invites_upload(self):
         self.assertContains(self.client.get(reverse('product_sales')), 'No product sales yet')
@@ -968,7 +986,7 @@ class ProductTableSearchTests(TestCase):
         self.assertIn(('q', 'tip top'), page.context['table_keep'])
         self.assertNotIn('tq=', page.context['clear_table_query'])
         rows = self.client.get(reverse('product_sales_export'), {'tq': 'coke', 'format': 'csv'}).content.decode('utf-8-sig').splitlines()
-        self.assertEqual(rows[1:], ['CK1,Coke 1.5L,26-09,100.00'])
+        self.assertEqual(rows[1:], ['CK1,Coke 1.5L,26-09,100.00,'])
         self.assertContains(self.client.get(reverse('product_sales'), {'tq': 'zzz'}), 'No products in the table match “zzz”')
 
 

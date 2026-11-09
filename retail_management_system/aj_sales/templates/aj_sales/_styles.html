@@ -1,0 +1,90 @@
+<style>
+  /* Product QTY Sales: shared by the dashboard, analytics, Product QTY. This year is blue, the comparison year grey. */
+  :root { --aj-this: #2563EB; --aj-last: #A5B4C8; --aj-up: #15803D; --aj-up-bg: #DCFCE7; --aj-down: #B91C1C; --aj-down-bg: #FEE2E2; }
+  .aj-hero { position: relative; overflow: hidden; display: flex; justify-content: space-between; align-items: center; gap: 18px; flex-wrap: wrap;
+             background: linear-gradient(120deg, #0B1B3F 0%, #1E3A8A 60%, #2563EB 130%); border-radius: 18px; padding: 26px 28px; margin-bottom: 18px; color: #fff; }
+  .aj-hero::after { content: ''; position: absolute; right: -70px; top: -100px; width: 300px; height: 300px; border-radius: 50%;
+                    background: radial-gradient(circle, rgba(96,165,250,.35), rgba(96,165,250,0) 70%); pointer-events: none; }
+  .aj-hero .eyebrow { color: #93C5FD; font-size: 11px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; margin-bottom: 6px; }
+  .aj-hero h2 { margin: 0; font-size: 25px; font-weight: 750; color: #fff; }
+  .aj-hero p { margin: 6px 0 0; color: rgba(255,255,255,.75); font-size: 14px; max-width: 620px; }
+  .aj-hero .actions { position: relative; z-index: 1; display: flex; gap: 8px; flex-wrap: wrap; }
+  .aj-hero .btn-outline-custom { color: #fff; border-color: rgba(255,255,255,.35); background: rgba(255,255,255,.06); }
+  .aj-hero .btn-outline-custom:hover { background: rgba(255,255,255,.14); }
+
+  /* Filter bar */
+  .aj-filters { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; padding: 12px 14px; margin-bottom: 18px; position: sticky; top: 8px; z-index: 5;
+                box-shadow: 0 6px 18px rgba(15,23,42,.05); }
+  .aj-filters .grp { display: flex; align-items: center; gap: 6px; }
+  .aj-filters label { font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+  .aj-filters select.sms-input, .aj-filters input.sms-input { width: auto; padding-top: 7px; padding-bottom: 7px; }
+  .aj-filters .vs { font-weight: 800; color: var(--muted); font-size: 12px; }
+  .aj-seg { display: inline-flex; background: var(--surface, #F1F5F9); border: 1px solid var(--border); border-radius: 10px; padding: 3px; gap: 2px; }
+  .aj-seg a, .aj-seg button { border: 0; background: none; padding: 6px 12px; border-radius: 7px; font-size: 13px; font-weight: 600; color: var(--text-secondary); text-decoration: none; cursor: pointer; white-space: nowrap; }
+  .aj-seg a.active, .aj-seg button.active { background: var(--card); color: var(--primary); box-shadow: 0 1px 3px rgba(15,23,42,.12); }
+  .aj-chip { display: inline-flex; align-items: center; gap: 6px; background: #EFF6FF; color: #1D4ED8; border-radius: 999px; padding: 5px 10px; font-size: 12px; font-weight: 700; text-decoration: none; }
+  .aj-chip:hover { background: #DBEAFE; }
+
+  /* KPI cards */
+  .aj-kpis { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); margin-bottom: 18px; }
+  .aj-kpi { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 18px 20px; position: relative; overflow: hidden; }
+  .aj-kpi.main { border-top: 4px solid var(--aj-this); }
+  .aj-kpi .label { color: var(--muted); font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; }
+  .aj-kpi .value { font-size: 28px; font-weight: 800; color: var(--primary); margin-top: 6px; font-variant-numeric: tabular-nums; line-height: 1.1; }
+  .aj-kpi .sub { color: var(--muted); font-size: 12px; margin-top: 8px; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+  .aj-vsbar { height: 8px; border-radius: 99px; background: #EEF2F7; margin-top: 12px; position: relative; overflow: hidden; }
+  .aj-vsbar i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 99px; }
+
+  /* Up / down pills */
+  .aj-delta { display: inline-flex; align-items: center; gap: 3px; font-size: 12px; font-weight: 800; padding: 2px 8px; border-radius: 999px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .aj-delta.up { color: var(--aj-up); background: var(--aj-up-bg); }
+  .aj-delta.down { color: var(--aj-down); background: var(--aj-down-bg); }
+  .aj-delta.flat { color: var(--muted); background: #F1F5F9; }
+  .aj-tag { display: inline-block; font-size: 10px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; padding: 2px 6px; border-radius: 6px; margin-left: 6px; vertical-align: middle; }
+  .aj-tag.new { background: #DBEAFE; color: #1D4ED8; }
+  .aj-tag.lost { background: #F1F5F9; color: var(--muted); }
+
+  /* Chart cards */
+  .aj-grid { display: grid; gap: 16px; grid-template-columns: repeat(2, minmax(0, 1fr)); margin-bottom: 18px; }
+  .aj-grid .wide { grid-column: 1 / -1; }
+  .aj-card { padding: 18px 20px; }
+  .aj-card-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
+  .aj-card-head h3 { margin: 0; font-size: 15px; font-weight: 750; color: var(--primary); }
+  .aj-card-head small { display: block; color: var(--muted); font-size: 12px; margin-top: 2px; }
+  .aj-legend { display: flex; gap: 12px; font-size: 12px; color: var(--text-secondary); font-weight: 600; }
+  .aj-legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .aj-legend i { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+  .aj-chart { position: relative; height: 280px; }
+  .aj-chart.tall { height: 340px; }
+  .aj-chart-empty { height: 220px; display: grid; place-items: center; color: var(--muted); font-size: 13px; text-align: center; }
+
+  /* Page beside the ★ Quick links (Product QTY and Analytics) */
+  .aj-layout { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 18px; align-items: start; }
+  .aj-side { display: grid; gap: 14px; position: sticky; top: 76px; }
+  @media (max-width: 1150px) { .aj-layout { grid-template-columns: 1fr; } .aj-side { position: static; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); } }
+
+  /* Lists and tables */
+  .aj-list { list-style: none; margin: 0; padding: 0; }
+  .aj-list li { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+  .aj-list li:last-child { border-bottom: none; }
+  .aj-list .name { font-weight: 600; color: var(--primary); text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .aj-list .meta { color: var(--muted); font-size: 11px; margin-top: 2px; font-variant-numeric: tabular-nums; }
+  .aj-table td.n, .aj-table th.n { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .aj-table th a { color: inherit; text-decoration: none; }
+  .aj-table th a.on { color: var(--aj-this); }
+  .aj-table tr.dim td { color: var(--muted); }
+  .aj-pair { display: grid; gap: 3px; min-width: 120px; }
+  .aj-pair i { display: block; height: 6px; border-radius: 99px; }
+  .aj-section { font-size: 16px; font-weight: 750; color: var(--primary); margin: 6px 0 12px; display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .aj-empty { text-align: center; padding: 52px 20px; }
+  .aj-empty .icon { font-size: 40px; margin-bottom: 8px; }
+  .aj-empty h3 { font-size: 17px; font-weight: 750; color: var(--primary); margin-bottom: 6px; }
+  .aj-empty p { color: var(--muted); font-size: 14px; margin: 0 auto 16px; max-width: 460px; }
+
+  @media (max-width: 900px) {
+    .aj-grid { grid-template-columns: 1fr; }
+    .aj-hero { padding: 20px; }
+    .aj-filters { position: static; }
+    .aj-kpi .value { font-size: 24px; }
+  }
+</style>

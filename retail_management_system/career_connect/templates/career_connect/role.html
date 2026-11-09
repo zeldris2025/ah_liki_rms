@@ -13,7 +13,7 @@
 <div class="page-head dept">
   <div class="wrap">
     <nav class="crumbs" aria-label="Breadcrumb">
-      <a href="{% url 'career_connect' %}">Home</a> › <a href="{% url 'career_connect_careers' %}">Career Opportunities</a> ›
+      <a href="{% url 'career_connect' %}">Career Opportunities</a> ›
       <a href="{{ department.company.get_absolute_url }}">{{ department.company.name }}</a> ›
       <a href="{{ department.get_absolute_url }}">{{ department.name }}</a> › {{ role.title }}
     </nav>
@@ -21,9 +21,8 @@
     <h1>{{ role.title }}</h1>
     {% if role.summary %}<p>{{ role.summary }}</p>{% endif %}
     <div class="pills">
-      <span class="pill">{% icon department.symbol 14 %} {{ department.name }}</span>
-      <span class="pill {% if role.recruiting_status == 'open' %}open{% elif role.recruiting_status == 'closed' %}closed{% endif %}">
-        {% if role.recruiting_status == 'not_stated' %}Vacancy status not stated{% else %}{{ role.recruiting_status_label }}{% endif %}</span>
+      {% if role.recruiting_status != 'not_stated' %}<span class="pill {% if role.recruiting_status == 'open' %}open{% else %}closed{% endif %}">
+        {{ role.recruiting_status_label }}</span>{% endif %}
       {% if role.expires_on %}<span class="pill">{% icon 'clock' 14 %} Closes {{ role.expires_on|date:"j F Y" }}</span>{% endif %}
     </div>
   </div>
@@ -36,36 +35,31 @@
       <p>For the full job description, please email
         <a href="mailto:hr@ahliki.com?subject={{ role.title|urlencode }}%20%E2%80%94%20Job%20description%20request">hr@ahliki.com</a>.</p>
 
-      <h3>Responsibilities</h3>
       {% if role.responsibility_list %}
+      <h3>Responsibilities</h3>
       <ul class="checks">{% for x in role.responsibility_list %}<li><span class="tick">{% icon 'check' 13 %}</span><span>{{ x }}</span></li>{% endfor %}</ul>
-      {% else %}{% include 'career_connect/_missing.html' with what='Responsibilities' %}{% endif %}
+      {% endif %}
     </section>
 
+    {% if role.qualification_list or role.skill_list %}
     <section class="panel" aria-labelledby="quals">
       <h2 id="quals"><span class="icon-dot">{% icon 'check' 22 %}</span>Qualifications &amp; skills</h2>
-      <h3 style="margin-top:0">Required qualifications</h3>
       {% if role.qualification_list %}
+      <h3 style="margin-top:0">Required qualifications</h3>
       <ul class="checks">{% for x in role.qualification_list %}<li><span class="tick">{% icon 'check' 13 %}</span><span>{{ x }}</span></li>{% endfor %}</ul>
-      {% else %}{% include 'career_connect/_missing.html' with what='Required qualifications' %}{% endif %}
-      <h3>Skills</h3>
+      {% endif %}
       {% if role.skill_list %}
+      <h3>Skills</h3>
       <ul class="checks">{% for x in role.skill_list %}<li><span class="tick">{% icon 'check' 13 %}</span><span>{{ x }}</span></li>{% endfor %}</ul>
-      {% else %}{% include 'career_connect/_missing.html' with what='Skills' %}{% endif %}
+      {% endif %}
     </section>
+    {% endif %}
   </div>
 
   <section class="panel" id="apply" aria-labelledby="apply-title" style="margin-top:22px">
     <h2 id="apply-title"><span class="icon-dot">{% icon 'mail' 22 %}</span>How to apply</h2>
     {% if role.how_to_apply %}<div class="prose">{{ role.how_to_apply|linebreaks }}</div>
-    {% elif portal.application_instructions %}<div class="prose">{{ portal.application_instructions|linebreaks }}</div>
-    {% else %}{% include 'career_connect/_missing.html' with what='Application instructions' %}{% endif %}
-
-    {% if portal.contact_email or portal.contact_phone %}
-    <p style="margin:12px 0 0">Questions? Contact us
-      {% if portal.contact_email %}at <a href="mailto:{{ portal.contact_email }}">{{ portal.contact_email }}</a>{% endif %}
-      {% if portal.contact_phone %}{% if portal.contact_email %} or {% endif %}on <a href="tel:{{ portal.contact_phone|cut:' ' }}">{{ portal.contact_phone }}</a>{% endif %}.</p>
-    {% endif %}
+    {% elif portal.application_instructions %}<div class="prose">{{ portal.application_instructions|linebreaks }}</div>{% endif %}
 
     {% if role.apply_method == 'external_link' and role.apply_url %}
       <div class="actions" style="margin-top:16px">
@@ -105,7 +99,6 @@
 
   <div class="actions" style="margin-top:26px">
     <a class="btn btn-light" href="{{ department.get_absolute_url }}">{% icon 'back' 16 %} {{ department.name }}</a>
-    <a class="btn btn-light" href="{% url 'career_connect' %}">Home</a>
   </div>
 </div></div>
 </div>

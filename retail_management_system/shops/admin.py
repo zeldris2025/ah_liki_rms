@@ -246,7 +246,7 @@ class MonthFilter(admin.SimpleListFilter):
 
 @admin.register(ProductSales)
 class ProductSalesAdmin(FastDeleteMixin, admin.ModelAdmin):
-    list_display  = ('product_code', 'product_name', 'month', 'total_sales', 'updated_at')
+    list_display  = ('product_code', 'product_name', 'month', 'total_sales', 'qty', 'updated_at')
     list_filter   = (YearFilter, MonthFilter)
     search_fields = ('product_code', 'product_name')
     date_hierarchy = 'month'

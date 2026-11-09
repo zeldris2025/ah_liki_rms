@@ -1,0 +1,199 @@
+{% extends 'shops/base.html' %}
+{% block content %}
+<style>
+  .pg-top { display:grid; grid-template-columns:minmax(0, 1fr) minmax(0, 1.3fr) auto; gap:14px; align-items:end; padding:18px 20px; }
+  .pg-hint { color:var(--muted); font-size:12px; margin-top:4px; line-height:1.45; }
+  .pg-cols { display:grid; grid-template-columns:minmax(0, 1fr) minmax(0, 1fr); gap:18px; margin-top:18px; align-items:start; }
+  .pg-pane-head { display:flex; justify-content:space-between; align-items:center; gap:10px; padding:14px 16px; border-bottom:1px solid var(--border); flex-wrap:wrap; }
+  .pg-pane-head b { color:var(--primary); }
+  .pg-pane-head small { color:var(--muted); font-size:12px; }
+  .pg-search { padding:12px 16px; border-bottom:1px solid var(--border); display:flex; gap:8px; }
+  .pg-search input { flex:1; height:40px; padding:0 14px; border:1px solid var(--border); border-radius:999px; font-size:14px; outline:none; }
+  .pg-search input:focus { border-color:var(--accent); box-shadow:0 0 0 3px rgba(14,165,233,.15); }
+  .pg-list { max-height:520px; overflow-y:auto; }
+  .pg-row { display:flex; align-items:center; gap:10px; padding:8px 16px; border-bottom:1px solid var(--border); }
+  .pg-row:last-child { border-bottom:none; }
+  .pg-row .who { flex:1; min-width:0; }
+  .pg-row .nm { font-weight:600; color:var(--primary); font-size:13px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .pg-row .cd { color:var(--muted); font-size:11px; }
+  .pg-row .amt { color:var(--text-secondary); font-size:12px; font-variant-numeric:tabular-nums; white-space:nowrap; }
+  .pg-tag { font-size:10px; font-weight:700; padding:2px 7px; border-radius:999px; white-space:nowrap; }
+  .pg-tag.kw { background:#EDE9FE; color:#5B21B6; } .pg-tag.hand { background:#DBEAFE; color:#1E40AF; }
+  .pg-tag.out { background:#FEE2E2; color:#991B1B; } .pg-tag.nosales { background:#FEF3C7; color:#92400E; }
+  .pg-btn { border:1px solid var(--border); background:var(--card); color:var(--primary); border-radius:8px; font:inherit;
+            font-size:12px; font-weight:600; padding:5px 10px; cursor:pointer; white-space:nowrap; }
+  .pg-btn.add { border-color:#86EFAC; color:#166534; background:#F0FDF4; }
+  .pg-btn.rm:hover { border-color:#FCA5A5; color:#991B1B; background:#FEF2F2; }
+  .pg-btn.add:hover { background:#DCFCE7; }
+  .pg-empty { padding:36px 20px; text-align:center; color:var(--muted); font-size:13px; line-height:1.5; }
+  .pg-out { border-top:1px solid var(--border); background:var(--surface); }
+  .pg-out summary { padding:10px 16px; cursor:pointer; color:var(--text-secondary); font-size:13px; font-weight:600; }
+  @media (max-width: 1100px) { .pg-top { grid-template-columns:1fr; } .pg-cols { grid-template-columns:1fr; } }
+</style>
+
+<div class="page-header">
+  <div>
+    <h2 class="page-title">{% if group.pk %}Edit group — {{ group.name }}{% else %}New product group{% endif %}</h2>
+    <p class="page-sub">Pick products by hand, match them by keyword, or both. Groups appear in the Product QTY quick links, measured against last year’s QTY.</p>
+  </div>
+  <a href="{% url 'aj_product_qty' %}" class="btn-sms btn-outline-custom">← Product QTY</a>
+</div>
+
+{% if errors %}<div class="alert alert-danger">{% for e in errors %}<div>{{ e }}</div>{% endfor %}</div>{% endif %}
+
+<form method="post" id="pg-form">
+  {% csrf_token %}
+  <input type="hidden" name="product_codes" id="product_codes" value="{{ group.product_codes }}">
+  <input type="hidden" name="exclude_codes" id="exclude_codes" value="{{ group.exclude_codes }}">
+
+  <div class="sms-card pg-top">
+    <div>
+      <label class="sms-label" for="name">Group name <span style="color:var(--danger)">*</span></label>
+      <input class="sms-input" id="name" name="name" value="{{ group.name }}" maxlength="100" required placeholder="e.g. Tip Top Ice Cream" autofocus>
+    </div>
+    <div>
+      <label class="sms-label" for="keywords">Also include every product whose name or code contains <span style="font-weight:400;color:var(--muted)">(optional)</span></label>
+      <input class="sms-input" id="keywords" name="keywords" value="{{ group.keywords }}" maxlength="255" placeholder="e.g. tip top, tiptop" autocomplete="off">
+      <div class="pg-hint">Comma-separated. New products that match join automatically when uploaded. Leave empty for a hand-picked group.</div>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;padding-bottom:22px">
+      <button type="submit" class="btn-sms btn-primary-custom">{% if group.pk %}Save group{% else %}Create group{% endif %}</button>
+      {% if group.pk %}
+      <button type="submit" name="delete" value="1" formnovalidate class="btn-sms btn-danger-custom sm" title="Delete group"
+              onclick="return confirm('Delete the group {{ group.name|escapejs }}? Its products and QTY aren’t affected.')">🗑</button>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="pg-cols">
+    <!-- Find and add -->
+    <div class="sms-card">
+      <div class="pg-pane-head"><b>Add products</b><small>{{ catalogue|length }} products with QTY</small></div>
+      <div class="pg-search">
+        <input type="search" id="pg-find" placeholder="Search any product by name or code…" autocomplete="off" aria-label="Search products to add">
+        <button type="button" class="pg-btn add" id="pg-add-all" hidden>＋ Add all shown</button>
+      </div>
+      <div class="pg-list" id="pg-results" aria-live="polite"></div>
+    </div>
+
+    <!-- Current members -->
+    <div class="sms-card">
+      <div class="pg-pane-head"><b>In this group <span id="pg-count" style="color:var(--muted);font-weight:400"></span></b>
+        <small id="pg-total"></small></div>
+      <div class="pg-list" id="pg-members"></div>
+      <details class="pg-out" id="pg-out-box" hidden>
+        <summary>Taken out <span id="pg-out-count"></span> · match a keyword but excluded</summary>
+        <div id="pg-out"></div>
+      </details>
+    </div>
+  </div>
+</form>
+
+{{ catalogue|json_script:"pg-catalogue" }}
+{{ picked|json_script:"pg-picked" }}
+{{ excluded|json_script:"pg-excluded" }}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  var all = JSON.parse(document.getElementById('pg-catalogue').textContent)
+              .map(function (r) { return { code: r[0], name: r[1], total: r[2], hay: (r[0] + ' ' + r[1]).toLowerCase() }; });
+  var byCode = {};
+  all.forEach(function (p) { byCode[p.code] = p; });
+  var picked = new Set(JSON.parse(document.getElementById('pg-picked').textContent));
+  var excluded = new Set(JSON.parse(document.getElementById('pg-excluded').textContent));
+  var kwInput = document.getElementById('keywords'), find = document.getElementById('pg-find');
+  var SHOW = 100;
+
+  function $(id) { return document.getElementById(id); }
+  function esc(s) { return String(s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function money(v) { return Number(v).toLocaleString(undefined, { maximumFractionDigits: 0 }); }
+  function keywords() { return kwInput.value.split(',').map(function (k) { return k.trim().toLowerCase(); }).filter(Boolean); }
+  // Same rule as the server: keyword match or picked by hand, unless taken out
+  function byKeyword(p, kws) { return kws.some(function (k) { return p.hay.indexOf(k) !== -1; }); }
+  function inGroup(p, kws) { return (byKeyword(p, kws) || picked.has(p.code)) && !excluded.has(p.code); }
+
+  function add(code) {
+    excluded.delete(code);
+    if (!byKeyword(byCode[code] || { hay: code.toLowerCase() }, keywords())) picked.add(code);
+    render();
+  }
+  function remove(code) {
+    picked.delete(code);
+    var p = byCode[code];
+    if (p && byKeyword(p, keywords())) excluded.add(code);
+    render();
+  }
+
+  function row(p, how, button) {
+    return '<div class="pg-row"><div class="who"><div class="nm" title="' + esc(p.name) + '">' + esc(p.name) + '</div>' +
+      '<div class="cd">' + esc(p.code) + '</div></div>' + (how || '') +
+      (p.total != null ? '<span class="amt">' + money(p.total) + ' units</span>' : '<span class="pg-tag nosales">no QTY yet</span>') + button + '</div>';
+  }
+  function howTag(p, kws) {
+    if (excluded.has(p.code)) return '<span class="pg-tag out">taken out</span>';
+    if (picked.has(p.code)) return '<span class="pg-tag hand">picked</span>';
+    if (byKeyword(p, kws)) return '<span class="pg-tag kw">keyword</span>';
+    return '';
+  }
+
+  function render() {
+    var kws = keywords();
+    // hidden fields the form saves
+    $('product_codes').value = Array.from(picked).join('\n');
+    $('exclude_codes').value = Array.from(excluded).join('\n');
+
+    // members (including hand-picked codes with no QTY uploaded yet)
+    var members = all.filter(function (p) { return inGroup(p, kws); });
+    picked.forEach(function (c) { if (!byCode[c] && !excluded.has(c)) members.push({ code: c, name: c, total: null }); });
+    $('pg-count').textContent = '· ' + members.length;
+    $('pg-total').textContent = members.length ? 'All-time QTY ' + money(members.reduce(function (s, p) { return s + (p.total || 0); }, 0)) : '';
+    $('pg-members').innerHTML = members.length
+      ? members.slice(0, 400).map(function (p) {
+          return row(p, howTag(p, kws), '<button type="button" class="pg-btn rm" data-rm="' + esc(p.code) + '" title="Take out of the group">✕</button>');
+        }).join('') + (members.length > 400 ? '<div class="pg-empty">…and ' + (members.length - 400) + ' more</div>' : '')
+      : '<div class="pg-empty">No products yet.<br>Search on the left and click <b>＋ Add</b>, or type a keyword above.</div>';
+
+    var out = all.filter(function (p) { return excluded.has(p.code) && byKeyword(p, kws); });
+    $('pg-out-box').hidden = !out.length;
+    $('pg-out-count').textContent = '(' + out.length + ')';
+    $('pg-out').innerHTML = out.map(function (p) {
+      return row(p, '', '<button type="button" class="pg-btn add" data-add="' + esc(p.code) + '">↺ Put back</button>');
+    }).join('');
+
+    // search results
+    var q = find.value.trim().toLowerCase();
+    var hits = q ? all.filter(function (p) { return p.hay.indexOf(q) !== -1; }) : [];
+    var addable = hits.filter(function (p) { return !inGroup(p, kws); });
+    $('pg-add-all').hidden = addable.length < 2;
+    $('pg-add-all').textContent = '＋ Add all ' + Math.min(addable.length, SHOW) + ' shown';
+    $('pg-results').innerHTML = !q
+      ? '<div class="pg-empty">Type to search your ' + all.length + ' products, then click <b>＋ Add</b>.<br>Any product can go in any group.</div>'
+      : !hits.length ? '<div class="pg-empty">No products match “' + esc(find.value) + '”.</div>'
+      : hits.slice(0, SHOW).map(function (p) {
+          return inGroup(p, kws)
+            ? row(p, howTag(p, kws), '<button type="button" class="pg-btn rm" data-rm="' + esc(p.code) + '">✓ In group</button>')
+            : row(p, howTag(p, kws), '<button type="button" class="pg-btn add" data-add="' + esc(p.code) + '">＋ Add</button>');
+        }).join('') + (hits.length > SHOW ? '<div class="pg-empty">Showing ' + SHOW + ' of ' + hits.length + '. Keep typing to narrow it down.</div>' : '');
+  }
+
+  document.addEventListener('click', function (e) {
+    var a = e.target.closest('[data-add]'), r = e.target.closest('[data-rm]');
+    if (a) add(a.getAttribute('data-add'));
+    if (r) remove(r.getAttribute('data-rm'));
+  });
+  $('pg-add-all').addEventListener('click', function () {
+    var kws = keywords(), q = find.value.trim().toLowerCase();
+    all.filter(function (p) { return p.hay.indexOf(q) !== -1 && !inGroup(p, kws); }).slice(0, SHOW)
+       .forEach(function (p) { excluded.delete(p.code); if (!byKeyword(p, kws)) picked.add(p.code); });
+    render();
+  });
+  find.addEventListener('input', render);
+  kwInput.addEventListener('input', render);
+  // Enter in the search box shouldn't submit the form
+  find.addEventListener('keydown', function (e) { if (e.key === 'Enter') e.preventDefault(); });
+  render();
+})();
+</script>
+{% endblock %}

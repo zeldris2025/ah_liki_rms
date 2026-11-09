@@ -1,0 +1,20 @@
+{% extends 'shops/_upload_page.html' %}
+{% block upload_title %}⬆ Import Product QTY{% endblock %}
+{% block upload_sub %}Add or update quantities sold per product from a CSV file (Excel → Save As → CSV UTF-8). Safe to upload the same file again.{% endblock %}
+{% block back_url %}{% url 'aj_product_qty' %}{% endblock %}
+{% block back_label %}← Product QTY{% endblock %}
+{% block upload_rules %}
+  <b>How rows are matched</b><br>
+  • One row per product per month. Every row needs a <b>Product Code</b>, a <b>Month</b> and a <b>QTY</b>.<br>
+  • A row with the same <b>Product Code + Month</b> as one already saved <b>replaces its QTY</b>, so re-uploading never counts a month twice.<br>
+  • Rows for the same product and month in one file (e.g. one per invoice) are added together.<br>
+  • Upload last year's months too: every page compares this year with last year.<br>
+  • Rows with a bad month or a QTY that isn't a number are skipped and listed.
+{% endblock %}
+{% block column_rows %}
+  <tr><td><code>Product Code</code></td><td><b>Required.</b> The product's code or SKU, e.g. P1001</td></tr>
+  <tr><td><code>Product Name</code></td><td>For reading; the latest name is shown</td></tr>
+  <tr><td><code>Month</code></td><td><b>Required.</b> e.g. 2026-09, 26-09, Sep-26 or September 2026</td></tr>
+  <tr><td><code>QTY</code></td><td><b>Required.</b> Units sold, e.g. 120 or 1,250 (returns as negatives)</td></tr>
+{% endblock %}
+{% block template_url %}{% url 'aj_template' %}{% endblock %}

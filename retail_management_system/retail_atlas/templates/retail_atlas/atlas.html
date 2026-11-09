@@ -105,6 +105,15 @@
     /* ── Markers & popups ── */
     .pin { width: 14px; height: 14px; border-radius: 50%; border: 2px solid #fff; box-shadow: 0 1px 4px rgba(0,0,0,.45); }
     .pin.manual { border-color: #0F172A; }
+    /* Our companies' sites: a labelled square, so they never read as a client */
+    .co-pin { width: 26px; height: 26px; border-radius: 8px; border: 2px solid #fff; box-shadow: 0 2px 6px rgba(0,0,0,.45); color: #fff;
+              display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 12px; }
+    .co-row { display: flex; align-items: center; gap: 10px; width: 100%; padding: 7px 10px; background: transparent; border: none; border-radius: 9px;
+              color: #fff; font-size: 12px; cursor: pointer; text-align: left; }
+    .co-row:hover { background: rgba(255,255,255,.1); }
+    .co-row .sq { width: 18px; height: 18px; border-radius: 5px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 800; }
+    .co-row .nm { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .co-row .kd { color: rgba(255,255,255,.5); font-size: 11px; white-space: nowrap; }
     .cluster { display: flex; align-items: center; justify-content: center; border-radius: 50%; color: #fff; font-weight: 700; font-size: 12px; border: 3px solid rgba(255,255,255,.85); box-shadow: 0 2px 8px rgba(0,0,0,.35); }
     .leaflet-popup-content-wrapper { border-radius: 12px; }
     .leaflet-popup-content { margin: 14px 16px; min-width: 220px; }
@@ -165,6 +174,10 @@
     </div>
     <div class="section-label">Sales Territories</div>
     <div id="territories"></div>
+    <div id="companies-section" style="display:none">
+      <div class="section-label">Our Companies</div>
+      <div id="companies"></div>
+    </div>
     <details class="unmapped" id="unmapped">
       <summary><span class="section-label" id="unmapped-label"></span></summary>
       <div class="unmapped-hint">These shops have no recognisable village in their address.{% if not is_finance and not is_social %} Click <b>Place</b>, then click the map to pin them — or, when you're standing at the shop, choose <b>Use my location</b>.{% endif %}</div>
@@ -223,7 +236,10 @@
   var satellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
     maxZoom: 19, attribution: 'Imagery &copy; Esri',
   });
-  L.control.layers({ 'Streets': streets, 'Satellite': satellite }, null, { position: 'topright' }).addTo(map);
+  // Our companies' own sites sit on their own layer, above the clients, and can be switched off
+  var companyLayer = L.layerGroup().addTo(map);
+  L.control.layers({ 'Streets': streets, 'Satellite': satellite },
+                   DATA.companies.length ? { 'Our companies': companyLayer } : null, { position: 'topright' }).addTo(map);
 
   function panelPadding() {
     var w = document.getElementById('panel').getBoundingClientRect().width;
@@ -688,6 +704,45 @@
       });
     });
   });
+
+  // ── Our companies (set in the admin: Company Locations) ────────────────
+  var CO_COLORS = ['#0F172A', '#B91C1C', '#15803D', '#1D4ED8', '#7C2D12', '#6D28D9', '#0E7490', '#A16207'];
+  var coColor = {};
+  DATA.companies.map(function (c) { return c.company; })
+    .filter(function (n, i, all) { return all.indexOf(n) === i; }).sort()
+    .forEach(function (n, i) { coColor[n] = CO_COLORS[i % CO_COLORS.length]; });
+  var coMarkers = {};
+  DATA.companies.forEach(function (c) {
+    var icon = L.divIcon({
+      html: '<div class="co-pin" style="background:' + coColor[c.company] + '">' + esc(c.company.charAt(0).toUpperCase()) + '</div>',
+      className: '', iconSize: [26, 26], iconAnchor: [13, 13], popupAnchor: [0, -14],
+    });
+    var m = L.marker([c.lat, c.lng], { icon: icon, title: c.name, zIndexOffset: 1000 }).addTo(companyLayer);
+    m.bindPopup('<div class="pp-name">' + esc(c.name) + '</div>' +
+      '<div class="pp-sub"><span style="color:' + coColor[c.company] + ';font-weight:700">' + esc(c.company) + '</span>' +
+      (c.kind ? ' · ' + esc(c.kind) : '') + (c.address ? ' · ' + esc(c.address) : '') + '</div>' +
+      (c.phone ? '<div class="pp-row">📞 ' + esc(c.phone) + '</div>' : '') +
+      (c.notes ? '<div class="pp-row">' + esc(c.notes) + '</div>' : '') +
+      (c.edit_url ? '<div class="pp-actions"><a href="' + c.edit_url + '">✎ Edit in admin</a></div>' : ''));
+    coMarkers[c.id] = m;
+  });
+  if (DATA.companies.length) {
+    document.getElementById('companies-section').style.display = '';
+    document.getElementById('companies').innerHTML = DATA.companies.map(function (c) {
+      return '<button class="co-row" data-co="' + c.id + '" title="' + esc(c.name) + '">' +
+        '<span class="sq" style="background:' + coColor[c.company] + '">' + esc(c.company.charAt(0).toUpperCase()) + '</span>' +
+        '<span class="nm">' + esc(c.name) + '</span><span class="kd">' + esc(c.kind) + '</span></button>';
+    }).join('');
+    document.getElementById('companies').addEventListener('click', function (e) {
+      var btn = e.target.closest('[data-co]');
+      if (!btn) return;
+      var m = coMarkers[+btn.getAttribute('data-co')];
+      if (!map.hasLayer(companyLayer)) companyLayer.addTo(map);
+      map.setView(m.getLatLng(), Math.max(map.getZoom(), 16));
+      m.openPopup();
+      if (window.innerWidth <= 760) document.getElementById('panel').classList.remove('open');
+    });
+  }
 
   render(true);
 })();

@@ -1,0 +1,124 @@
+{% extends 'shops/base.html' %}
+{% load aj_tags %}
+{% block content %}
+{% include 'aj_sales/_styles.html' %}
+
+<div class="aj-hero">
+  <div>
+    <div class="eyebrow">Product QTY Sales · Analytics</div>
+    <h2>{% if f.product %}{{ product_name }}{% elif f.group %}🗂 {{ f.group.name }}{% else %}{{ f.year }} vs {{ f.compare }}{% endif %}</h2>
+    <p>{% if f.product %}Product {{ f.product }}: {{ f.year }} against {{ f.compare }}, {{ period_label|lower }}.{% elif f.group %}Group of {{ summary.products }} product{{ summary.products|pluralize }} sold: {{ f.year }} against {{ f.compare }}, {{ period_label|lower }}.{% else %}QTY sold in {{ f.year }} against {{ f.compare }}, {{ period_label|lower }}: by month and by product.{% endif %} Pick a quick link on the right to analyse it.</p>
+  </div>
+  <div class="actions">
+    {% if can_export %}<a href="?{{ query }}&export=monthly" class="btn-sms btn-outline-custom">⬇ Export CSV</a>{% endif %}
+    <a href="{% url 'aj_import' %}" class="btn-sms btn-accent-custom">⬆ Import CSV</a>
+  </div>
+</div>
+
+{% if not has_data %}
+<div class="sms-card aj-empty">
+  <div class="icon">📈</div>
+  <h3>Nothing to compare yet</h3>
+  <p>Upload QTY sales for this year and last year and the comparison charts show here.</p>
+  <a href="{% url 'aj_import' %}" class="btn-sms btn-accent-custom">⬆ Import CSV</a>
+</div>
+{% else %}
+
+{% include 'aj_sales/_filters.html' with search=True %}
+<form method="get" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:-8px 0 18px">
+  {% for k, v in request.GET.items %}{% if k != 'product' and k != 'export' %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endif %}{% endfor %}
+  <label for="aj-product" style="font-size:12px;font-weight:700;color:var(--muted)">FOCUS ON ONE PRODUCT</label>
+  <select id="aj-product" name="product" class="sms-input" style="width:auto;max-width:100%" onchange="this.form.submit()">
+    <option value="">All products</option>
+    {% for code, name in product_options %}<option value="{{ code }}" {% if code|lower == f.product|lower %}selected{% endif %}>{{ name }} · {{ code }}</option>{% endfor %}
+  </select>
+</form>
+
+<div class="aj-layout">
+<div>
+<div class="aj-kpis">
+  <div class="aj-kpi main">
+    <div class="label">QTY {{ f.year }}</div>
+    <div class="value">{{ summary.this|qty }}</div>
+    <div class="sub">{% include 'aj_sales/_delta.html' with change=summary.change %} <span>{{ summary.change.n|signed_qty }} units</span></div>
+    <div class="aj-pair" style="margin-top:12px"><i style="width:{{ summary.this|bar:summary.biggest }}%;background:var(--aj-this)"></i><i style="width:{{ summary.last|bar:summary.biggest }}%;background:var(--aj-last)"></i></div>
+  </div>
+  <div class="aj-kpi">
+    <div class="label">QTY {{ f.compare }}</div>
+    <div class="value" style="color:var(--text-secondary)">{{ summary.last|qty }}</div>
+    <div class="sub">{{ period_label }}</div>
+  </div>
+  {% if not f.product %}
+  <div class="aj-kpi">
+    <div class="label">Products</div>
+    <div class="value">{{ summary.products }}</div>
+    <div class="sub"><span class="aj-delta up">▲ {{ summary.up }}</span><span class="aj-delta down">▼ {{ summary.down }}</span></div>
+  </div>
+  {% endif %}
+</div>
+
+<div class="aj-grid">
+  <div class="sms-card aj-card wide">
+    <div class="aj-card-head">
+      <div><h3>Month by month</h3><small>Faded months are outside {{ period_label|lower }}. Hover a month for the % change.</small></div>
+      <div class="aj-legend" aria-hidden="true"><span><i style="background:var(--aj-last)"></i>{{ f.compare }}</span><span><i style="background:var(--aj-this)"></i>{{ f.year }}</span></div>
+    </div>
+    <div class="aj-chart tall"><canvas id="aj-monthly" role="img" aria-label="QTY each month in {{ f.year }} and {{ f.compare }}"></canvas></div>
+  </div>
+  <div class="sms-card aj-card">
+    <div class="aj-card-head">
+      <div><h3>Running total</h3><small>Units so far each year</small></div>
+      <div class="aj-legend" aria-hidden="true"><span><i style="background:var(--aj-last)"></i>{{ f.compare }}</span><span><i style="background:var(--aj-this)"></i>{{ f.year }}</span></div>
+    </div>
+    <div class="aj-chart"><canvas id="aj-cumulative" role="img" aria-label="Running total of QTY"></canvas></div>
+  </div>
+  {% if not f.product %}
+  <div class="sms-card aj-card">
+    <div class="aj-card-head"><div><h3>Biggest movers</h3><small>Units gained (green) or lost (red) vs {{ f.compare }}</small></div></div>
+    {% if chart.movers.labels %}<div class="aj-chart"><canvas id="aj-movers" role="img" aria-label="Products with the biggest change in QTY"></canvas></div>
+    {% else %}<div class="aj-chart-empty">No change between the two years</div>{% endif %}
+  </div>
+  <div class="sms-card aj-card wide">
+    <div class="aj-card-head">
+      <div><h3>Top 10 products</h3><small>{{ period_label }} · {{ f.year }} beside {{ f.compare }}</small></div>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        <div class="aj-legend" aria-hidden="true"><span><i style="background:var(--aj-last)"></i>{{ f.compare }}</span><span><i style="background:var(--aj-this)"></i>{{ f.year }}</span></div>
+        {% if can_export %}<a href="?{{ query }}&export=products" class="aj-chip">⬇ All products CSV</a>{% endif %}
+      </div>
+    </div>
+    {% if chart.top.labels %}<div class="aj-chart tall"><canvas id="aj-top" role="img" aria-label="Top 10 products by QTY"></canvas></div>
+    {% else %}<div class="aj-chart-empty">No products in this period</div>{% endif %}
+  </div>
+  {% endif %}
+</div>
+
+<div class="sms-card" style="overflow-x:auto;margin-bottom:18px">
+  <div class="aj-card-head" style="padding:16px 20px 0"><div><h3>Month by month</h3><small>The numbers behind the chart</small></div>
+    {% if can_export %}<a href="?{{ query }}&export=monthly" class="aj-chip">⬇ CSV</a>{% endif %}</div>
+  <table class="sms-table aj-table">
+    <thead><tr><th>Month</th><th class="n">{{ f.compare }}</th><th class="n">{{ f.year }}</th><th class="n">Change</th><th class="n">%</th></tr></thead>
+    <tbody>
+      {% for m in monthly %}
+      <tr class="{% if not m.picked %}dim{% endif %}">
+        <td><b>{{ m.name }}</b></td>
+        <td class="n">{{ m.last|qty }}</td>
+        <td class="n"><b>{{ m.this|qty }}</b></td>
+        <td class="n">{% if m.change %}{{ m.change.n|signed_qty }}{% else %}—{% endif %}</td>
+        <td class="n">{% if m.change %}{% include 'aj_sales/_delta.html' with change=m.change %}{% else %}<span style="color:var(--muted)">—</span>{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+</div>
+
+<!-- Right: quick links (clicking one filters everything on this page) -->
+<aside class="aj-side" aria-label="Quick links">
+  {% include 'aj_sales/_quick_links.html' %}
+</aside>
+</div>
+
+{% include 'aj_sales/_charts.html' %}
+{% endif %}
+{% endblock %}

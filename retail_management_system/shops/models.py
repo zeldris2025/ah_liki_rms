@@ -356,6 +356,8 @@ class ProductSales(models.Model):
     product_name = models.CharField(max_length=255)
     month        = models.DateField(help_text='Stored as the first day of the month')
     total_sales  = models.DecimalField(max_digits=14, decimal_places=2)
+    qty          = models.DecimalField('QTY', max_digits=14, decimal_places=2, null=True, blank=True,
+                                       help_text='Units sold, when the upload has a QTY column (also fills Product QTY Sales)')
     updated_at   = models.DateTimeField(auto_now=True)
 
     class Meta:

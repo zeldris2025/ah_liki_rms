@@ -11,7 +11,7 @@
      style="--c:{{ department.palette.main }};--c-dark:{{ department.palette.dark }};{% if department.image_url %}--photo:url('{{ department.image_url }}');--photo-opacity:{{ department.photo_opacity }};{% endif %}">
   <div class="wrap">
     <nav class="crumbs" aria-label="Breadcrumb">
-      <a href="{% url 'career_connect' %}">Home</a> › <a href="{% url 'career_connect_careers' %}">Career Opportunities</a> ›
+      <a href="{% url 'career_connect' %}">Career Opportunities</a> ›
       <a href="{{ department.company.get_absolute_url }}">{{ department.company.name }}</a> › {{ department.name }}
     </nav>
     <div class="head-row">
@@ -21,37 +21,30 @@
         <h1>{{ department.name }}</h1>
       </div>
     </div>
+    {% if department.description %}<p>{{ department.description|truncatewords:40 }}</p>{% endif %}
   </div>
 </div>
 
 <div class="page-body"><div class="wrap">
-  <section class="panel" aria-labelledby="about-dept">
-    <h2 id="about-dept">About this department</h2>
-    {% if department.description %}<div class="prose">{{ department.description|linebreaks }}</div>
-    {% else %}{% include 'career_connect/_missing.html' with what='A description of this department' %}{% endif %}
-  </section>
-
-  <section style="margin-top:30px" aria-labelledby="roles">
-    <div class="kicker">Roles</div>
-    <h2 class="section-title" id="roles" style="font-size:26px;margin-bottom:18px">Roles in this department</h2>
+  <section aria-labelledby="roles">
+    <h2 class="section-title" id="roles" style="font-size:24px;margin-bottom:18px">Roles</h2>
     {% for r in roles %}
     <a class="role-row" href="{{ r.get_absolute_url }}" style="--c:{{ department.palette.main }}">
       <span class="body">
         <span class="t">{{ r.title }}</span>
-        <span class="s" style="display:block">{{ r.summary|default:"Tap to see the role details." }}</span>
-        <span class="pill {% if r.recruiting_status == 'open' %}open{% elif r.recruiting_status == 'closed' %}closed{% else %}light{% endif %}">
-          {% if r.recruiting_status == 'not_stated' %}Vacancy status not stated{% else %}{{ r.recruiting_status_label }}{% endif %}</span>
+        {% if r.summary %}<span class="s" style="display:block">{{ r.summary }}</span>{% endif %}
+        {% if r.recruiting_status != 'not_stated' %}<span class="pill {% if r.recruiting_status == 'open' %}open{% else %}closed{% endif %}">
+          {{ r.recruiting_status_label }}</span>{% endif %}
       </span>
       <span class="go">{% icon 'arrow' 18 %}</span>
     </a>
     {% empty %}
-    {% include 'career_connect/_missing.html' with what='Roles for this department' %}
+    <p class="section-lead">No open roles in this department right now.</p>
     {% endfor %}
   </section>
 
   <div class="actions" style="margin-top:26px">
     <a class="btn btn-light" href="{{ department.company.get_absolute_url }}">{% icon 'back' 16 %} {{ department.company.name }}</a>
-    <a class="btn btn-light" href="{% url 'career_connect' %}">Home</a>
   </div>
 </div></div>
 {% endblock %}

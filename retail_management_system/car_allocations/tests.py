@@ -92,17 +92,17 @@ class CarBookingTests(TestCase):
         self.assertEqual(to, ['mele@example.com'])
 
     @override_settings(OFFICE365={'TENANT_ID': 't', 'CLIENT_ID': 'c', 'CLIENT_SECRET': 's', 'SENDER': 'cars@example.com'})
-    def test_email_comes_from_booker_to_every_group_but_fe_boys(self):
-        fe = User.objects.create_user('semo', email='semo@example.com', password='x')
-        fe.groups.add(Group.objects.get_or_create(name='fe_boys')[0])
+    def test_email_comes_from_booker_to_sales_marketing_and_approvers_only(self):
         boss = User.objects.create_user('boss', email='boss@example.com', password='x')
         boss.groups.add(Group.objects.get_or_create(name='Manager')[0])
-        other = User.objects.create_user('lisi', email='lisi@example.com', password='x')
-        other.groups.add(Group.objects.get_or_create(name='Accounts')[0])   # any group but fe_boys
+        User.objects.create_superuser('admin', 'admin@example.com', 'x')
+        for name, group in (('semo', 'fe_boys'), ('hina', 'HR'), ('tala', 'Social'), ('lisi', 'Accounts')):
+            User.objects.create_user(name, email=f'{name}@example.com', password='x').groups.add(
+                Group.objects.get_or_create(name=group)[0])
         User.objects.create_user('nogroup', email='nogroup@example.com', password='x')
         with mock.patch('fe_orders.office365._send_later') as send:
             self.book(self.marketing)
-        self.assertEqual(send.call_args.args[4], ['boss@example.com', 'lisi@example.com', 'sione@example.com'])
+        self.assertEqual(send.call_args.args[4], ['admin@example.com', 'boss@example.com', 'sione@example.com'])
         self.assertEqual(send.call_args.kwargs['sender'], 'mele@example.com')
 
     @override_settings(OFFICE365={'TENANT_ID': 't', 'CLIENT_ID': 'c', 'CLIENT_SECRET': 's', 'SENDER': 'cars@example.com'})

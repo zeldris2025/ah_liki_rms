@@ -1,0 +1,110 @@
+{% extends 'shops/base.html' %}
+{% load aj_tags %}
+{% block content %}
+{% include 'aj_sales/_styles.html' %}
+
+<div class="aj-hero">
+  <div>
+    <div class="eyebrow">Ah Liki Investment Corp · Product QTY Sales</div>
+    <h2>QTY Sales Dashboard</h2>
+    <p>{{ f.year }} against {{ f.compare }}, {{ period_label }}: how many units went out this year compared with the same months last year.</p>
+  </div>
+  <div class="actions">
+    <a href="{% url 'aj_analytics' %}" class="btn-sms btn-outline-custom">🔎 Analytics</a>
+    <a href="{% url 'aj_product_qty' %}" class="btn-sms btn-outline-custom">📦 Product QTY</a>
+    <a href="{% url 'aj_import' %}" class="btn-sms btn-accent-custom">⬆ Import CSV</a>
+  </div>
+</div>
+
+{% if not has_data %}
+<div class="sms-card aj-empty">
+  <div class="icon">📦</div>
+  <h3>No QTY sales yet</h3>
+  <p>Upload your first CSV of quantities sold. Once two years are in, every page compares this year with last year.</p>
+  <a href="{% url 'aj_import' %}" class="btn-sms btn-accent-custom">⬆ Import CSV</a>
+</div>
+{% else %}
+
+<div class="aj-kpis">
+  <div class="aj-kpi main">
+    <div class="label">QTY {{ f.year }} · {{ period_label }}</div>
+    <div class="value">{{ summary.this|qty }}</div>
+    <div class="sub">{% include 'aj_sales/_delta.html' with change=summary.change %} <span>{{ summary.change.n|signed_qty }} vs {{ f.compare }}</span></div>
+    <div class="aj-pair" style="margin-top:12px" title="{{ f.year }} (blue) against {{ f.compare }} (grey)">
+      <i style="width:{{ summary.this|bar:summary.biggest }}%;background:var(--aj-this)"></i>
+      <i style="width:{{ summary.last|bar:summary.biggest }}%;background:var(--aj-last)"></i>
+    </div>
+  </div>
+  <div class="aj-kpi">
+    <div class="label">QTY {{ f.compare }} · same months</div>
+    <div class="value" style="color:var(--text-secondary)">{{ summary.last|qty }}</div>
+    <div class="sub">the comparison</div>
+  </div>
+  {% if month %}
+  <div class="aj-kpi">
+    <div class="label">{{ month.date|date:"F Y" }}</div>
+    <div class="value">{{ month.this|qty }}</div>
+    <div class="sub">{% include 'aj_sales/_delta.html' with change=month.change %} <span>vs {{ month.last|qty }} in {{ month.date|date:"M" }} {{ f.compare }}</span></div>
+  </div>
+  {% endif %}
+  <div class="aj-kpi">
+    <div class="label">Products sold</div>
+    <div class="value">{{ summary.products }}</div>
+    <div class="sub"><span class="aj-delta up">▲ {{ summary.up }} up</span><span class="aj-delta down">▼ {{ summary.down }} down</span></div>
+  </div>
+</div>
+
+<div class="aj-grid">
+  <div class="sms-card aj-card">
+    <div class="aj-card-head">
+      <div><h3>Month by month</h3><small>QTY each month, {{ f.year }} beside {{ f.compare }}</small></div>
+      <div class="aj-legend" aria-hidden="true"><span><i style="background:var(--aj-last)"></i>{{ f.compare }}</span><span><i style="background:var(--aj-this)"></i>{{ f.year }}</span></div>
+    </div>
+    <div class="aj-chart"><canvas id="aj-monthly" role="img" aria-label="QTY each month in {{ f.year }} and {{ f.compare }}"></canvas></div>
+  </div>
+  <div class="sms-card aj-card">
+    <div class="aj-card-head">
+      <div><h3>Running total</h3><small>Is {{ f.year }} ahead of {{ f.compare }}?</small></div>
+      <div class="aj-legend" aria-hidden="true"><span><i style="background:var(--aj-last)"></i>{{ f.compare }}</span><span><i style="background:var(--aj-this)"></i>{{ f.year }}</span></div>
+    </div>
+    <div class="aj-chart"><canvas id="aj-cumulative" role="img" aria-label="Running total of QTY, {{ f.year }} against {{ f.compare }}"></canvas></div>
+  </div>
+</div>
+
+<div class="aj-grid" style="grid-template-columns:minmax(0,1.3fr) minmax(0,1fr) minmax(0,1fr)">
+  <div class="sms-card aj-card">
+    <div class="aj-card-head"><div><h3>Top products</h3><small>{{ period_label }} · {{ f.year }} vs {{ f.compare }}</small></div>
+      <a href="{% url 'aj_product_qty' %}" class="aj-chip">All products →</a></div>
+    <ul class="aj-list">
+      {% for r in top %}
+      <li>
+        <div style="min-width:0">
+          <a class="name" href="{% url 'aj_analytics' %}?product={{ r.code|urlencode }}">{{ r.name }}</a>
+          <div class="meta">{{ r.this|qty }} <span style="opacity:.7">vs {{ r.last|qty }}</span></div>
+        </div>
+        {% include 'aj_sales/_delta.html' with change=r.change %}
+      </li>
+      {% endfor %}
+    </ul>
+  </div>
+  <div class="sms-card aj-card">
+    <div class="aj-card-head"><div><h3>▲ Growing</h3><small>Most extra units vs {{ f.compare }}</small></div></div>
+    <ul class="aj-list">
+      {% for r in gainers %}
+      <li><a class="name" href="{% url 'aj_analytics' %}?product={{ r.code|urlencode }}">{{ r.name }}</a><span class="aj-delta up">{{ r.change.n|signed_qty }}</span></li>
+      {% empty %}<li style="color:var(--muted)">Nothing has grown yet</li>{% endfor %}
+    </ul>
+  </div>
+  <div class="sms-card aj-card">
+    <div class="aj-card-head"><div><h3>▼ Slowing</h3><small>Most units lost vs {{ f.compare }}</small></div></div>
+    <ul class="aj-list">
+      {% for r in losers %}
+      <li><a class="name" href="{% url 'aj_analytics' %}?product={{ r.code|urlencode }}">{{ r.name }}</a><span class="aj-delta down">{{ r.change.n|signed_qty }}</span></li>
+      {% empty %}<li style="color:var(--muted)">Nothing is down 🎉</li>{% endfor %}
+    </ul>
+  </div>
+</div>
+
+{% include 'aj_sales/_charts.html' %}
+{% endif %}
+{% endblock %}

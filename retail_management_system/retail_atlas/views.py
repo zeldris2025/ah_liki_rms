@@ -9,10 +9,8 @@ from django.views.decorators.http import require_POST
 from shops.models import Shop
 
 from .gazetteer import SAVAII_CENTER, UPOLU_CENTER, locate
-from .models import ShopLocation
+from .models import SAMOA_BOUNDS, CompanyLocation, ShopLocation
 
-# Generous box around Upolu, Savaii, Manono and Apolima; rejects stray clicks.
-SAMOA_BOUNDS = {'south': -14.20, 'north': -13.30, 'west': -172.85, 'east': -171.30}
 
 UNASSIGNED = 'Unassigned'
 
@@ -44,6 +42,24 @@ def _shop_payload(shop):
     }
 
 
+def _company_payload(user):
+    """Our own companies' sites (CompanyLocation, set in the admin), with an admin link for those who may edit."""
+    can_edit = user.is_staff and user.has_perm('retail_atlas.change_companylocation')
+    kinds = dict(CompanyLocation.KINDS)
+    return [{
+        'id':       loc.id,
+        'company':  loc.company,
+        'name':     loc.name,
+        'kind':     kinds.get(loc.kind, ''),
+        'address':  loc.address,
+        'phone':    loc.phone,
+        'notes':    loc.notes,
+        'lat':      float(loc.latitude),
+        'lng':      float(loc.longitude),
+        'edit_url': reverse('admin:retail_atlas_companylocation_change', args=[loc.id]) if can_edit else '',
+    } for loc in CompanyLocation.objects.filter(is_published=True)]
+
+
 @login_required(login_url='login')
 def atlas(request):
     shops = [_shop_payload(s) for s in Shop.objects.select_related('atlas_location').order_by('name')]
@@ -53,6 +69,7 @@ def atlas(request):
     return render(request, 'retail_atlas/atlas.html', {
         'atlas_data': {
             'shops':       shops,
+            'companies':   _company_payload(request.user),
             'territories': territories,
             'upolu':       UPOLU_CENTER,
             'savaii':      SAVAII_CENTER,

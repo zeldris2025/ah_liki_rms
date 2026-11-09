@@ -107,6 +107,7 @@ INSTALLED_APPS = [
     'car_allocations',
     'career_connect',
     'social',
+    'aj_sales',
     'import_export',
 ]
 

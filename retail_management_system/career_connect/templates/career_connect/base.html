@@ -44,14 +44,7 @@
     .wordmark { display: flex; flex-direction: column; line-height: 1; }
     .wordmark .w1 { font-weight: 800; font-size: 27px; letter-spacing: .01em; }
     .wordmark .w2 { font-weight: 500; font-size: 10.5px; letter-spacing: .48em; margin-top: 5px; color: #DCE7FA; }
-    .site-nav { display: flex; gap: 6px; margin: 0 auto; }
-    .site-nav a { color: #fff; text-decoration: none; font-weight: 500; font-size: 14px; padding: 9px 18px; border-radius: 8px;
-                  white-space: nowrap; transition: background .15s; }
-    .site-nav a:hover { background: rgba(255,255,255,.1); }
-    .site-nav a[aria-current="page"] { background: var(--blue); box-shadow: 0 4px 14px rgba(30,111,224,.45); }
-    .explore { display: flex; align-items: center; gap: 10px; color: #fff; text-decoration: none; font-size: 13px; line-height: 1.35; flex-shrink: 0; }
-    .explore .ic { color: #7FB2FF; }
-    .explore:hover span { text-decoration: underline; }
+    .header-cta { margin-left: auto; min-height: 40px; padding: 8px 20px; font-size: 14px; }
 
     /* ── Buttons ── */
     .btn { display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 46px; padding: 11px 24px;
@@ -142,13 +135,6 @@
     .role-row .go { width: 36px; height: 36px; border-radius: 50%; background: var(--c); color: #fff; display: grid; place-items: center; flex-shrink: 0; }
 
     /* ── Media ── */
-    .video { position: relative; padding-top: 56.25%; border-radius: 10px; overflow: hidden; background: #000; }
-    .video iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
-    .map { width: 100%; height: 300px; border: 0; border-radius: 10px; margin-top: 12px; }
-    .gallery { display: grid; gap: 14px; grid-template-columns: repeat(auto-fill, minmax(min(100%, 230px), 1fr)); }
-    .gallery figure { margin: 0; background: #fff; border-radius: 10px; overflow: hidden; box-shadow: var(--shadow); }
-    .gallery img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; display: block; }
-    .gallery figcaption { padding: 8px 12px; font-size: 13px; color: var(--muted); }
 
     /* ── Form ── */
     .form-row { margin-bottom: 14px; }
@@ -164,14 +150,11 @@
 
     /* ── Footer ── */
     .site-footer { background: var(--navy); color: #D3E0F5; font-size: 13px; padding: 26px 0 18px; }
-    .footer-top { display: flex; align-items: center; gap: 24px; flex-wrap: wrap; padding-bottom: 18px; border-bottom: 1px solid rgba(255,255,255,.14); }
+    .footer-top { display: flex; align-items: center; justify-content: space-between; gap: 24px; flex-wrap: wrap; padding-bottom: 18px; border-bottom: 1px solid rgba(255,255,255,.14); }
     .footer-top .brand-badge { width: 44px; height: 44px; }
     .footer-top .wordmark .w1 { font-size: 22px; }
     .footer-top .wordmark .w2 { font-size: 9px; }
     .slogan { font-size: 11.5px; color: #fff; margin-top: 8px; font-weight: 500; }
-    .footer-nav { display: flex; gap: 6px 26px; flex-wrap: wrap; margin: 0 auto; }
-    .footer-nav a { color: #fff; text-decoration: none; font-size: 12.5px; }
-    .footer-nav a:hover { text-decoration: underline; }
     .social { display: flex; gap: 10px; }
     .social a { width: 32px; height: 32px; border-radius: 50%; border: 1.5px solid rgba(255,255,255,.75); color: #fff; display: grid; place-items: center; }
     .social a:hover { background: rgba(255,255,255,.14); }
@@ -179,19 +162,14 @@
     .footer-bottom p { margin: 0; }
 
     @media (max-width: 960px) {
-      .explore { display: none; }
-      .dept-grid { grid-template-columns: repeat(2, 1fr); }
+        .dept-grid { grid-template-columns: repeat(2, 1fr); }
     }
     @media (max-width: 760px) {
       .site-header .wrap { flex-wrap: wrap; gap: 8px; padding-top: 10px; padding-bottom: 8px; min-height: 0; }
-      .site-nav { width: 100%; margin: 0; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }
-      .site-nav::-webkit-scrollbar { display: none; }
-      .site-nav a { padding: 8px 14px; font-size: 13.5px; }
       .brand-badge { width: 44px; height: 44px; }
       .wordmark .w1 { font-size: 22px; }
       .panel { padding: 20px; }
-      .footer-nav { margin: 0; }
-    }
+      }
     @media (max-width: 560px) {
       .dept-grid { grid-template-columns: 1fr; }
       .actions .btn { flex: 1 1 100%; }
@@ -208,13 +186,7 @@
         <span class="brand-badge"><img src="{% static 'imgs/ahliki_logo.png' %}" alt="" width="52" height="52"></span>
         <span class="wordmark"><span class="w1">AH LIKI</span><span class="w2">INVESTMENT CORP</span></span>
       </a>
-      <nav class="site-nav" aria-label="Career Connect">
-        <a href="{% url 'career_connect' %}" {% if nav == 'home' %}aria-current="page"{% endif %}>Home</a>
-        <a href="{% url 'career_connect_about' %}" {% if nav == 'about' %}aria-current="page"{% endif %}>About Us</a>
-        <a href="{% url 'career_connect_careers' %}" {% if nav == 'careers' %}aria-current="page"{% endif %}>Career Opportunities</a>
-        <a href="{% url 'career_connect_about' %}#contact">Contact</a>
-      </nav>
-      <a class="explore" href="{% url 'career_connect_careers' %}">{% icon 'people' 30 %}<span>Explore<br>Your Future</span></a>
+      <a class="btn btn-primary header-cta" href="{% url 'career_connect' %}#companies">Career Opportunities</a>
     </div>
   </header>
 
@@ -230,12 +202,6 @@
           </a>
           {% if portal.footer_slogan %}<div class="slogan">{{ portal.footer_slogan }}</div>{% endif %}
         </div>
-        <nav class="footer-nav" aria-label="Footer">
-          <a href="{% url 'career_connect' %}">Home</a>
-          <a href="{% url 'career_connect_about' %}">About Us</a>
-          <a href="{% url 'career_connect_careers' %}">Career Opportunities</a>
-          <a href="{% url 'career_connect_about' %}#contact">Contact</a>
-        </nav>
         {% if portal.social_links %}
         <div class="social">
           {% for name, url in portal.social_links %}

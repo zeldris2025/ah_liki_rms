@@ -1,7 +1,7 @@
 """Tell the rest of the office when someone books a car: a notice under everyone's bell, plus an email.
 
 Email goes through Microsoft 365 (fe_orders.office365), from the booker's own mailbox (the email address on
-their account), to everyone else in every group except fe_boys and Finance, plus admins.
+their account), to everyone else in Sales and Marketing, plus the Managers and admins who approve it.
 The Finance cars are Finance's own: their bookings only go to the Financial Controllers (never admins or Managers).
 """
 from urllib.parse import quote
@@ -68,14 +68,14 @@ def approver(car):
 
 def car_recipients(car, exclude_user):
     """Email addresses for a booking, but not the booker's: for a Finance car, the Financial Controllers; otherwise
-    every active user in any group except fe_boys and Finance, plus admins."""
+    the active Sales and Marketing users, plus the Managers and admins who approve (never HR, Social or fe_boys)."""
     User = get_user_model()
     if car in FINANCE_CARS:
         users = team(car)
     else:
         users = (User.objects.filter(is_active=True)
-                 .filter(Q(is_superuser=True) | Q(groups__isnull=False))
-                 .exclude(groups__name=FE_GROUP).exclude(pk__in=finance_only()))
+                 .filter(Q(is_superuser=True) | Q(groups__name__in=ROLES))
+                 .exclude(groups__name=FE_GROUP))
     users = users.exclude(pk=exclude_user.pk).exclude(email='')
     mine = (exclude_user.email or '').strip().lower()
     return sorted({u.email.strip() for u in users if u.email.strip().lower() != mine})

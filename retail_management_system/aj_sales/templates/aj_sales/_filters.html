@@ -1,0 +1,38 @@
+{% comment %}The year / comparison / period bar shared by Analytics and Product QTY. Pass search=True for the search box.{% endcomment %}
+<form method="get" class="sms-card aj-filters">
+  {% if view %}<input type="hidden" name="view" value="{{ view }}">{% endif %}
+  {% if sort %}<input type="hidden" name="sort" value="{{ sort }}">{% endif %}
+  {% if f.product %}<input type="hidden" name="product" value="{{ f.product }}">{% endif %}
+  {% if f.group %}<input type="hidden" name="group" value="{{ f.group.pk }}">{% endif %}
+  {% if request.GET.lm %}<input type="hidden" name="lm" value="{{ request.GET.lm }}">{% endif %}
+  <div class="grp">
+    <label for="aj-year">Year</label>
+    <select id="aj-year" name="year" class="sms-input" onchange="this.form.submit()">
+      {% for y in f.years %}<option value="{{ y }}" {% if y == f.year %}selected{% endif %}>{{ y }}</option>{% endfor %}
+    </select>
+    <span class="vs">vs</span>
+    <select name="compare" class="sms-input" onchange="this.form.submit()" aria-label="Compare with">
+      {% for y in f.compare_years %}<option value="{{ y }}" {% if y == f.compare %}selected{% endif %}>{{ y }}</option>{% endfor %}
+    </select>
+  </div>
+  <div class="grp">
+    <label for="aj-period">Period</label>
+    <select id="aj-period" name="period" class="sms-input" onchange="this.form.submit()">
+      <option value="ytd" {% if f.period == 'ytd' %}selected{% endif %}>Year to date</option>
+      <option value="full" {% if f.period == 'full' %}selected{% endif %}>Full year</option>
+      <optgroup label="One month">
+        {% for n, m in months %}<option value="{{ n }}" {% if f.period == n|stringformat:'s' %}selected{% endif %}>{{ m }}</option>{% endfor %}
+      </optgroup>
+    </select>
+  </div>
+  {% if search %}
+  <input class="sms-input" name="q" value="{{ f.q }}" placeholder="Search product name or code…" style="flex:1;min-width:200px">
+  <button class="btn-sms btn-primary-custom sm">Search</button>
+  {% endif %}
+  {% if f.q %}<a class="aj-chip" href="?{{ query }}&q=" title="Clear search">“{{ f.q }}” ✕</a>
+    {% if not f.group and not f.product %}<a href="{% url 'aj_group_add' %}?name={{ f.q|title|urlencode }}&keywords={{ f.q|urlencode }}" class="aj-chip" title="Make a quick link for everything matching this search">＋ Save search as group</a>{% endif %}{% endif %}
+  {% if f.group %}<span class="aj-chip" style="background:#F5F3FF;color:#5B21B6">🗂 {{ f.group.name }}
+    <a href="{% url 'aj_group_edit' f.group.pk %}" title="Edit this group" style="color:#5B21B6;text-decoration:none">✎</a>
+    <a href="?{{ query }}&group=" title="Show all products" style="color:#5B21B6;text-decoration:none">✕</a></span>{% endif %}
+  {% if f.product %}<a class="aj-chip" href="?{{ query }}&product=" title="Show all products">📦 {{ f.product }} ✕</a>{% endif %}
+</form>

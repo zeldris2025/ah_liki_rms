@@ -13,7 +13,7 @@ import mimetypes
 from django.conf import settings
 from django.contrib.auth.decorators import login_required, permission_required
 from django.core.cache import cache
-from django.db.models import Count, Prefetch, Q
+from django.db.models import Count, F, Prefetch, Q
 from django.http import FileResponse, Http404, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_GET, require_POST
@@ -21,7 +21,8 @@ from django.views.decorators.http import require_GET, require_POST
 from . import qr
 from .access import MANAGE_PERMISSION
 from .forms import InterestForm
-from .models import Company, CompanyImage, Department, ExpressionOfInterest, PortalSettings, Role, live_roles_q
+from .models import (Company, CompanyImage, Department, ExpressionOfInterest, PortalSettings, Role, live_roles_q,
+                     recruiting_q)
 
 
 def public_page(view):
@@ -56,23 +57,25 @@ def _context(request, **extra):
 @require_GET
 @public_page
 def home(request):
+    # The 'we're hiring' pop-up: live roles currently recruiting, in published departments of published companies,
+    # closing soonest first (undated ones last)
+    hiring = (Role.objects.live().filter(recruiting_q(Role.OPEN), department__is_published=True,
+                                         department__company__is_published=True)
+              .select_related('department__company').order_by(F('expires_on').asc(nulls_last=True), 'title'))
+    hiring = list(hiring)
+    companies = list(_published_companies())
     return render(request, 'career_connect/home.html', _context(
-        request, companies=_published_companies(),
-        images=CompanyImage.objects.filter(is_published=True)[:3], nav='home'))
+        request, companies=companies, hiring=hiring, hiring_count=len(hiring),
+        role_count=sum(c.position_count for c in companies)))
 
 
 @require_GET
-@public_page
 def about(request):
-    return render(request, 'career_connect/about.html', _context(
-        request, images=CompanyImage.objects.filter(is_published=True), nav='about'))
+    """Career Opportunities is the only main page now: old About and Careers links go to it."""
+    return redirect('career_connect')
 
 
-@require_GET
-@public_page
-def careers(request):
-    return render(request, 'career_connect/careers.html', _context(
-        request, companies=_published_companies(), nav='careers'))
+careers = about
 
 
 @require_GET

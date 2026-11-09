@@ -203,7 +203,7 @@
   <button type="button" class="menu-btn" onclick="toggleMenu(true)" aria-label="Open menu">☰</button>
   <div>
     <div class="label">Ah Liki Investment Corp</div>
-    <div class="title">{% if is_finance %}Finance{% elif is_hr %}Human Resources{% else %}Sales and Marketing{% endif %}</div>
+    <div class="title">{% if is_finance %}Finance{% elif is_hr %}Human Resources{% elif is_aj %}Product QTY Sales{% else %}Sales and Marketing{% endif %}</div>
   </div>
 </header>
 <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="toggleMenu(false)"></div>
@@ -215,7 +215,7 @@
     <button type="button" class="sidebar-close" onclick="toggleMenu(false)" aria-label="Close menu">✕</button>
     <div class="sidebar-brand">
       <div class="label">Ah Liki Investment Corp</div>
-      <div class="title">{% if is_finance %}Finance{% elif is_hr %}Human Resources{% else %}Sales and Marketing{% endif %}</div>
+      <div class="title">{% if is_finance %}Finance{% elif is_hr %}Human Resources{% elif is_aj %}Product QTY Sales{% else %}Sales and Marketing{% endif %}</div>
     </div>
     <nav>
       {% with n=request.resolver_match.url_name %}
@@ -225,6 +225,12 @@
       <a href="{% url 'hr_vacancies' %}"     class="nav-item-custom {% if n == 'hr_vacancies' or n == 'hr_vacancy_edit' %}active{% endif %}"><span class="nav-icon">💼</span>Vacancies</a>
       <a href="{% url 'hr_vacancy_add' %}"   class="nav-item-custom {% if n == 'hr_vacancy_add' %}active{% endif %}"><span class="nav-icon">➕</span>Post a Vacancy</a>
       <a href="{% url 'career_connect' %}" target="_blank" rel="noopener" class="nav-item-custom"><span class="nav-icon">🎓</span>View Career Connect ↗</a>
+      {% elif is_aj %}
+      <!-- Product QTY Sales only -->
+      <a href="{% url 'dashboard' %}"        class="nav-item-custom {% if n == 'dashboard' %}active{% endif %}"><span class="nav-icon">📊</span>Dashboard</a>
+      <a href="{% url 'aj_analytics' %}"     class="nav-item-custom {% if n == 'aj_analytics' %}active{% endif %}"><span class="nav-icon">🔎</span>Analytics</a>
+      <a href="{% url 'aj_product_qty' %}"   class="nav-item-custom {% if n == 'aj_product_qty' %}active{% endif %}"><span class="nav-icon">📦</span>Product QTY</a>
+      <a href="{% url 'aj_import' %}"        class="nav-item-custom nav-small {% if n == 'aj_import' %}active{% endif %}"><span class="nav-icon">⬆</span>Import CSV</a>
       {% else %}
       <!-- Main -->
       <a href="{% url 'dashboard' %}"        class="nav-item-custom {% if n == 'dashboard' %}active{% endif %}"><span class="nav-icon">📊</span>Dashboard</a>
@@ -257,6 +263,9 @@
       {% endif %}
       {% if access.social %}
       <a href="{% url 'social_numbers' %}"   class="nav-item-custom {% if n == 'social_numbers' or n == 'social_update' or n == 'social_import' or n == 'social_analytics' and not is_social %}active{% endif %}"><span class="nav-icon">📱</span>Social #s</a>
+      {% endif %}
+      {% if access.aj %}
+      <a href="{% url 'aj_product_qty' %}"   class="nav-item-custom {% if n == 'aj_product_qty' or n == 'aj_analytics' or n == 'aj_import' %}active{% endif %}"><span class="nav-icon">📦</span>Product QTY Sales</a>
       {% endif %}
       {% if access.product_sales %}
       <a href="{% url 'product_sales' %}"    class="nav-item-custom {% if n == 'product_sales' or n == 'product_group_add' or n == 'product_group_edit' %}active{% endif %}"><span class="nav-icon">📈</span>Product Sales</a>
@@ -306,7 +315,7 @@
       <a href="{% url 'import_customer_product_sales' %}" class="nav-item-custom nav-small {% if n == 'import_customer_product_sales' %}active{% endif %}"><span class="nav-icon">⬆</span>Import Customer Product Sales</a>
       <a href="{% url 'import_sponsorships' %}" class="nav-item-custom nav-small {% if n == 'import_sponsorships' %}active{% endif %}"><span class="nav-icon">⬆</span>Import Sponsorships</a>
       {% endif %}
-      {% endif %}{# end of the non-HR menu #}
+      {% endif %}{# end of the non-HR, non-Product QTY Sales menu #}
       {% endwith %}
     </nav>
     <div class="sidebar-footer">
