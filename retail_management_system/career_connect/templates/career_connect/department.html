@@ -36,7 +36,7 @@
         {% if r.recruiting_status != 'not_stated' %}<span class="pill {% if r.recruiting_status == 'open' %}open{% else %}closed{% endif %}">
           {{ r.recruiting_status_label }}</span>{% endif %}
       </span>
-      <span class="go">{% icon 'arrow' 18 %}</span>
+      <span class="apply-btn">Apply now</span>
     </a>
     {% empty %}
     <p class="section-lead">No open roles in this department right now.</p>

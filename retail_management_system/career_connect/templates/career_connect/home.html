@@ -37,8 +37,6 @@
   .job .t { display: block; font-size: 17px; font-weight: 600; color: var(--ink); }
   .job .meta { display: flex; flex-wrap: wrap; gap: 6px 18px; margin-top: 4px; color: var(--muted); font-size: 13.5px; }
   .job .meta span { display: inline-flex; align-items: center; gap: 6px; }
-  .job .apply { display: inline-flex; align-items: center; gap: 8px; font-weight: 600; font-size: 14px; color: var(--blue); white-space: nowrap; }
-  .job:hover .apply { text-decoration: underline; }
 
   /* "We're hiring" pop-up */
   .hiring { width: min(460px, calc(100vw - 32px)); border: 0; border-radius: 16px; padding: 0; color: var(--text);
@@ -57,7 +55,6 @@
   .hiring li a:hover, .hiring li a:focus-visible { background: var(--blue-soft); }
   .hiring li .t { font-weight: 600; display: block; }
   .hiring li small { color: var(--muted); font-size: 12.5px; }
-  .hiring li .go { margin-left: auto; color: var(--blue); flex-shrink: 0; }
   .hiring-foot { display: flex; gap: 10px; padding: 4px 24px 22px; flex-wrap: wrap; }
   .hiring-foot .btn { flex: 1; justify-content: center; }
 
@@ -66,7 +63,8 @@
     .hero::before { background: linear-gradient(180deg, rgba(7,28,69,.9) 0%, rgba(10,37,88,.78) 100%); }
     .hero-text { padding: 48px 0 28px; }
     .stats b { font-size: 24px; }
-    .job { grid-template-columns: 1fr; gap: 8px; padding: 16px 18px; }
+    .job { grid-template-columns: 1fr; gap: 10px; padding: 16px 18px; }
+    .job .apply-btn { justify-self: start; }
   }
 {% endblock %}
 
@@ -114,7 +112,7 @@
             {% if r.expires_on %}<span>{% icon 'clock' 14 %} Closes {{ r.expires_on|date:"j M Y" }}</span>{% endif %}
           </span>
         </span>
-        <span class="apply">View role {% icon 'arrow' 15 %}</span>
+        <span class="apply-btn">Apply now</span>
       </a>
       {% endfor %}
     </div>
@@ -143,7 +141,7 @@
     <li><a href="{{ r.get_absolute_url }}">
       <span><span class="t">{{ r.title }}</span>
         <small>{{ r.place }}{% if r.expires_on %} · Closes {{ r.expires_on|date:"j M" }}{% endif %}</small></span>
-      <span class="go">{% icon 'arrow' 16 %}</span>
+      <span class="apply-btn sm">Apply now</span>
     </a></li>
     {% endfor %}
   </ul>

@@ -1,0 +1,58 @@
+{% extends 'shops/base.html' %}
+{% block content %}
+{% include 'career_connect/hr/_styles.html' %}
+
+<div class="hr-hero">
+  <div>
+    <div class="hr-crumbs"><a href="{% url 'hr_vacancies' %}">Vacancies</a> › Applications</div>
+    <h2>{{ role.title }}</h2>
+    <p>{{ role.place }} · {{ role.get_position_type_display }} · {{ applications|length }} application{{ applications|length|pluralize }}</p>
+  </div>
+  <a href="{% url 'hr_vacancy_edit' role.pk %}" class="btn-sms btn-outline-custom" style="color:#fff;border-color:rgba(255,255,255,.35)">Edit vacancy</a>
+</div>
+
+{% include 'career_connect/hr/_messages.html' %}
+
+{% if applications %}
+<div class="sms-card" style="padding:0;overflow-x:auto">
+  <table class="sms-table hr-apps">
+    <thead>
+      <tr><th>Applicant</th><th>Age</th><th>Village</th><th>Contact</th><th>Experience (highest qualification)</th>
+        {% if role.is_corporate %}<th>Attachments</th>{% endif %}<th>Received</th><th style="text-align:right">Reviewed</th></tr>
+    </thead>
+    <tbody>
+      {% for a in applications %}
+      <tr{% if not a.reviewed %} style="background:#F5F8FF"{% endif %}>
+        <td><b>{{ a.full_name }}</b>{% if not a.reviewed %} <span class="badge-custom badge-purple">New</span>{% endif %}
+          {% if a.school %}<div class="hr-summary">{{ a.school }}</div>{% endif %}
+          {% if a.message %}<div class="hr-summary" title="{{ a.message }}">{{ a.message|truncatewords:20 }}</div>{% endif %}</td>
+        <td>{{ a.age|default:"—" }}</td>
+        <td>{{ a.village|default:"—" }}</td>
+        <td><a href="mailto:{{ a.email }}">{{ a.email }}</a>{% if a.phone %}<div class="hr-summary"><a href="tel:{{ a.phone|cut:' ' }}">{{ a.phone }}</a></div>{% endif %}</td>
+        <td>{{ a.highest_qualification|default:"—" }}</td>
+        {% if role.is_corporate %}
+        <td><div class="hr-files">
+          {% for name, label, f in a.attachments %}<a class="btn-sms sm btn-outline-custom" href="{% url 'hr_application_file' a.pk name %}">⬇ {{ label }}</a>
+          {% empty %}<span style="color:var(--muted)">None</span>{% endfor %}
+        </div></td>
+        {% endif %}
+        <td style="white-space:nowrap">{{ a.created_at|date:"j M Y, g:i A" }}
+          {% if a.email_status %}<div class="hr-summary" title="{{ a.email_status }}">{% if a.email_status|slice:":4" == "Sent" %}✉ Emailed{% elif a.email_status == "Sending" %}✉ Sending…{% elif a.email_status == "Not configured" %}No email set up{% else %}⚠ Email failed{% endif %}</div>{% endif %}</td>
+        <td style="text-align:right">
+          <form method="post" action="{% url 'hr_application_reviewed' a.pk %}">
+            {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
+            {% if a.reviewed %}<button class="btn-sms sm btn-outline-custom" name="reviewed" value="0">✓ Reviewed</button>
+            {% else %}<button class="btn-sms sm btn-accent-custom" name="reviewed" value="1">Mark reviewed</button>{% endif %}
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="sms-card" style="padding:28px;text-align:center;color:var(--muted)">No applications for this position yet.</div>
+{% endif %}
+
+<div style="margin-top:16px"><a href="{% url 'hr_vacancies' %}" class="btn-sms btn-outline-custom">← All vacancies</a></div>
+{% endblock %}

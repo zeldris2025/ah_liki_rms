@@ -135,7 +135,12 @@
     .role-row .body { flex: 1; min-width: 0; }
     .role-row .t { display: block; font-weight: 600; color: var(--ink); font-size: 17px; }
     .role-row .s { color: var(--muted); font-size: 14px; margin: 2px 0 8px; }
-    .role-row .go { width: 36px; height: 36px; border-radius: 50%; background: var(--c); color: #fff; display: grid; place-items: center; flex-shrink: 0; }
+    /* "Apply now" on every position in a list (the whole row is the link) */
+    .apply-btn { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; white-space: nowrap;
+                 background: var(--c, var(--blue)); color: #fff; font-weight: 600; font-size: 14px; padding: 9px 18px; border-radius: 999px;
+                 box-shadow: 0 4px 12px rgba(13,40,92,.15); transition: filter .15s, transform .15s; }
+    a:hover .apply-btn { filter: brightness(1.08); transform: translateY(-1px); }
+    .apply-btn.sm { font-size: 12.5px; padding: 6px 12px; margin-left: auto; }
 
     /* ── Media ── */
 
@@ -175,6 +180,7 @@
       }
     @media (max-width: 560px) {
       .dept-grid { grid-template-columns: 1fr; }
+      .role-row { flex-wrap: wrap; }
       .actions .btn { flex: 1 1 100%; }
     }
     @media (prefers-reduced-motion: reduce) { * { transition: none !important; scroll-behavior: auto !important; } }

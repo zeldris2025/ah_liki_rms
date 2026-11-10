@@ -19,6 +19,7 @@ urlpatterns = [
          name='career_connect_role'),
     path('career-connect/careers/<slug:company_slug>/<slug:dept_slug>/<slug:role_slug>/interest/', views.interest,
          name='career_connect_interest'),
+    path('career-connect/jd/<int:role_id>/',                   views.role_jd,     name='career_connect_role_jd'),
     path('career-connect/images/<int:image_id>/',              views.image,       name='career_connect_image'),
     path('career-connect/images/company/<slug:company_slug>/', views.company_image,
          name='career_connect_company_image'),
@@ -33,4 +34,9 @@ urlpatterns = [
     path('manage/career-connect/vacancies/<int:role_id>/',     hr_views.vacancy_edit,   name='hr_vacancy_edit'),
     path('manage/career-connect/vacancies/<int:role_id>/status/', hr_views.vacancy_status, name='hr_vacancy_status'),
     path('manage/career-connect/vacancies/<int:role_id>/delete/', hr_views.vacancy_delete, name='hr_vacancy_delete'),
+    path('manage/career-connect/vacancies/<int:role_id>/applications/', hr_views.applications, name='hr_applications'),
+    path('manage/career-connect/applications/<int:app_id>/reviewed/', hr_views.application_reviewed,
+         name='hr_application_reviewed'),
+    path('manage/career-connect/applications/<int:app_id>/<str:kind>/', hr_views.application_file,
+         name='hr_application_file'),
 ]

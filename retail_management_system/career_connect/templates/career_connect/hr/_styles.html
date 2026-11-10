@@ -53,6 +53,14 @@
   .hr-step { width: 28px; height: 28px; border-radius: 50%; background: #E0F2FE; color: #0369A1; display: grid; place-items: center; font-weight: 800; font-size: 13px; flex-shrink: 0; }
   .hr-section-head h3 { margin: 0; font-size: 15px; font-weight: 700; color: var(--primary); }
   .hr-section-head p { margin: 2px 0 0; color: var(--muted); font-size: 13px; }
+  .hr-types { display: grid; gap: 10px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .hr-type { display: flex; gap: 10px; align-items: flex-start; border: 1.5px solid var(--border); border-radius: 10px; padding: 12px 14px; cursor: pointer; }
+  .hr-type:has(input:checked) { border-color: var(--accent); background: #EFF6FF; }
+  .hr-type input { margin-top: 4px; accent-color: var(--accent); }
+  .hr-type b { display: block; font-size: 14px; color: var(--primary); }
+  .hr-type small { display: block; color: var(--muted); font-size: 12.5px; line-height: 1.4; margin-top: 2px; }
+  .hr-apps td { vertical-align: top; }
+  .hr-files { display: flex; flex-wrap: wrap; gap: 6px; }
   .hr-two { display: grid; gap: 0 16px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .form-group .help { color: var(--muted); font-size: 12px; margin-top: 4px; }
   .form-group .errorlist { list-style: none; padding: 0; margin: 5px 0 0; color: var(--danger); font-size: 12px; font-weight: 600; }
@@ -77,6 +85,7 @@
   @media (max-width: 760px) {
     .hr-filters { grid-template-columns: 1fr; }
     .hr-two { grid-template-columns: 1fr; }
+    .hr-types { grid-template-columns: 1fr; }
     .hr-hero { padding: 20px; }
     .hr-section { padding: 18px; }
     .hr-summary { max-width: 220px; }

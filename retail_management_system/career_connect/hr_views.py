@@ -6,13 +6,14 @@ departments and the portal settings stay in the Django admin.
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required, permission_required
 from django.db.models import Count, Q
+from django.http import FileResponse, Http404
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
 
 from .access import VACANCY_PERMISSION
 from .forms import VacancyFilterForm, VacancyForm
-from .models import Company, Role, live_roles_q, office_today, recruiting_q
+from .models import Company, ExpressionOfInterest, Role, live_roles_q, office_today, recruiting_q
 
 
 def hr_page(view):
@@ -31,7 +32,7 @@ def _back(request):
 @hr_page
 def vacancies(request):
     roles = Role.objects.select_related('company', 'department').annotate(
-        interest_count=Count('interests', filter=Q(interests__reviewed=False)))
+        interest_count=Count('interests', filter=Q(interests__reviewed=False)), application_count=Count('interests'))
     live = live_roles_q()
     expired = Q(expires_on__lte=office_today())
     stats = roles.aggregate(
@@ -65,7 +66,7 @@ def vacancies(request):
 
 
 def _edit(request, role=None):
-    form = VacancyForm(request.POST or None, instance=role)
+    form = VacancyForm(request.POST or None, request.FILES or None, instance=role)
     if request.method == 'POST' and form.is_valid():
         saved = form.save()
         messages.success(request, f'“{saved.title}” {"updated" if role else "added"} for {saved.place}.')
@@ -116,3 +117,40 @@ def vacancy_delete(request, role_id):
     role.delete()   # expressions of interest already sent are kept (their role is cleared)
     messages.success(request, f'“{role.title}” was removed.')
     return _back(request)
+
+
+@hr_page
+def applications(request, role_id):
+    """Everyone who applied for one position, newest first, with their files."""
+    role = get_object_or_404(Role.objects.select_related('company', 'department'), pk=role_id)
+    return render(request, 'career_connect/hr/applications.html', {
+        'role': role, 'applications': role.interests.all(),
+    })
+
+
+@require_POST
+@hr_page
+def application_reviewed(request, app_id):
+    app = get_object_or_404(ExpressionOfInterest, pk=app_id)
+    app.reviewed = request.POST.get('reviewed') == '1'
+    app.save(update_fields=['reviewed'])
+    return _back(request)
+
+
+@hr_page
+def application_file(request, app_id, kind):
+    """An applicant's CV, cover letter or qualifications: only ever handed out here, to HR, as a download."""
+    app = get_object_or_404(ExpressionOfInterest, pk=app_id)
+    if kind not in dict(ExpressionOfInterest.ATTACHMENTS) or not getattr(app, kind):
+        raise Http404
+    f = getattr(app, kind)
+    try:
+        handle = f.open('rb')
+    except (FileNotFoundError, ValueError):
+        raise Http404('File missing.')
+    ext = f.name.rsplit('.', 1)[-1].lower() if '.' in f.name else 'pdf'
+    label = dict(ExpressionOfInterest.ATTACHMENTS)[kind]
+    response = FileResponse(handle, as_attachment=True, filename=f'{app.full_name} - {label}.{ext}')
+    response['X-Content-Type-Options'] = 'nosniff'
+    response['Cache-Control'] = 'private, no-store'
+    return response

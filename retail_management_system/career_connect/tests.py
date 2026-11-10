@@ -1,3 +1,4 @@
+import os
 import re
 import shutil
 import tempfile
@@ -157,12 +158,35 @@ class PublicPortalTests(TestCase):
         r = self.client.get(reverse('career_connect_role', args=['ah-liki-wholesale', 'finance', 'bookkeeper']))
         self.assertEqual(r.status_code, 404)
 
-    def test_role_page_asks_to_email_hr_for_the_job_description(self):
-        self.accountant.description = 'Secret internal description'
-        self.accountant.save()
+    def test_job_description_email_text_or_file(self):
+        # Nothing given: applicants are asked to email HR
         r = self.client.get(self.accountant.get_absolute_url())
         self.assertContains(r, 'href="mailto:hr@ahliki.com?subject=Accountant')
-        self.assertNotContains(r, 'Secret internal description')
+        self.assertNotContains(r, 'View job description')
+        # Typed: shown instead
+        self.accountant.description = 'Keeps the books balanced.'
+        self.accountant.save()
+        r = self.client.get(self.accountant.get_absolute_url())
+        self.assertContains(r, 'Keeps the books balanced.')
+        self.assertNotContains(r, 'mailto:hr@ahliki.com?subject=Accountant')
+        # Uploaded: a button that opens the file
+        media = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, media, ignore_errors=True)
+        with override_settings(MEDIA_ROOT=media):
+            self.accountant.description = ''
+            self.accountant.jd_file = SimpleUploadedFile('accountant-jd.pdf', b'%PDF-1.4 test', 'application/pdf')
+            self.accountant.save()
+            r = self.client.get(self.accountant.get_absolute_url())
+            self.assertContains(r, 'View job description')
+            self.assertContains(r, f'href="{self.accountant.jd_url}"')
+            self.assertNotContains(r, 'mailto:hr@ahliki.com?subject=Accountant')
+            jd = self.client.get(self.accountant.jd_url)
+            self.assertEqual((jd.status_code, jd['Content-Type']), (200, 'application/pdf'))
+            self.assertIn('inline', jd['Content-Disposition'])
+            jd.close()
+            self.accountant.is_published = False
+            self.accountant.save()
+            self.assertEqual(self.client.get(self.accountant.jd_url).status_code, 404)
 
     def test_role_only_under_its_own_department(self):
         r = self.client.get(reverse('career_connect_role', args=['ah-liki-wholesale', 'marketing', 'accountant']))
@@ -206,25 +230,27 @@ class ExpressionOfInterestTests(TestCase):
         cache.clear()
         self.role = Role.objects.get(slug='accountant')
         self.url = reverse('career_connect_interest', args=['ah-liki-wholesale', 'finance', 'accountant'])
-        self.data = {'full_name': 'Lagi Student', 'email': 'lagi@example.com', 'school': 'Apia High', 'consent': 'on'}
+        self.data = {'full_name': 'Lagi Student', 'age': '19', 'village': 'Vaitele', 'email': 'lagi@example.com',
+                     'phone': '7712345', 'highest_qualification': 'Year 13', 'consent': 'on'}
 
     def enable(self):
         self.role.apply_method = Role.APPLY_FORM
         self.role.save()
 
     def test_form_only_when_enabled(self):
-        self.assertNotContains(self.client.get(self.role.get_absolute_url()), 'Send my interest')
+        self.assertNotContains(self.client.get(self.role.get_absolute_url()), 'Submit application')
         self.assertEqual(self.client.post(self.url, self.data).status_code, 404)
         self.assertFalse(ExpressionOfInterest.objects.exists())
         self.enable()
-        self.assertContains(self.client.get(self.role.get_absolute_url()), 'Send my interest')
+        self.assertContains(self.client.get(self.role.get_absolute_url()), 'Submit application')
 
     def test_submit(self):
         self.enable()
         r = self.client.post(self.url, self.data)
         self.assertRedirects(r, self.role.get_absolute_url() + '?sent=1#apply', fetch_redirect_response=False)
         eoi = ExpressionOfInterest.objects.get()
-        self.assertEqual((eoi.role, eoi.role_title, eoi.full_name), (self.role, 'Accountant', 'Lagi Student'))
+        self.assertEqual((eoi.role, eoi.role_title, eoi.full_name, eoi.age, eoi.village, eoi.highest_qualification),
+                         (self.role, 'Accountant', 'Lagi Student', 19, 'Vaitele', 'Year 13'))
         self.assertContains(self.client.get(self.role.get_absolute_url() + '?sent=1'), 'Thank you')
 
     def test_validation_and_honeypot(self):
@@ -631,7 +657,7 @@ class HRVacancyTests(TestCase):
         return (office_today() + datetime.timedelta(days=1)).isoformat()
 
     def _post(self, **extra):
-        data = {'place': f'd{self.fj_finance.pk}', 'title': 'Accounts Assistant', 'summary': 'Daily bookkeeping',
+        data = {'position_type': Role.CORPORATE, 'place': f'd{self.fj_finance.pk}', 'title': 'Accounts Assistant', 'summary': 'Daily bookkeeping',
                 'expires_on': self._tomorrow(), 'responsibilities': 'Invoices\nReconciliations', 'qualifications': '',
                 'skills': '', 'apply_method': Role.APPLY_NONE, 'apply_email': '', 'apply_url': '',
                 'how_to_apply': '', 'is_published': 'on', **extra}
@@ -682,7 +708,7 @@ class HRVacancyTests(TestCase):
         # Moving it into a department gives it the department address
         dept = Department.objects.create(company=taula, name='Retail', slug='retail')
         r = self.client.post(reverse('hr_vacancy_edit', args=[role.pk]), {
-            'place': f'd{dept.pk}', 'title': 'Store Supervisor', 'expires_on': self._tomorrow(),
+            'position_type': Role.GENERAL, 'place': f'd{dept.pk}', 'title': 'Store Supervisor', 'expires_on': self._tomorrow(),
             'apply_method': Role.APPLY_NONE, 'is_published': 'on'})
         self.assertRedirects(r, reverse('hr_vacancies'))
         role.refresh_from_db()
@@ -693,7 +719,8 @@ class HRVacancyTests(TestCase):
         role = Role.objects.create(company=taula, title='Cashier', slug='cashier', apply_method=Role.APPLY_FORM)
         self.assertEqual(role.interest_url, '/career-connect/careers/taula/roles/cashier/interest/')
         self.client.logout()
-        r = self.client.post(role.interest_url, {'full_name': 'Lagi', 'email': 'lagi@example.com', 'consent': 'on'})
+        r = self.client.post(role.interest_url, {'full_name': 'Lagi', 'age': '20', 'village': 'Apia', 'email': 'lagi@example.com',
+                                                 'phone': '7712345', 'highest_qualification': 'Year 12', 'consent': 'on'})
         self.assertRedirects(r, role.get_absolute_url() + '?sent=1#apply', fetch_redirect_response=False)
         self.assertEqual(role.interests.count(), 1)
 
@@ -721,16 +748,15 @@ class HRVacancyTests(TestCase):
         self.assertContains(listing, 'class="hr-title"', count=2)
         self.assertNotContains(listing, 'Welders')
 
-    def test_apply_button_needs_its_address(self):
-        r = self._post(apply_method=Role.APPLY_EMAIL)
-        self.assertContains(r, 'Enter the email address applications should go to.')
-        self.assertFalse(Role.objects.filter(department=self.fj_finance).exists())
+    def test_hr_vacancies_always_take_applications_on_the_page(self):
+        self._post(apply_method=Role.APPLY_EMAIL)   # not a choice on the HR form any more
+        self.assertEqual(Role.objects.get(department=self.fj_finance).apply_method, Role.APPLY_FORM)
 
     def test_edit_status_and_remove(self):
         self._post()
         role = Role.objects.get(department=self.fj_finance)
         r = self.client.post(reverse('hr_vacancy_edit', args=[role.pk]), {
-            'place': f'd{self.fj_finance.pk}', 'title': 'Senior Accounts Assistant', 'expires_on': self._tomorrow(),
+            'position_type': Role.CORPORATE, 'place': f'd{self.fj_finance.pk}', 'title': 'Senior Accounts Assistant', 'expires_on': self._tomorrow(),
             'apply_method': Role.APPLY_NONE, 'is_published': 'on'})
         self.assertRedirects(r, reverse('hr_vacancies'))
         role.refresh_from_db()
@@ -818,15 +844,190 @@ class HRVacancyTests(TestCase):
         self.assertEqual(Role.objects.get(department__company__slug='ah-liki-wholesale', slug='welders').recruiting_status,
                          Role.NOT_STATED)
 
-    def test_new_vacancy_defaults_to_the_email_apply_button(self):
-        p = PortalSettings.load()
-        p.contact_email = 'careers@ahliki.com'
-        p.save()
+    def test_new_vacancy_is_general_by_default(self):
         form = self.client.get(reverse('hr_vacancy_add')).context['form']
-        self.assertEqual((form['apply_method'].value(), form['apply_email'].value()),
-                         (Role.APPLY_EMAIL, 'careers@ahliki.com'))
-        # Editing keeps the position's own choice
-        self._post()
-        role = Role.objects.get(department=self.fj_finance)
-        form = self.client.get(reverse('hr_vacancy_edit', args=[role.pk])).context['form']
-        self.assertEqual(form['apply_method'].value(), Role.APPLY_NONE)
+        self.assertEqual(form['position_type'].value(), Role.GENERAL)
+        self.assertNotIn('apply_method', form.fields)
+
+
+@override_settings(OFFICE365={})
+class ApplicationTests(TestCase):
+    """General positions take the short form; corporate ones also take files, which only HR can open."""
+
+    def setUp(self):
+        cache.clear()
+        self.media, self.private = tempfile.mkdtemp(), tempfile.mkdtemp()
+        self.override = override_settings(MEDIA_ROOT=self.media, PRIVATE_MEDIA_ROOT=self.private)
+        self.override.enable()
+        self.role = Role.objects.get(slug='accountant')
+        self.role.apply_method = Role.APPLY_FORM
+        self.role.save()
+        self.details = {'full_name': 'Sina Tuala', 'age': '24', 'village': 'Faleasiu', 'email': 'sina@example.com',
+                        'phone': '7654321', 'highest_qualification': 'Diploma in Accounting', 'consent': 'on'}
+
+    def tearDown(self):
+        self.override.disable()
+        shutil.rmtree(self.media, ignore_errors=True)
+        shutil.rmtree(self.private, ignore_errors=True)
+
+    def _files(self):
+        return {'cv': SimpleUploadedFile('cv.pdf', b'%PDF-1.4 cv', 'application/pdf'),
+                'cover_letter': SimpleUploadedFile('letter.docx', b'PK letter', 'application/octet-stream')}
+
+    def test_general_form_asks_for_the_six_details_only(self):
+        r = self.client.get(self.role.get_absolute_url())
+        for label in ('Name', 'Age', 'Village', 'Email', 'Phone number', 'Experience (highest qualification)'):
+            self.assertContains(r, f'>{label} <span aria-hidden="true">*</span>')
+        self.assertNotContains(r, 'type="file"')
+        self.assertNotContains(r, 'multipart/form-data')
+        missing = self.client.post(self.role.interest_url, {**self.details, 'village': ''})
+        self.assertEqual(missing.status_code, 400)
+        self.assertRedirects(self.client.post(self.role.interest_url, self.details),
+                             self.role.get_absolute_url() + '?sent=1#apply', fetch_redirect_response=False)
+
+    def test_corporate_form_needs_cv_and_cover_letter(self):
+        self.role.position_type = Role.CORPORATE
+        self.role.save()
+        r = self.client.get(self.role.get_absolute_url())
+        self.assertContains(r, 'enctype="multipart/form-data"')
+        for name in ('cv', 'cover_letter', 'qualifications_file'):
+            self.assertContains(r, f'name="{name}"')
+        self.assertEqual(self.client.post(self.role.interest_url, self.details).status_code, 400)
+        bad = {**self.details, **self._files(), 'cv': SimpleUploadedFile('cv.exe', b'MZ', 'application/octet-stream')}
+        self.assertEqual(self.client.post(self.role.interest_url, bad).status_code, 400)
+        self.assertFalse(ExpressionOfInterest.objects.exists())
+        r = self.client.post(self.role.interest_url, {**self.details, **self._files()})
+        self.assertEqual(r.status_code, 302)
+        app = ExpressionOfInterest.objects.get()
+        self.assertEqual([label for _, label, _ in app.attachments()], ['CV', 'Cover letter'])
+        # Kept outside MEDIA_ROOT, so /media/ can never hand them out
+        self.assertTrue(app.cv.path.startswith(os.path.abspath(self.private)))
+        self.assertFalse(os.listdir(self.media))
+
+    def test_only_hr_can_see_applications_and_download_files(self):
+        self.role.position_type = Role.CORPORATE
+        self.role.save()
+        self.client.post(self.role.interest_url, {**self.details, **self._files()})
+        app = ExpressionOfInterest.objects.get()
+        page, file_url = reverse('hr_applications', args=[self.role.pk]), reverse('hr_application_file', args=[app.pk, 'cv'])
+        self.assertEqual(self.client.get(file_url).status_code, 302)   # signed out: to the sign-in page
+        sales = User.objects.create_user('sione', password='x')
+        sales.groups.add(Group.objects.get_or_create(name='Sales')[0])
+        self.client.force_login(sales)
+        self.assertEqual(self.client.get(file_url).status_code, 403)
+        self.client.force_login(_user('hr', 'HR'))
+        r = self.client.get(page)
+        for text in ('Sina Tuala', 'Faleasiu', 'Diploma in Accounting', 'sina@example.com', '⬇ CV', '⬇ Cover letter'):
+            self.assertContains(r, text)
+        self.assertContains(self.client.get(reverse('hr_vacancies')), f'href="{page}"')
+        f = self.client.get(file_url)
+        self.assertEqual(f.status_code, 200)
+        self.assertIn('attachment', f['Content-Disposition'])
+        self.assertIn('Sina Tuala - CV.pdf', f['Content-Disposition'])
+        self.assertEqual(b''.join(f.streaming_content), b'%PDF-1.4 cv')
+        self.assertEqual(self.client.get(reverse('hr_application_file', args=[app.pk, 'qualifications_file'])).status_code, 404)
+        self.assertEqual(self.client.get(reverse('hr_application_file', args=[app.pk, 'email'])).status_code, 404)
+        self.client.post(reverse('hr_application_reviewed', args=[app.pk]), {'reviewed': '1'})
+        app.refresh_from_db()
+        self.assertTrue(app.reviewed)
+        # Removing the application removes its files
+        path = app.cv.path
+        app.delete()
+        self.assertFalse(os.path.exists(path))
+
+    def test_general_vacancy_from_hr_drops_the_corporate_details(self):
+        self.client.force_login(_user('hr', 'HR'))
+        dept = Department.objects.get(company__slug='farmer-joe', slug='finance')
+        import datetime
+        from .models import office_today
+        self.client.post(reverse('hr_vacancy_add'), {
+            'position_type': Role.GENERAL, 'place': f'd{dept.pk}', 'title': 'Cashier', 'summary': '',
+            'expires_on': (office_today() + datetime.timedelta(days=3)).isoformat(), 'responsibilities': 'Till',
+            'qualifications': 'Year 12', 'skills': 'Smiling', 'how_to_apply': '', 'is_published': 'on'})
+        role = Role.objects.get(title='Cashier')
+        self.assertEqual((role.position_type, role.responsibilities, role.qualifications, role.skills, role.apply_method),
+                         (Role.GENERAL, '', '', '', Role.APPLY_FORM))
+
+    def test_positions_have_apply_now_buttons(self):
+        self.role.vacancy_status = Role.OPEN
+        self.role.save()
+        for page in (self.role.department.get_absolute_url(), reverse('career_connect'), self.role.get_absolute_url()):
+            self.assertContains(self.client.get(page), 'Apply now')
+        self.assertNotContains(self.client.get(self.role.department.get_absolute_url()), '<span class="go">')
+
+
+@override_settings(OFFICE365={'TENANT_ID': 't', 'CLIENT_ID': 'c', 'CLIENT_SECRET': 's', 'SENDER': 'sms@ahliki.com'},
+                   SITE_URL='https://sms.ahliki.com')
+class ApplicationEmailTests(TestCase):
+    """Each application is emailed to the addresses in the portal settings, from agent@ahliki.com."""
+
+    def setUp(self):
+        cache.clear()
+        self.private = tempfile.mkdtemp()
+        self.override = override_settings(PRIVATE_MEDIA_ROOT=self.private)
+        self.override.enable()
+        self.role = Role.objects.get(slug='accountant')
+        self.role.apply_method, self.role.position_type = Role.APPLY_FORM, Role.CORPORATE
+        self.role.save()
+        self.data = {'full_name': 'Sina Tuala', 'age': '24', 'village': 'Faleasiu', 'email': 'sina@example.com',
+                     'phone': '7654321', 'highest_qualification': 'Diploma', 'consent': 'on'}
+
+    def tearDown(self):
+        self.override.disable()
+        shutil.rmtree(self.private, ignore_errors=True)
+
+    def apply(self, cv=b'%PDF cv', letter=b'%PDF letter'):
+        from unittest import mock
+        with mock.patch('fe_orders.office365._send_later') as send:
+            self.client.post(self.role.interest_url, {
+                **self.data, 'cv': SimpleUploadedFile('cv.pdf', cv), 'cover_letter': SimpleUploadedFile('l.pdf', letter)})
+        return send
+
+    def test_defaults_are_charlie_and_agent(self):
+        p = PortalSettings.load()
+        self.assertEqual((p.application_email_list, p.application_sender), (['charliea@ahliki.com'], 'agent@ahliki.com'))
+
+    def test_application_is_emailed_with_its_files(self):
+        send = self.apply()
+        args, kwargs = send.call_args
+        subject, body, to = args[2], args[3], args[4]
+        self.assertEqual(to, ['charliea@ahliki.com'])
+        self.assertEqual(kwargs['sender'], 'agent@ahliki.com')
+        self.assertEqual(subject, 'New application: Accountant — Sina Tuala')
+        for text in ('Faleasiu', 'sina@example.com', 'Diploma', 'Corporate position',
+                     'https://sms.ahliki.com' + reverse('hr_applications', args=[self.role.pk])):
+            self.assertIn(text, body)
+        self.assertEqual([(n, t, d) for n, t, d in kwargs['attachments']],
+                         [('Sina Tuala - CV.pdf', 'application/pdf', b'%PDF cv'),
+                          ('Sina Tuala - Cover letter.pdf', 'application/pdf', b'%PDF letter')])
+
+    def test_large_files_are_linked_not_attached(self):
+        from fe_orders import office365
+        big = b'x' * (office365.MAX_ATTACHMENTS_BYTES // 2 + 10)
+        send = self.apply(cv=big, letter=big)
+        self.assertEqual(send.call_args.kwargs['attachments'], ())
+        self.assertIn('too large to attach', send.call_args.args[3])
+
+    def test_several_addresses_and_none(self):
+        p = PortalSettings.load()
+        p.application_emails = 'charliea@ahliki.com,\nhr@ahliki.com; boss@ahliki.com'
+        p.save()
+        self.assertEqual(self.apply().call_args.args[4], ['charliea@ahliki.com', 'hr@ahliki.com', 'boss@ahliki.com'])
+        p.application_emails = ''
+        p.save()
+        self.apply().assert_not_called()
+        self.assertEqual(ExpressionOfInterest.objects.order_by('-pk').first().email_status, 'Not configured')
+
+    def test_bad_address_is_refused_in_the_admin(self):
+        from django.core.exceptions import ValidationError
+        p = PortalSettings.load()
+        p.application_emails = 'charliea@ahliki.com, not-an-email'
+        with self.assertRaises(ValidationError):
+            p.clean()
+
+    def test_admin_has_the_fields(self):
+        self.client.force_login(User.objects.create_superuser('boss', 'boss@example.com', 'x'))
+        r = self.client.get(reverse('admin:career_connect_portalsettings_change', args=[PortalSettings.load().pk]))
+        self.assertContains(r, 'name="application_emails"')
+        self.assertContains(r, 'charliea@ahliki.com')
+        self.assertContains(r, 'value="agent@ahliki.com"')

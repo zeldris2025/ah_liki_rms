@@ -53,7 +53,7 @@
   </div>
   <table class="sms-table">
     <thead>
-      <tr><th>Position</th><th>Department</th><th>Status</th><th>Visibility</th><th>New interest</th><th style="text-align:right">Actions</th></tr>
+      <tr><th>Position</th><th>Department</th><th>Status</th><th>Visibility</th><th>Applications</th><th style="text-align:right">Actions</th></tr>
     </thead>
     <tbody>
       {% for r in roles %}
@@ -74,10 +74,12 @@
           {% else %}<span class="badge-custom badge-blue">Live</span>{% endif %}
           {% if r.expires_on %}<div class="hr-summary">{% if r.is_expired %}Since{% else %}Expires{% endif %} {{ r.expires_on|date:"j M Y" }}</div>{% endif %}
         </td>
-        <td>{% if r.interest_count %}<span class="badge-custom badge-purple">{{ r.interest_count }} new</span>{% else %}<span style="color:var(--muted)">—</span>{% endif %}</td>
+        <td>{% if r.application_count %}<a href="{% url 'hr_applications' r.pk %}" style="font-weight:600">{{ r.application_count }}</a>{% if r.interest_count %} <span class="badge-custom badge-purple">{{ r.interest_count }} new</span>{% endif %}{% else %}<span style="color:var(--muted)">—</span>{% endif %}
+          <div class="hr-summary">{{ r.get_position_type_display }}</div></td>
         <td>
           <div class="hr-actions">
             <a href="{% url 'hr_vacancy_edit' r.pk %}" class="btn-sms sm btn-outline-custom">Edit</a>
+            <a href="{% url 'hr_applications' r.pk %}" class="btn-sms sm btn-outline-custom">Applications</a>
             <div class="dropdown hr-menu">
               <button type="button" class="btn-sms sm btn-outline-custom" data-bs-toggle="dropdown" aria-expanded="false" aria-label="More actions for {{ r.title }}">⋯</button>
               <div class="dropdown-menu dropdown-menu-end shadow-sm">

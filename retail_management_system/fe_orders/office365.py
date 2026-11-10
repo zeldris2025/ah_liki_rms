@@ -6,6 +6,7 @@ is sent and orders are simply marked "Not configured".
 
 Send a test email with:  python manage.py office365 test --to you@yourcompany.com
 """
+import base64
 import html
 import json
 import logging
@@ -84,9 +85,14 @@ def access_token():
         return _token['value']
 
 
-def send_mail(to, subject, body_html, sender=None):
+# Graph's sendMail takes attachments inside the request, which must stay under 4 MB once base64-encoded
+MAX_ATTACHMENTS_BYTES = 3 * 1024 * 1024
+
+
+def send_mail(to, subject, body_html, sender=None, attachments=()):
     """Send an HTML email from a mailbox in the tenant: `sender` (e.g. the person who booked a car), or the
     configured OFFICE365_SENDER. Mail.Send as an application permission can send from any mailbox.
+    `attachments`: (file name, content type, bytes), MAX_ATTACHMENTS_BYTES in all.
     Raises Office365Error with Microsoft's reason."""
     sender = sender or _config()['SENDER']
     payload = {'message': {
@@ -94,6 +100,10 @@ def send_mail(to, subject, body_html, sender=None):
         'body': {'contentType': 'HTML', 'content': body_html},
         'toRecipients': [{'emailAddress': {'address': a}} for a in to],
     }, 'saveToSentItems': True}
+    if attachments:
+        payload['message']['attachments'] = [
+            {'@odata.type': '#microsoft.graph.fileAttachment', 'name': name, 'contentType': content_type,
+             'contentBytes': base64.b64encode(data).decode()} for name, content_type, data in attachments]
     _request(f'{GRAPH_URL}/users/{urllib.parse.quote(sender)}/sendMail', json.dumps(payload).encode(),
              {'Content-Type': 'application/json', 'Authorization': f'Bearer {access_token()}'})
 
@@ -176,7 +186,7 @@ def issue_email(issue, url):
 
 # ── Sending in the background ─────────────────────────────────────────────────
 
-def _send_later(model, pk, subject, body, to, label, sender=None):
+def _send_later(model, pk, subject, body, to, label, sender=None, attachments=()):
     """Mark the record 'Sending', then send after the database commit without holding up the page.
     If `sender`'s mailbox refuses (e.g. the address isn't a mailbox in the tenant), it goes from OFFICE365_SENDER instead."""
     model.objects.filter(pk=pk).update(email_status='Sending')
@@ -184,13 +194,13 @@ def _send_later(model, pk, subject, body, to, label, sender=None):
     def send():
         try:
             try:
-                send_mail(to, subject, body, sender)
+                send_mail(to, subject, body, sender, attachments)
                 status = 'Sent' + (f' from {sender}' if sender else '')
             except Office365Error as exc:
                 if not sender or sender.lower() == _config()['SENDER'].lower():
                     raise
                 log.warning('Office 365 email for %s could not be sent from %s (%s); using the shared mailbox', label, sender, exc)
-                send_mail(to, subject, body)
+                send_mail(to, subject, body, attachments=attachments)
                 status = f'Sent from {_config()["SENDER"]} ({sender}: {exc})'
         except (Office365Error, urllib.error.URLError, OSError, ValueError, KeyError) as exc:
             log.exception('Office 365 email for %s failed', label)

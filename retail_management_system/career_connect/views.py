@@ -9,6 +9,7 @@ Content itself is edited in the Django admin.
 """
 import functools
 import mimetypes
+import os
 
 from django.conf import settings
 from django.contrib.auth.decorators import login_required, permission_required
@@ -20,7 +21,8 @@ from django.views.decorators.http import require_GET, require_POST
 
 from . import qr
 from .access import MANAGE_PERMISSION
-from .forms import InterestForm
+from .forms import application_form
+from .notify import notify_new_application
 from .models import (Company, CompanyImage, Department, ExpressionOfInterest, PortalSettings, Role, live_roles_q,
                      public_roles_q, recruiting_q)
 
@@ -112,9 +114,27 @@ def _published_role(company_slug, dept_slug, role_slug):
 @public_page
 def role(request, company_slug, role_slug, dept_slug=None):
     r = _published_role(company_slug, dept_slug, role_slug)
-    form = InterestForm() if r.accepts_interest else None
+    form = application_form(r) if r.accepts_interest else None
     return render(request, 'career_connect/role.html', _context(
         request, role=r, form=form, sent=request.GET.get('sent') == '1', nav='careers'))
+
+
+@require_GET
+@public_page
+def role_jd(request, role_id):
+    """The job description file of a role students can see. Sent inline (not as a download, which some SMS access
+    levels block): the browser shows a PDF and saves a Word file."""
+    r = get_object_or_404(Role.objects.public(), pk=role_id)
+    if not r.jd_file:
+        raise Http404
+    try:
+        f = r.jd_file.open('rb')
+    except (FileNotFoundError, ValueError):
+        raise Http404('Job description file missing.')
+    name = os.path.basename(r.jd_file.name)
+    response = FileResponse(f, filename=name)
+    response['X-Content-Type-Options'] = 'nosniff'
+    return response
 
 
 def _client_ip(request):
@@ -142,7 +162,7 @@ def interest(request, company_slug, role_slug, dept_slug=None):
     r = _published_role(company_slug, dept_slug, role_slug)
     if not r.accepts_interest:
         raise Http404('This role does not take expressions of interest.')
-    form = InterestForm(request.POST)
+    form = application_form(r, request.POST, request.FILES)
     if form.is_valid():
         if form.is_bot():
             return redirect(r.get_absolute_url() + '?sent=1')
@@ -152,6 +172,7 @@ def interest(request, company_slug, role_slug, dept_slug=None):
             eoi = form.save(commit=False)
             eoi.role, eoi.role_title = r, r.title
             eoi.save()
+            notify_new_application(eoi)
             return redirect(r.get_absolute_url() + '?sent=1#apply')
     return render(request, 'career_connect/role.html', _context(
         request, role=r, form=form, sent=False, nav='careers'), status=400)

@@ -10,9 +10,13 @@ from zoneinfo import ZoneInfo
 
 from django.conf import settings
 from django.core.exceptions import ValidationError
-from django.core.validators import FileExtensionValidator, MaxValueValidator, MinValueValidator
+from django.core.files.storage import FileSystemStorage
+from django.core.validators import FileExtensionValidator, MaxValueValidator, MinValueValidator, validate_email
 from django.db import models
 from django.db.models import Q
+from django.db.models.signals import post_delete
+from django.dispatch import receiver
+from django.utils.deconstruct import deconstructible
 from django.urls import reverse
 from django.utils import timezone
 
@@ -60,6 +64,13 @@ class PortalSettings(models.Model):
     application_instructions = models.TextField(
         'general application instructions', blank=True,
         help_text='Shown on every role page that has no instructions of its own.')
+    application_emails = models.TextField(
+        'send applications to', blank=True, default='charliea@ahliki.com',
+        help_text='Who gets an email with each new application (and its CV, cover letter and qualifications). '
+                  'One address per line, or separated by commas. Leave empty to stop the emails.')
+    application_sender = models.EmailField(
+        'send applications from', default='agent@ahliki.com',
+        help_text='The Microsoft 365 mailbox the application emails are sent from.')
     footer_text = models.TextField(blank=True, help_text='Extra line in the footer, e.g. opening hours.')
     footer_slogan = models.CharField(max_length=120, blank=True, help_text='Under the logo in the footer.')
     footer_closing = models.CharField(max_length=160, blank=True, help_text='Bottom-right line of the footer.')
@@ -75,6 +86,17 @@ class PortalSettings(models.Model):
 
     def __str__(self):
         return 'Career Connect portal settings'
+
+    def clean(self):
+        for address in self.application_email_list:
+            try:
+                validate_email(address)
+            except ValidationError:
+                raise ValidationError({'application_emails': f'"{address}" is not an email address.'})
+
+    @property
+    def application_email_list(self):
+        return [a.strip() for a in re.split(r'[,;\s]+', self.application_emails or '') if a.strip()]
 
     def save(self, *args, **kwargs):
         self.pk = 1   # only ever one row
@@ -165,6 +187,12 @@ def _photo_size(file):
 
 
 MAX_ICON_MB = 2
+MAX_JD_MB = 10
+
+
+def _jd_size(file):
+    if file.size > MAX_JD_MB * 1024 * 1024:
+        raise ValidationError(f'The job description must be smaller than {MAX_JD_MB} MB.')
 
 
 def _icon_size(file):
@@ -372,6 +400,11 @@ class Role(models.Model):
         (OPEN, 'Currently recruiting'),
         (CLOSED, 'Not currently recruiting'),
     ]
+    GENERAL, CORPORATE = 'general', 'corporate'
+    TYPE_CHOICES = [
+        (GENERAL, 'General position'),
+        (CORPORATE, 'Corporate position'),
+    ]
     APPLY_NONE, APPLY_FORM, APPLY_LINK, APPLY_EMAIL = 'none', 'interest_form', 'external_link', 'email'
     APPLY_CHOICES = [
         (APPLY_NONE, 'No apply button'),
@@ -384,11 +417,21 @@ class Role(models.Model):
     department = models.ForeignKey(
         Department, on_delete=models.PROTECT, related_name='roles', null=True, blank=True,
         help_text='Optional. Leave empty for a company without departments: the role is listed on the company page.')
+    position_type = models.CharField(
+        'position type', max_length=20, choices=TYPE_CHOICES, default=GENERAL,
+        help_text='General: applicants fill in a short form. Corporate: the full role details, and applicants also '
+                  'upload their CV, cover letter and qualifications.')
     title = models.CharField(max_length=150)
     slug = models.SlugField(max_length=80, help_text='Used in the web address; unique within the department '
                                                      '(or within the company, for roles without a department).')
     summary = models.CharField(max_length=300, blank=True, help_text='One line shown on the department page.')
-    description = models.TextField('job description', blank=True)
+    description = models.TextField(
+        'job description', blank=True,
+        help_text='Optional. Shown on the position page; leave it (and the JD file) empty to ask applicants to email HR.')
+    jd_file = models.FileField(
+        'job description file (JD)', upload_to='career_connect/jd/', blank=True,
+        validators=[FileExtensionValidator(['pdf', 'doc', 'docx']), _jd_size],
+        help_text=f'Optional. A PDF or Word file under {MAX_JD_MB} MB: applicants get a "View job description" button.')
     responsibilities = models.TextField(blank=True, help_text='One per line.')
     qualifications = models.TextField('required qualifications', blank=True, help_text='One per line.')
     skills = models.TextField('skills', blank=True, help_text='One per line.')
@@ -438,6 +481,13 @@ class Role(models.Model):
     @property
     def interest_url(self):
         return self._url('career_connect_interest')
+
+    @property
+    def jd_url(self):
+        """The public address of the uploaded job description ('' if none), with ?v= so a new upload shows."""
+        if not self.jd_file:
+            return ''
+        return reverse('career_connect_role_jd', args=[self.pk]) + '?v=' + quote(os.path.basename(self.jd_file.name))
 
     @property
     def palette(self):
@@ -492,23 +542,81 @@ class Role(models.Model):
     def accepts_interest(self):
         return self.apply_method == self.APPLY_FORM
 
+    @property
+    def is_corporate(self):
+        return self.position_type == self.CORPORATE
+
+
+@deconstructible
+class PrivateStorage(FileSystemStorage):
+    """settings.PRIVATE_MEDIA_ROOT, read when used (so tests can point it elsewhere). It has no public address:
+    the files are only handed out by the HR pages."""
+    @property
+    def base_location(self):
+        return settings.PRIVATE_MEDIA_ROOT
+
+    @property
+    def location(self):
+        return os.path.abspath(self.base_location)
+
+    @property
+    def base_url(self):
+        return None
+
+
+private_storage = PrivateStorage()
+ATTACHMENT_TYPES = ['pdf', 'doc', 'docx', 'jpg', 'jpeg', 'png']
+MAX_ATTACHMENT_MB = 5
+
+
+def _attachment_size(file):
+    if file.size > MAX_ATTACHMENT_MB * 1024 * 1024:
+        raise ValidationError(f'Each file must be smaller than {MAX_ATTACHMENT_MB} MB.')
+
+
+def _attachment(label):
+    return models.FileField(label, upload_to='applications/%Y/%m/', storage=private_storage, blank=True,
+                            validators=[FileExtensionValidator(ATTACHMENT_TYPES), _attachment_size])
+
 
 class ExpressionOfInterest(models.Model):
-    """A student's interest in a role, sent from the public form. Only visible in the admin."""
+    """An application for a role, sent from the public form: the short form for general positions, plus the CV,
+    cover letter and qualifications for corporate ones. HR read them on the vacancy's applications page."""
+    ATTACHMENTS = (('cv', 'CV'), ('cover_letter', 'Cover letter'), ('qualifications_file', 'Qualifications'))
+
     role = models.ForeignKey(Role, on_delete=models.SET_NULL, null=True, related_name='interests')
     role_title = models.CharField(max_length=150, help_text='Kept in case the role is later deleted.')
-    full_name = models.CharField(max_length=120)
+    full_name = models.CharField('name', max_length=120)
+    age = models.PositiveSmallIntegerField(null=True, blank=True, validators=[MinValueValidator(14), MaxValueValidator(99)])
+    village = models.CharField(max_length=120, blank=True)
     email = models.EmailField()
-    phone = models.CharField(max_length=40, blank=True)
-    school = models.CharField('school / institution', max_length=150, blank=True)
-    message = models.TextField(max_length=1500, blank=True)
+    phone = models.CharField('phone number', max_length=40, blank=True)
+    highest_qualification = models.CharField('experience (highest qualification)', max_length=200, blank=True)
+    cv = _attachment('CV')
+    cover_letter = _attachment('cover letter')
+    qualifications_file = _attachment('qualifications')
+    school = models.CharField('school / institution', max_length=150, blank=True)   # earlier form
+    message = models.TextField(max_length=1500, blank=True)                         # earlier form
     created_at = models.DateTimeField(auto_now_add=True)
     reviewed = models.BooleanField(default=False)
+    email_status = models.CharField(max_length=120, blank=True,
+                                    help_text='Whether the application email reached the people in the portal settings.')
 
     class Meta:
         ordering = ('-created_at',)
-        verbose_name = 'expression of interest'
-        verbose_name_plural = 'expressions of interest'
+        verbose_name = 'application'
+        verbose_name_plural = 'applications'
+
+    def attachments(self):
+        """(field name, label, file) for each file this applicant uploaded."""
+        return [(name, label, getattr(self, name)) for name, label in self.ATTACHMENTS if getattr(self, name)]
 
     def __str__(self):
         return f'{self.full_name} — {self.role_title}'
+
+
+@receiver(post_delete, sender=ExpressionOfInterest)
+def _delete_attachments(sender, instance, **kwargs):
+    """Removing an application removes its files too."""
+    for _, _, f in instance.attachments():
+        f.delete(save=False)

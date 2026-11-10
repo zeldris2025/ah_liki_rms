@@ -13,7 +13,7 @@
   {% endif %}
 </div>
 
-<form method="post" novalidate>
+<form method="post" enctype="multipart/form-data" novalidate>
   {% csrf_token %}
   {% if form.non_field_errors %}<div class="sms-card" style="padding:12px 16px;margin-bottom:16px;background:#FEF2F2;border-color:#FCA5A5;color:#991B1B">{{ form.non_field_errors }}</div>{% endif %}
   {% if form.errors %}<div class="sms-card" style="padding:12px 16px;margin-bottom:16px;background:#FEF2F2;border-color:#FCA5A5;color:#991B1B;font-size:14px;font-weight:600">Please check the highlighted fields.</div>{% endif %}
@@ -21,7 +21,22 @@
   <div class="hr-form-grid">
     <div class="sms-card">
       <div class="hr-section">
-        <div class="hr-section-head"><span class="hr-step">1</span><div><h3>The position</h3><p>Where it sits and what it's called.</p></div></div>
+        <div class="hr-section-head"><span class="hr-step">1</span><div><h3>The position</h3><p>What kind of position, where it sits and what it's called.</p></div></div>
+        <div class="form-group{% if form.position_type.errors %} has-error{% endif %}" id="group-position_type">
+          <span class="sms-label">{{ form.position_type.label }} <span style="color:var(--danger)">*</span></span>
+          <div class="hr-types" role="radiogroup" aria-label="{{ form.position_type.label }}">
+            {% for radio in form.position_type %}
+            <label class="hr-type">
+              {{ radio.tag }}
+              <span>
+                <b>{{ radio.choice_label }}</b>
+                <small>{% if radio.data.value == 'corporate' %}Full role details. Applicants fill in their details and upload a CV, cover letter and qualifications.{% else %}Applicants fill in a short form: name, age, village, email, phone and experience.{% endif %}</small>
+              </span>
+            </label>
+            {% endfor %}
+          </div>
+          {{ form.position_type.errors }}
+        </div>
         {% include 'career_connect/hr/_field.html' with field=form.place %}
         {% include 'career_connect/hr/_field.html' with field=form.title %}
         {% include 'career_connect/hr/_field.html' with field=form.summary %}
@@ -29,7 +44,12 @@
         {% if role.is_expired %}<div class="sms-card" style="padding:10px 14px;margin-top:-4px;background:#FEF2F2;border-color:#FCA5A5;color:#991B1B;font-size:13px">This position expired on {{ role.expires_on|date:"j M Y" }} and is no longer on Career Connect. Choose a later date (or clear it) to show it again.</div>{% endif %}
       </div>
       <div class="hr-section">
-        <div class="hr-section-head"><span class="hr-step">2</span><div><h3>About the role</h3><p>Lists are shown as bullet points: put one item per line.</p></div></div>
+        <div class="hr-section-head"><span class="hr-step">2</span><div><h3>Job description</h3><p>Type it, upload the JD, or leave both empty: applicants are then asked to email hr@ahliki.com for it.</p></div></div>
+        {% include 'career_connect/hr/_field.html' with field=form.description %}
+        {% include 'career_connect/hr/_field.html' with field=form.jd_file %}
+      </div>
+      <div class="hr-section" id="corporate-details">
+        <div class="hr-section-head"><span class="hr-step">3</span><div><h3>About the role <span class="badge-custom badge-blue" style="margin-left:4px">Corporate</span></h3><p>Lists are shown as bullet points: put one item per line.</p></div></div>
         <div class="hr-two">
           {% include 'career_connect/hr/_field.html' with field=form.responsibilities %}
           {% include 'career_connect/hr/_field.html' with field=form.qualifications %}
@@ -37,10 +57,7 @@
         {% include 'career_connect/hr/_field.html' with field=form.skills %}
       </div>
       <div class="hr-section">
-        <div class="hr-section-head"><span class="hr-step">3</span><div><h3>How to apply</h3><p>The button students see on the position page.</p></div></div>
-        {% include 'career_connect/hr/_field.html' with field=form.apply_method %}
-        {% include 'career_connect/hr/_field.html' with field=form.apply_email %}
-        {% include 'career_connect/hr/_field.html' with field=form.apply_url %}
+        <div class="hr-section-head"><span class="hr-step" id="apply-step">4</span><div><h3>Applying</h3><p>Applicants apply on the position page; you'll find their applications on the Vacancies list.</p></div></div>
         {% include 'career_connect/hr/_field.html' with field=form.how_to_apply %}
       </div>
     </div>
@@ -61,7 +78,8 @@
         <ul class="hr-tips">
           <li>Students see the position as <b>currently recruiting</b> until the <b>expiry date</b>; on that day it comes off Career Connect by itself.</li>
           <li>Keep the summary to one short sentence.</li>
-          <li>The full job description isn't shown publicly: the page asks students to email hr@ahliki.com for it.</li>
+          <li><b>General</b> positions use the short application form; <b>Corporate</b> positions also ask for a CV, cover letter and qualifications.</li>
+          <li>No job description typed or uploaded? The page asks applicants to email hr@ahliki.com for it.</li>
         </ul>
       </div>
     </aside>
@@ -71,15 +89,17 @@
 
 {% block extra_js %}
 <script>
-// Only show the email / link field that goes with the chosen apply button
+// The role details are only for corporate positions
 (function () {
-  var method = document.getElementById('{{ form.apply_method.id_for_label }}');
-  if (!method) return;
+  var radios = document.querySelectorAll('input[name="position_type"]');
+  var details = document.getElementById('corporate-details'), step = document.getElementById('apply-step');
   function sync() {
-    document.getElementById('group-apply_email').style.display = method.value === 'email' ? '' : 'none';
-    document.getElementById('group-apply_url').style.display = method.value === 'external_link' ? '' : 'none';
+    var checked = document.querySelector('input[name="position_type"]:checked');
+    var corporate = checked && checked.value === 'corporate';
+    details.style.display = corporate ? '' : 'none';
+    step.textContent = corporate ? '4' : '3';
   }
-  method.addEventListener('change', sync);
+  radios.forEach(function (r) { r.addEventListener('change', sync); });
   sync();
 })();
 </script>

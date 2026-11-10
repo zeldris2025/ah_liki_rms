@@ -22,6 +22,12 @@ class PortalSettingsAdmin(admin.ModelAdmin):
         ('Headquarters location', {'fields': ('hq_name', 'hq_address', 'hq_directions',
                                               ('hq_latitude', 'hq_longitude'), 'hq_map_url')}),
         ('Contact and applications', {'fields': ('contact_email', 'contact_phone', 'application_instructions')}),
+        ('Application emails', {
+            'fields': ('application_emails', 'application_sender'),
+            'description': 'Each application is emailed here as it comes in, with the CV, cover letter and '
+                           'qualifications attached (when they are too big for one email, it links to the HR '
+                           'applications page instead). Sent through Microsoft 365.',
+        }),
         ('Footer and social media', {'fields': ('footer_slogan', 'footer_closing', 'footer_text',
                                                 'facebook_url', 'instagram_url', 'linkedin_url')}),
     )
@@ -176,15 +182,16 @@ class DepartmentAdmin(admin.ModelAdmin):
 
 @admin.register(Role)
 class RoleAdmin(admin.ModelAdmin):
-    list_display = ('title', 'company', 'department', 'vacancy_status', 'expires_on', 'apply_method', 'is_published')
-    list_filter = ('company', 'department', 'vacancy_status', 'apply_method', 'is_published')
+    list_display = ('title', 'company', 'department', 'position_type', 'vacancy_status', 'expires_on', 'is_published')
+    list_filter = ('position_type', 'company', 'department', 'vacancy_status', 'apply_method', 'is_published')
     search_fields = ('title', 'summary')
     prepopulated_fields = {'slug': ('title',)}
     fieldsets = (
-        (None, {'fields': ('company', 'department', 'title', 'slug', 'summary', 'order', 'is_published')}),
-        ('Job details', {'fields': ('responsibilities', 'qualifications', 'skills'),
-                         'description': 'The full job description is not shown publicly: the role page asks '
-                                        'students to email hr@ahliki.com for it.'}),
+        (None, {'fields': ('position_type', 'company', 'department', 'title', 'slug', 'summary', 'order', 'is_published')}),
+        ('Job description', {'fields': ('description', 'jd_file'),
+                             'description': 'Type it or upload the JD file (applicants get a "View job description" '
+                                            'button). With neither, the role page asks applicants to email hr@ahliki.com.'}),
+        ('Role details (corporate positions)', {'fields': ('responsibilities', 'qualifications', 'skills')}),
         ('Vacancy and applying', {'fields': ('vacancy_status', 'expires_on', 'how_to_apply', 'apply_method', 'apply_url',
                                              'apply_email')}),
     )
@@ -199,11 +206,13 @@ class CompanyImageAdmin(admin.ModelAdmin):
 
 @admin.register(ExpressionOfInterest)
 class ExpressionOfInterestAdmin(admin.ModelAdmin):
-    list_display = ('full_name', 'role_title', 'email', 'phone', 'school', 'created_at', 'reviewed')
+    list_display = ('full_name', 'role_title', 'age', 'village', 'email', 'phone', 'created_at', 'email_status', 'reviewed')
     list_filter = ('reviewed', 'role__company', 'role__department', 'created_at')
     list_editable = ('reviewed',)
-    search_fields = ('full_name', 'email', 'school', 'role_title')
-    readonly_fields = ('role', 'role_title', 'full_name', 'email', 'phone', 'school', 'message', 'created_at')
+    search_fields = ('full_name', 'email', 'village', 'role_title')
+    readonly_fields = ('role', 'role_title', 'full_name', 'age', 'village', 'email', 'phone', 'highest_qualification',
+                       'school', 'message', 'created_at', 'email_status')
+    exclude = ('cv', 'cover_letter', 'qualifications_file')   # downloaded from the HR applications page
 
     def has_add_permission(self, request):
         return False   # they only come from the public form

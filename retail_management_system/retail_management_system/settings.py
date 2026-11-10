@@ -206,6 +206,8 @@ STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.environ.get('MEDIA_ROOT') or os.path.join(DATA_DIR, 'media')
+# Files only HR may open (job applicants' CVs, cover letters, certificates): outside MEDIA_ROOT, so /media/ never serves them
+PRIVATE_MEDIA_ROOT = os.environ.get('PRIVATE_MEDIA_ROOT') or os.path.join(DATA_DIR, 'private')
 
 # Authentication
 LOGIN_URL = 'login'

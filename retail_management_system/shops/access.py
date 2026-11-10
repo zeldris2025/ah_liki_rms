@@ -12,7 +12,7 @@ from django.shortcuts import redirect, render
 from django.urls import Resolver404, resolve
 
 from aj_sales.access import AJ_GROUP, AJ_URL_NAMES
-from career_connect.access import HR_ALLOWED, HR_GROUP, PUBLIC_URL_NAMES as CAREER_CONNECT_PUBLIC
+from career_connect.access import HR_ALLOWED, HR_DOWNLOADS, HR_GROUP, PUBLIC_URL_NAMES as CAREER_CONNECT_PUBLIC
 from social.access import SOCIAL_GROUP, SOCIAL_URL_NAMES
 
 SALES, MARKETING, MANAGER = 'Sales', 'Marketing', 'Manager'
@@ -210,6 +210,7 @@ class RoleAccessMiddleware:
         the vacancies list."""
         from django.conf import settings
         request.is_hr, request.can_export, request.blocked_areas = True, False, set(AREAS)
+        name = ''
         if not request.path_info.startswith((settings.STATIC_URL, settings.MEDIA_URL)):
             try:
                 match = resolve(request.path_info)
@@ -221,7 +222,7 @@ class RoleAccessMiddleware:
             if match and (match.app_name == 'admin' or name not in HR_ALLOWED):
                 return deny(request, 'the admin site' if match.app_name == 'admin' else 'this page')
         response = self.get_response(request)
-        if 'attachment' in response.get('Content-Disposition', ''):
+        if 'attachment' in response.get('Content-Disposition', '') and name not in HR_DOWNLOADS:
             return deny(request, 'downloads and exports')
         return response
 
