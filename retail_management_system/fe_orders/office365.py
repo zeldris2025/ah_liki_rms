@@ -51,8 +51,8 @@ def is_configured(kind=None):
     return ready and (kind is None or bool(recipients(kind)))
 
 
-def _request(url, data=None, headers=None):
-    req = urllib.request.Request(url, data=data, headers=headers or {})
+def _request(url, data=None, headers=None, method=None):
+    req = urllib.request.Request(url, data=data, headers=headers or {}, method=method)
     try:
         with urllib.request.urlopen(req, timeout=20) as resp:
             body = resp.read().decode()
@@ -85,27 +85,65 @@ def access_token():
         return _token['value']
 
 
-# Graph's sendMail takes attachments inside the request, which must stay under 4 MB once base64-encoded
+# A Graph request must stay under 4 MB, so attachments sent inside one (base64 adds a third) stay under 3 MB.
+# Bigger ones go up separately to a draft (an upload session, in chunks), which needs Mail.ReadWrite as well.
 MAX_ATTACHMENTS_BYTES = 3 * 1024 * 1024
+UPLOAD_CHUNK_BYTES = 320 * 1024 * 10   # under Graph's 4 MB per chunk
+
+
+def _file_attachment(name, content_type, data):
+    return {'@odata.type': '#microsoft.graph.fileAttachment', 'name': name, 'contentType': content_type,
+            'contentBytes': base64.b64encode(data).decode()}
 
 
 def send_mail(to, subject, body_html, sender=None, attachments=()):
     """Send an HTML email from a mailbox in the tenant: `sender` (e.g. the person who booked a car), or the
     configured OFFICE365_SENDER. Mail.Send as an application permission can send from any mailbox.
-    `attachments`: (file name, content type, bytes), MAX_ATTACHMENTS_BYTES in all.
+    `attachments`: (file name, content type, bytes). Up to MAX_ATTACHMENTS_BYTES in all they go in the one request;
+    more than that needs the Mail.ReadWrite permission too (see _send_large).
     Raises Office365Error with Microsoft's reason."""
     sender = sender or _config()['SENDER']
-    payload = {'message': {
+    message = {
         'subject': subject,
         'body': {'contentType': 'HTML', 'content': body_html},
         'toRecipients': [{'emailAddress': {'address': a}} for a in to],
-    }, 'saveToSentItems': True}
+    }
+    if sum(len(data) for _, _, data in attachments) > MAX_ATTACHMENTS_BYTES:
+        return _send_large(sender, message, attachments)
     if attachments:
-        payload['message']['attachments'] = [
-            {'@odata.type': '#microsoft.graph.fileAttachment', 'name': name, 'contentType': content_type,
-             'contentBytes': base64.b64encode(data).decode()} for name, content_type, data in attachments]
-    _request(f'{GRAPH_URL}/users/{urllib.parse.quote(sender)}/sendMail', json.dumps(payload).encode(),
+        message['attachments'] = [_file_attachment(*a) for a in attachments]
+    _request(f'{GRAPH_URL}/users/{urllib.parse.quote(sender)}/sendMail',
+             json.dumps({'message': message, 'saveToSentItems': True}).encode(),
              {'Content-Type': 'application/json', 'Authorization': f'Bearer {access_token()}'})
+
+
+def _send_large(sender, message, attachments):
+    """Draft the message, add each attachment (big ones through an upload session, in chunks), then send it."""
+    auth = {'Authorization': f'Bearer {access_token()}'}
+    box = f'{GRAPH_URL}/users/{urllib.parse.quote(sender)}/messages'
+    draft = _request(box, json.dumps(message).encode(), {**auth, 'Content-Type': 'application/json'})
+    url = f"{box}/{urllib.parse.quote(draft['id'], safe='')}"
+    try:
+        for name, content_type, data in attachments:
+            if len(data) <= MAX_ATTACHMENTS_BYTES:
+                _request(f'{url}/attachments', json.dumps(_file_attachment(name, content_type, data)).encode(),
+                         {**auth, 'Content-Type': 'application/json'})
+                continue
+            session = _request(f'{url}/attachments/createUploadSession', json.dumps({'AttachmentItem': {
+                'attachmentType': 'file', 'name': name, 'size': len(data), 'contentType': content_type}}).encode(),
+                {**auth, 'Content-Type': 'application/json'})
+            for start in range(0, len(data), UPLOAD_CHUNK_BYTES):   # the upload address carries its own token
+                chunk = data[start:start + UPLOAD_CHUNK_BYTES]
+                _request(session['uploadUrl'], chunk, {
+                    'Content-Type': 'application/octet-stream', 'Content-Length': str(len(chunk)),
+                    'Content-Range': f'bytes {start}-{start + len(chunk) - 1}/{len(data)}'}, method='PUT')
+        _request(f'{url}/send', b'', {**auth, 'Content-Length': '0'}, method='POST')
+    except Office365Error:
+        try:   # don't leave a half-built draft in the mailbox
+            _request(url, headers=auth, method='DELETE')
+        except Office365Error:
+            pass
+        raise
 
 
 # ── Email bodies ───────────────────────────────────────────────────────────────
@@ -186,7 +224,7 @@ def issue_email(issue, url):
 
 # ── Sending in the background ─────────────────────────────────────────────────
 
-def _send_later(model, pk, subject, body, to, label, sender=None, attachments=()):
+def _send_later(model, pk, subject, body, to, label, sender=None):
     """Mark the record 'Sending', then send after the database commit without holding up the page.
     If `sender`'s mailbox refuses (e.g. the address isn't a mailbox in the tenant), it goes from OFFICE365_SENDER instead."""
     model.objects.filter(pk=pk).update(email_status='Sending')
@@ -194,13 +232,13 @@ def _send_later(model, pk, subject, body, to, label, sender=None, attachments=()
     def send():
         try:
             try:
-                send_mail(to, subject, body, sender, attachments)
+                send_mail(to, subject, body, sender)
                 status = 'Sent' + (f' from {sender}' if sender else '')
             except Office365Error as exc:
                 if not sender or sender.lower() == _config()['SENDER'].lower():
                     raise
                 log.warning('Office 365 email for %s could not be sent from %s (%s); using the shared mailbox', label, sender, exc)
-                send_mail(to, subject, body, attachments=attachments)
+                send_mail(to, subject, body)
                 status = f'Sent from {_config()["SENDER"]} ({sender}: {exc})'
         except (Office365Error, urllib.error.URLError, OSError, ValueError, KeyError) as exc:
             log.exception('Office 365 email for %s failed', label)

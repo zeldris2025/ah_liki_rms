@@ -976,47 +976,85 @@ class ApplicationEmailTests(TestCase):
         self.override.disable()
         shutil.rmtree(self.private, ignore_errors=True)
 
-    def apply(self, cv=b'%PDF cv', letter=b'%PDF letter'):
+    def apply(self, cv=b'%PDF cv', letter=b'%PDF letter', quals=None, send_mail=None):
+        """Submit a corporate application, running the email in line; returns the send_mail calls."""
         from unittest import mock
-        with mock.patch('fe_orders.office365._send_later') as send:
-            self.client.post(self.role.interest_url, {
-                **self.data, 'cv': SimpleUploadedFile('cv.pdf', cv), 'cover_letter': SimpleUploadedFile('l.pdf', letter)})
-        return send
+        calls = []
+
+        def fake(to, subject, body, sender=None, attachments=()):
+            calls.append({'to': to, 'subject': subject, 'body': body, 'sender': sender, 'files': list(attachments)})
+            if send_mail:
+                send_mail(sender, list(attachments))
+        files = {'cv': SimpleUploadedFile('cv.pdf', cv), 'cover_letter': SimpleUploadedFile('l.pdf', letter)}
+        if quals is not None:
+            files['qualifications_file'] = SimpleUploadedFile('certs.pdf', quals)
+        with mock.patch('fe_orders.office365.send_mail', fake),                 mock.patch('threading.Thread', lambda target, args, daemon: mock.Mock(start=lambda: target(*args))),                 self.captureOnCommitCallbacks(execute=True):
+            self.client.post(self.role.interest_url, {**self.data, **files})
+        return calls
+
+    def latest(self):
+        return ExpressionOfInterest.objects.order_by('-pk').first()
 
     def test_defaults_are_charlie_and_agent(self):
         p = PortalSettings.load()
         self.assertEqual((p.application_email_list, p.application_sender), (['charliea@ahliki.com'], 'agent@ahliki.com'))
 
-    def test_application_is_emailed_with_its_files(self):
-        send = self.apply()
-        args, kwargs = send.call_args
-        subject, body, to = args[2], args[3], args[4]
-        self.assertEqual(to, ['charliea@ahliki.com'])
-        self.assertEqual(kwargs['sender'], 'agent@ahliki.com')
-        self.assertEqual(subject, 'New application: Accountant — Sina Tuala')
-        for text in ('Faleasiu', 'sina@example.com', 'Diploma', 'Corporate position',
+    def test_application_is_emailed_with_all_its_files(self):
+        calls = self.apply(quals=b'%PDF certs')
+        self.assertEqual(len(calls), 1)
+        c = calls[0]
+        self.assertEqual((c['to'], c['sender'], c['subject']),
+                         (['charliea@ahliki.com'], 'agent@ahliki.com', 'New application: Accountant — Sina Tuala'))
+        for text in ('Faleasiu', 'sina@example.com', 'Diploma', 'Corporate position', 'CV, Cover letter, Qualifications',
                      'https://sms.ahliki.com' + reverse('hr_applications', args=[self.role.pk])):
-            self.assertIn(text, body)
-        self.assertEqual([(n, t, d) for n, t, d in kwargs['attachments']],
-                         [('Sina Tuala - CV.pdf', 'application/pdf', b'%PDF cv'),
-                          ('Sina Tuala - Cover letter.pdf', 'application/pdf', b'%PDF letter')])
+            self.assertIn(text, c['body'])
+        self.assertEqual(c['files'], [('Sina Tuala - CV.pdf', 'application/pdf', b'%PDF cv'),
+                                      ('Sina Tuala - Cover letter.pdf', 'application/pdf', b'%PDF letter'),
+                                      ('Sina Tuala - Qualifications.pdf', 'application/pdf', b'%PDF certs')])
+        self.assertEqual(self.latest().email_status, 'Sent from agent@ahliki.com with 3 files')
 
-    def test_large_files_are_linked_not_attached(self):
+    def test_large_packages_still_attach_everything(self):
+        from fe_orders import office365
+        big = b'x' * (office365.MAX_ATTACHMENTS_BYTES // 2 + 10)   # together well over one plain email
+        calls = self.apply(cv=big, letter=big, quals=b'%PDF certs')
+        self.assertEqual(len(calls[0]['files']), 3)
+        self.assertNotIn('Not attached', calls[0]['body'])
+        self.assertEqual(self.latest().email_status, 'Sent from agent@ahliki.com with 3 files')
+
+    def test_without_the_upload_permission_sends_what_fits(self):
         from fe_orders import office365
         big = b'x' * (office365.MAX_ATTACHMENTS_BYTES // 2 + 10)
-        send = self.apply(cv=big, letter=big)
-        self.assertEqual(send.call_args.kwargs['attachments'], ())
-        self.assertIn('too large to attach', send.call_args.args[3])
+
+        def refuse_big(sender, files):
+            if sum(len(f[2]) for f in files) > office365.MAX_ATTACHMENTS_BYTES:
+                raise office365.Office365Error('HTTP 403: ErrorAccessDenied')
+        calls = self.apply(cv=big, letter=big, quals=b'%PDF certs', send_mail=refuse_big)
+        sent = calls[-1]
+        # The certificates and the CV fit; the cover letter is named instead
+        self.assertEqual([f[0] for f in sent['files']], ['Sina Tuala - CV.pdf', 'Sina Tuala - Qualifications.pdf'])
+        self.assertIn('Not attached (too large)', sent['body'])
+        self.assertIn('Cover letter: download from the applications page', sent['body'])
+        self.assertTrue(self.latest().email_status.startswith('Sent from agent@ahliki.com with 2 files; not attached: Cover letter'))
+
+    def test_falls_back_to_the_system_mailbox(self):
+        from fe_orders import office365
+
+        def refuse_agent(sender, files):
+            if sender == 'agent@ahliki.com':
+                raise office365.Office365Error('HTTP 404: mailbox not found')
+        calls = self.apply(send_mail=refuse_agent)
+        self.assertEqual([c['sender'] for c in calls], ['agent@ahliki.com', None])
+        self.assertTrue(self.latest().email_status.startswith('Sent from sms@ahliki.com with 2 files'))
 
     def test_several_addresses_and_none(self):
         p = PortalSettings.load()
         p.application_emails = 'charliea@ahliki.com,\nhr@ahliki.com; boss@ahliki.com'
         p.save()
-        self.assertEqual(self.apply().call_args.args[4], ['charliea@ahliki.com', 'hr@ahliki.com', 'boss@ahliki.com'])
+        self.assertEqual(self.apply()[0]['to'], ['charliea@ahliki.com', 'hr@ahliki.com', 'boss@ahliki.com'])
         p.application_emails = ''
         p.save()
-        self.apply().assert_not_called()
-        self.assertEqual(ExpressionOfInterest.objects.order_by('-pk').first().email_status, 'Not configured')
+        self.assertEqual(self.apply(), [])
+        self.assertEqual(self.latest().email_status, 'Not configured')
 
     def test_bad_address_is_refused_in_the_admin(self):
         from django.core.exceptions import ValidationError
@@ -1031,3 +1069,56 @@ class ApplicationEmailTests(TestCase):
         self.assertContains(r, 'name="application_emails"')
         self.assertContains(r, 'charliea@ahliki.com')
         self.assertContains(r, 'value="agent@ahliki.com"')
+
+
+@override_settings(OFFICE365={'TENANT_ID': 't', 'CLIENT_ID': 'c', 'CLIENT_SECRET': 's', 'SENDER': 'sms@ahliki.com'})
+class LargeAttachmentMailTests(TestCase):
+    """Over 3 MB of files: a draft, each file added (big ones uploaded in chunks), then sent."""
+
+    def run_send(self, files, fail_on=None):
+        from unittest import mock
+        from fe_orders import office365
+        calls = []
+
+        def fake(url, data=None, headers=None, method=None):
+            calls.append((method or 'POST', url, headers or {}, data))
+            if fail_on and fail_on in url:
+                raise office365.Office365Error('HTTP 403: ErrorAccessDenied')
+            if url.endswith('/messages'):
+                return {'id': 'AAMk=id/1'}
+            if url.endswith('/createUploadSession'):
+                return {'uploadUrl': 'https://outlook.office.com/upload/abc'}
+            return {}
+        with mock.patch.object(office365, '_request', fake), mock.patch.object(office365, 'access_token', lambda: 'tok'):
+            try:
+                office365.send_mail(['charliea@ahliki.com'], 'Subject', '<p>Hi</p>', 'agent@ahliki.com', files)
+            except office365.Office365Error:
+                pass
+        return calls
+
+    def test_small_package_goes_in_one_request(self):
+        calls = self.run_send([('cv.pdf', 'application/pdf', b'cv')])
+        self.assertEqual(len(calls), 1)
+        self.assertTrue(calls[0][1].endswith('/users/agent%40ahliki.com/sendMail'))
+        self.assertIn(b'"contentBytes": "Y3Y="', calls[0][3])
+
+    def test_large_package_is_drafted_uploaded_and_sent(self):
+        from fe_orders import office365
+        big = b'b' * (office365.UPLOAD_CHUNK_BYTES * 2 + 5)   # needs three chunks
+        calls = self.run_send([('cv.pdf', 'application/pdf', b'small'), ('letter.pdf', 'application/pdf', big)])
+        steps = [(m, u.rsplit('/', 1)[-1]) for m, u, _, _ in calls]
+        self.assertEqual(steps, [('POST', 'messages'), ('POST', 'attachments'), ('POST', 'createUploadSession'),
+                                 ('PUT', 'abc'), ('PUT', 'abc'), ('PUT', 'abc'), ('POST', 'send')])
+        self.assertIn('/messages/AAMk%3Did%2F1/', calls[1][1])   # the draft id is quoted in the address
+        ranges = [h['Content-Range'] for m, _, h, _ in calls if m == 'PUT']
+        n, c = len(big), office365.UPLOAD_CHUNK_BYTES
+        self.assertEqual(ranges, [f'bytes 0-{c - 1}/{n}', f'bytes {c}-{2 * c - 1}/{n}', f'bytes {2 * c}-{n - 1}/{n}'])
+        self.assertNotIn('Authorization', calls[3][2])   # the upload address carries its own token
+        self.assertEqual(b''.join(d for m, _, _, d in calls if m == 'PUT'), big)
+
+    def test_failed_upload_removes_the_draft(self):
+        from fe_orders import office365
+        big = b'b' * (office365.MAX_ATTACHMENTS_BYTES + 1)
+        calls = self.run_send([('letter.pdf', 'application/pdf', big)], fail_on='createUploadSession')
+        self.assertEqual(calls[-1][0], 'DELETE')
+        self.assertFalse(any(u.endswith('/send') for _, u, _, _ in calls))
