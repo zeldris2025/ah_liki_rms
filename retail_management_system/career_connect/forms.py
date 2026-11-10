@@ -27,15 +27,22 @@ class InterestForm(forms.ModelForm):
 
 class VacancyForm(forms.ModelForm):
     """What HR fills in for a vacancy. The web address is made from the title and kept when the title changes."""
-    department = forms.ModelChoiceField(Department.objects.select_related('company'), label='Company and department')
+    # 'c<id>' = straight on the company page (companies without departments), 'd<id>' = in that department
+    place = forms.ChoiceField(label='Company and department',
+                              help_text='Pick "No department" for a company without departments: the position is '
+                                        'listed on the company page.')
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         # Departments grouped under their company, so the same name in two companies can't be confused
-        groups = {}
-        for d in self.fields['department'].queryset:
-            groups.setdefault(d.company.name, []).append((d.pk, d.name))
-        self.fields['department'].choices = [('', 'Choose a company and department…'), *groups.items()]
+        groups = {c: [(f'c{c.pk}', 'No department (company page)')] for c in Company.objects.all()}
+        for d in Department.objects.select_related('company'):
+            groups[d.company].append((f'd{d.pk}', d.name))
+        self.fields['place'].choices = [('', 'Choose a company and department…'),
+                                        *((c.name, options) for c, options in groups.items())]
+        if self.instance.pk:
+            r = self.instance
+            self.initial['place'] = f'd{r.department_id}' if r.department_id else f'c{r.company_id}'
         if not self.instance.pk:   # new vacancies: apply by email, to the portal's contact address if there is one
             self.initial.setdefault('apply_method', Role.APPLY_EMAIL)
             self.initial.setdefault('apply_email', PortalSettings.load().contact_email)
@@ -50,12 +57,12 @@ class VacancyForm(forms.ModelForm):
         model = Role
         # No 'description': the public page never shows it (students email HR for the job description)
         # No 'vacancy_status' either: the required expiry date sets it (currently recruiting until the date is due)
-        fields = ('department', 'title', 'summary', 'expires_on', 'responsibilities',
+        fields = ('title', 'summary', 'expires_on', 'responsibilities',
                   'qualifications', 'skills', 'apply_method', 'apply_email', 'apply_url', 'how_to_apply',
                   'is_published')
         labels = {'title': 'Position title', 'summary': 'Short summary', 'expires_on': 'Expiry date',
                   'is_published': 'Show on Career Connect'}
-        help_texts = {'summary': 'One line shown under the title on the department page.',
+        help_texts = {'summary': 'One line shown under the title on the department or company page.',
                       'is_published': "Untick to keep it as a draft that students can't see."}
         widgets = {
             'title': forms.TextInput(attrs={'placeholder': 'e.g. Accounts Assistant'}),
@@ -75,8 +82,23 @@ class VacancyForm(forms.ModelForm):
             raise forms.ValidationError('Choose a date after today (the position comes off Career Connect on this date).')
         return date
 
+    field_order = ('place',)
+
+    def clean_place(self):
+        value = self.cleaned_data['place']
+        model = Department if value.startswith('d') else Company
+        try:
+            return model.objects.get(pk=int(value[1:]))
+        except (ValueError, model.DoesNotExist):
+            raise forms.ValidationError('Choose a company and department.')
+
     def clean(self):
         data = super().clean()
+        place = data.get('place')
+        if isinstance(place, Department):
+            self.instance.company, self.instance.department = place.company, place
+        elif isinstance(place, Company):
+            self.instance.company, self.instance.department = place, None
         method = data.get('apply_method')
         if method == Role.APPLY_EMAIL and not data.get('apply_email'):
             self.add_error('apply_email', 'Enter the email address applications should go to.')
@@ -86,7 +108,7 @@ class VacancyForm(forms.ModelForm):
 
     def save(self, commit=True):
         role = super().save(commit=False)
-        if not role.slug or 'department' in self.changed_data:
+        if not role.slug or 'place' in self.changed_data:
             role.slug = self._free_slug(role)
         if commit:
             role.save()
@@ -94,7 +116,9 @@ class VacancyForm(forms.ModelForm):
 
     def _free_slug(self, role):
         base = slugify(role.title)[:70] or 'position'
-        taken = set(Role.objects.filter(department=role.department).exclude(pk=role.pk).values_list('slug', flat=True))
+        siblings = (Role.objects.filter(department=role.department) if role.department
+                    else Role.objects.filter(company=role.company, department__isnull=True))
+        taken = set(siblings.exclude(pk=role.pk).values_list('slug', flat=True))
         slug, n = base, 2
         while slug in taken:
             slug, n = f'{base}-{n}', n + 1

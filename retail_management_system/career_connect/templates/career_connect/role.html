@@ -9,15 +9,15 @@
   .checks .tick { background: var(--soft); color: var(--c); }
 {% endblock %}
 {% block main %}
-<div style="--c:{{ department.palette.main }};--c-dark:{{ department.palette.dark }};--soft:{{ department.palette.soft }}">
+<div style="--c:{{ role.palette.main }};--c-dark:{{ role.palette.dark }};--soft:{{ role.palette.soft }}">
 <div class="page-head dept">
   <div class="wrap">
     <nav class="crumbs" aria-label="Breadcrumb">
       <a href="{% url 'career_connect' %}">Career Opportunities</a> ›
-      <a href="{{ department.company.get_absolute_url }}">{{ department.company.name }}</a> ›
-      <a href="{{ department.get_absolute_url }}">{{ department.name }}</a> › {{ role.title }}
+      <a href="{{ role.company.get_absolute_url }}">{{ role.company.name }}</a> ›
+      {% if role.department %}<a href="{{ role.department.get_absolute_url }}">{{ role.department.name }}</a> ›{% endif %} {{ role.title }}
     </nav>
-    <div class="kicker">{{ department.company.name }} · {{ department.name }}</div>
+    <div class="kicker">{{ role.place }}</div>
     <h1>{{ role.title }}</h1>
     {% if role.summary %}<p>{{ role.summary }}</p>{% endif %}
     <div class="pills">
@@ -72,9 +72,9 @@
     {% elif form %}
       <h3>Express your interest</h3>
       {% if sent %}
-        <div class="notice ok" role="status">Thank you! Your interest in this role has been sent to {{ department.company.name }}.</div>
+        <div class="notice ok" role="status">Thank you! Your interest in this role has been sent to {{ role.company.name }}.</div>
       {% else %}
-        <form method="post" action="{% url 'career_connect_interest' department.company.slug department.slug role.slug %}" novalidate style="max-width:620px">
+        <form method="post" action="{{ role.interest_url }}" novalidate style="max-width:620px">
           {% csrf_token %}
           {% if form.non_field_errors %}<div class="form-errors" role="alert">{{ form.non_field_errors|join:" " }}</div>{% endif %}
           {% for field in form %}
@@ -98,7 +98,7 @@
   </section>
 
   <div class="actions" style="margin-top:26px">
-    <a class="btn btn-light" href="{{ department.get_absolute_url }}">{% icon 'back' 16 %} {{ department.name }}</a>
+    {% with back=role.department|default:role.company %}<a class="btn btn-light" href="{{ back.get_absolute_url }}">{% icon 'back' 16 %} {{ back.name }}</a>{% endwith %}
   </div>
 </div></div>
 </div>

@@ -30,7 +30,7 @@ def _back(request):
 
 @hr_page
 def vacancies(request):
-    roles = Role.objects.select_related('department__company').annotate(
+    roles = Role.objects.select_related('company', 'department').annotate(
         interest_count=Count('interests', filter=Q(interests__reviewed=False)))
     live = live_roles_q()
     expired = Q(expires_on__lte=office_today())
@@ -47,7 +47,7 @@ def vacancies(request):
         if q:
             roles = roles.filter(Q(title__icontains=q) | Q(summary__icontains=q) | Q(department__name__icontains=q))
         if company:
-            roles = roles.filter(department__company=company)
+            roles = roles.filter(company=company)
         if status == 'draft':
             roles = roles.filter(is_published=False)
         elif status == 'expired':
@@ -57,7 +57,7 @@ def vacancies(request):
 
     groups = {}
     for role in roles:
-        groups.setdefault(role.department.company, []).append(role)
+        groups.setdefault(role.company, []).append(role)
     return render(request, 'career_connect/hr/vacancies.html', {
         'groups': list(groups.items()), 'stats': stats, 'filters': filters, 'filtered': bool(request.GET),
         'company_count': Company.objects.count(), 'Role': Role,
@@ -68,8 +68,7 @@ def _edit(request, role=None):
     form = VacancyForm(request.POST or None, instance=role)
     if request.method == 'POST' and form.is_valid():
         saved = form.save()
-        messages.success(request, f'“{saved.title}” {"updated" if role else "added"} for '
-                                  f'{saved.department.company} · {saved.department.name}.')
+        messages.success(request, f'“{saved.title}” {"updated" if role else "added"} for {saved.place}.')
         return redirect('hr_vacancies')
     return render(request, 'career_connect/hr/vacancy_form.html', {'form': form, 'role': role})
 
@@ -81,7 +80,7 @@ def vacancy_add(request):
 
 @hr_page
 def vacancy_edit(request, role_id):
-    return _edit(request, get_object_or_404(Role.objects.select_related('department__company'), pk=role_id))
+    return _edit(request, get_object_or_404(Role.objects.select_related('company', 'department'), pk=role_id))
 
 
 STATUS_ACTIONS = {

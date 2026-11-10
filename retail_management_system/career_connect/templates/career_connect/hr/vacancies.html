@@ -62,7 +62,7 @@
           <a class="hr-title" href="{% url 'hr_vacancy_edit' r.pk %}">{{ r.title }}</a>
           {% if r.summary %}<div class="hr-summary" title="{{ r.summary }}">{{ r.summary }}</div>{% endif %}
         </td>
-        <td>{{ r.department.name }}</td>
+        <td>{% if r.department %}{{ r.department.name }}{% else %}<span style="color:var(--muted)">No department</span>{% endif %}</td>
         <td>
           {% if r.recruiting_status == Role.OPEN %}<span class="badge-custom badge-green">● Recruiting</span>
           {% elif r.recruiting_status == Role.CLOSED %}<span class="badge-custom badge-gray">Not recruiting</span>
@@ -90,7 +90,7 @@
                   {% if r.is_published %}<button class="dropdown-item" name="action" value="hide">🙈 Hide from Career Connect</button>
                   {% else %}<button class="dropdown-item" name="action" value="publish">🌐 Show on Career Connect</button>{% endif %}
                 </form>
-                {% if r.is_published and not r.is_expired and company.is_published and r.department.is_published %}
+                {% if r.is_public %}
                 <a class="dropdown-item" href="{{ r.get_absolute_url }}" target="_blank" rel="noopener">↗ View on Career Connect</a>
                 {% endif %}
                 <div class="dropdown-divider"></div>

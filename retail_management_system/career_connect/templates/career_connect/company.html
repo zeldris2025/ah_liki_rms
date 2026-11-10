@@ -14,7 +14,7 @@
       <a href="{% url 'career_connect' %}">Career Opportunities</a> › {{ company.name }}
     </nav>
     <div class="head-row">
-      <span class="head-badge">{% icon company.symbol 34 %}</span>
+      <span class="head-badge{% if company.icon_url %} has-img{% endif %}">{% badge_icon company 34 %}</span>
       <div>
         <div class="kicker">Ah Liki Investment</div>
         <h1>{{ company.name }}</h1>
@@ -25,8 +25,30 @@
 </div>
 
 <div class="page-body"><div class="wrap">
-  <h2 class="section-title" style="font-size:24px;margin-bottom:18px">Departments</h2>
+  {% if roles %}
+  <section aria-labelledby="roles">
+    <h2 class="section-title" id="roles" style="font-size:24px;margin-bottom:18px">Open positions</h2>
+    {% for r in roles %}
+    <a class="role-row" href="{{ r.get_absolute_url }}" style="--c:{{ company.palette.main }}">
+      <span class="body">
+        <span class="t">{{ r.title }}</span>
+        {% if r.summary %}<span class="s" style="display:block">{{ r.summary }}</span>{% endif %}
+        {% if r.recruiting_status != 'not_stated' %}<span class="pill {% if r.recruiting_status == 'open' %}open{% else %}closed{% endif %}">
+          {{ r.recruiting_status_label }}</span>{% endif %}
+        {% if r.expires_on %}<span class="pill light">{% icon 'clock' 12 %} Closes {{ r.expires_on|date:"j M Y" }}</span>{% endif %}
+      </span>
+      <span class="go">{% icon 'arrow' 18 %}</span>
+    </a>
+    {% endfor %}
+  </section>
+  {% endif %}
+
+  {% if departments %}
+  <h2 class="section-title" style="font-size:24px;margin:{% if roles %}34px{% else %}0{% endif %} 0 18px">Departments</h2>
   {% include 'career_connect/_dept_cards.html' %}
+  {% elif not roles %}
+  <p class="section-lead">No open positions at {{ company.name }} right now. Please check back soon.</p>
+  {% endif %}
   <div class="actions" style="margin-top:28px">
     <a class="btn btn-light" href="{% url 'career_connect' %}#companies">{% icon 'back' 16 %} All companies</a>
   </div>

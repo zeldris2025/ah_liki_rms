@@ -22,7 +22,7 @@ from . import qr
 from .access import MANAGE_PERMISSION
 from .forms import InterestForm
 from .models import (Company, CompanyImage, Department, ExpressionOfInterest, PortalSettings, Role, live_roles_q,
-                     recruiting_q)
+                     public_roles_q, recruiting_q)
 
 
 def public_page(view):
@@ -38,9 +38,10 @@ def public_page(view):
 
 
 def _published_companies():
-    """Published companies, each with the number of live roles (published, not expired) in its published departments."""
+    """Published companies, each with the number of roles students can see (in its published departments, or posted
+    straight to the company)."""
     return Company.objects.filter(is_published=True).annotate(position_count=Count(
-        'departments__roles', filter=Q(departments__is_published=True) & live_roles_q('departments__roles__')))
+        'roles', filter=public_roles_q('roles__')))
 
 
 def _published_departments(company):
@@ -59,9 +60,8 @@ def _context(request, **extra):
 def home(request):
     # The 'we're hiring' pop-up: live roles currently recruiting, in published departments of published companies,
     # closing soonest first (undated ones last)
-    hiring = (Role.objects.live().filter(recruiting_q(Role.OPEN), department__is_published=True,
-                                         department__company__is_published=True)
-              .select_related('department__company').order_by(F('expires_on').asc(nulls_last=True), 'title'))
+    hiring = (Role.objects.public().filter(recruiting_q(Role.OPEN))
+              .select_related('company', 'department').order_by(F('expires_on').asc(nulls_last=True), 'title'))
     hiring = list(hiring)
     companies = list(_published_companies())
     return render(request, 'career_connect/home.html', _context(
@@ -83,7 +83,8 @@ careers = about
 def company(request, company_slug):
     c = get_object_or_404(Company, slug=company_slug, is_published=True)
     return render(request, 'career_connect/company.html', _context(
-        request, company=c, departments=_published_departments(c), nav='careers'))
+        request, company=c, departments=_published_departments(c),
+        roles=c.roles.live().filter(department__isnull=True), nav='careers'))
 
 
 def _published_department(company_slug, dept_slug):
@@ -100,20 +101,20 @@ def department(request, company_slug, dept_slug):
 
 
 def _published_role(company_slug, dept_slug, role_slug):
-    """Only a live role (published, not expired), in a published department of a published company, reached through
-    its own address."""
-    return get_object_or_404(Role.objects.live().select_related('department__company'), slug=role_slug,
-                             department__slug=dept_slug, department__is_published=True,
-                             department__company__slug=company_slug, department__company__is_published=True)
+    """Only a role students can see (Role.objects.public), reached through its own address: under its department, or
+    straight under the company when it has none (dept_slug None)."""
+    where = {'department__slug': dept_slug} if dept_slug else {'department__isnull': True}
+    return get_object_or_404(Role.objects.public().select_related('company', 'department'), slug=role_slug,
+                             company__slug=company_slug, **where)
 
 
 @require_GET
 @public_page
-def role(request, company_slug, dept_slug, role_slug):
+def role(request, company_slug, role_slug, dept_slug=None):
     r = _published_role(company_slug, dept_slug, role_slug)
     form = InterestForm() if r.accepts_interest else None
     return render(request, 'career_connect/role.html', _context(
-        request, role=r, department=r.department, form=form, sent=request.GET.get('sent') == '1', nav='careers'))
+        request, role=r, form=form, sent=request.GET.get('sent') == '1', nav='careers'))
 
 
 def _client_ip(request):
@@ -137,7 +138,7 @@ def _rate_limited(request):
 
 @require_POST
 @public_page
-def interest(request, company_slug, dept_slug, role_slug):
+def interest(request, company_slug, role_slug, dept_slug=None):
     r = _published_role(company_slug, dept_slug, role_slug)
     if not r.accepts_interest:
         raise Http404('This role does not take expressions of interest.')
@@ -153,7 +154,7 @@ def interest(request, company_slug, dept_slug, role_slug):
             eoi.save()
             return redirect(r.get_absolute_url() + '?sent=1#apply')
     return render(request, 'career_connect/role.html', _context(
-        request, role=r, department=r.department, form=form, sent=False, nav='careers'), status=400)
+        request, role=r, form=form, sent=False, nav='careers'), status=400)
 
 
 def _serve_photo(fieldfile):
@@ -185,6 +186,16 @@ def company_image(request, company_slug):
     if not c.background:
         raise Http404
     return _serve_photo(c.background)
+
+
+@require_GET
+@public_page
+def company_icon(request, company_slug):
+    """A published company's uploaded icon."""
+    c = get_object_or_404(Company, slug=company_slug, is_published=True)
+    if not c.icon_image:
+        raise Http404
+    return _serve_photo(c.icon_image)
 
 
 @require_GET

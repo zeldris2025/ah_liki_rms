@@ -109,8 +109,8 @@
         <span>
           <span class="t">{{ r.title }}</span>
           <span class="meta">
-            <span>{% icon 'building' 14 %} {{ r.department.company.name }}</span>
-            <span>{% icon r.department.symbol 14 %} {{ r.department.name }}</span>
+            <span>{% icon 'building' 14 %} {{ r.company.name }}</span>
+            {% if r.department %}<span>{% icon r.department.symbol 14 %} {{ r.department.name }}</span>{% endif %}
             {% if r.expires_on %}<span>{% icon 'clock' 14 %} Closes {{ r.expires_on|date:"j M Y" }}</span>{% endif %}
           </span>
         </span>
@@ -142,7 +142,7 @@
     {% for r in hiring|slice:":5" %}
     <li><a href="{{ r.get_absolute_url }}">
       <span><span class="t">{{ r.title }}</span>
-        <small>{{ r.department.company.name }} · {{ r.department.name }}{% if r.expires_on %} · Closes {{ r.expires_on|date:"j M" }}{% endif %}</small></span>
+        <small>{{ r.place }}{% if r.expires_on %} · Closes {{ r.expires_on|date:"j M" }}{% endif %}</small></span>
       <span class="go">{% icon 'arrow' 16 %}</span>
     </a></li>
     {% endfor %}

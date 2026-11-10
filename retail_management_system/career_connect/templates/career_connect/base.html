@@ -116,6 +116,9 @@
     .page-head.has-photo::after { display: none; }
     .dept-card .mark { position: absolute; right: -14px; top: -10px; color: #fff; opacity: .13; z-index: -1; transform: rotate(-12deg); }
     .dept-card.has-photo .mark { display: none; }
+    /* An uploaded company icon fills its circle on white */
+    .has-img { background: #fff !important; padding: 6px; overflow: hidden; }
+    .icon-img { width: 100%; height: 100%; object-fit: contain; border-radius: 50%; display: block; }
     .dept-card:hover { transform: translateY(-3px); box-shadow: 0 12px 28px rgba(13,40,92,.22); }
     .dept-card:active { transform: scale(.98); }
     .dept-card .badge { position: absolute; left: 16px; top: 14px; width: 62px; height: 62px; border-radius: 50%; background: var(--c);

@@ -509,6 +509,35 @@ class DesignTests(TestCase):
         self.assertEqual(self.client.get(reverse('career_connect_department_image', args=['ah-liki-wholesale', 'finance'])).status_code, 404)
         self.assertEqual(self.client.get('/media/' + dept.background.name).status_code, 302)
 
+    def test_company_can_use_its_own_uploaded_icon(self):
+        c = Company.objects.get(slug='burger-bills')
+        c.symbol = 'burger'   # one of the new icons
+        c.save()
+        self.assertContains(self.client.get(reverse('career_connect')), 'class="badge">')
+        c.icon_image = SimpleUploadedFile('bb.png', PNG, 'image/png')
+        c.save()
+        url = c.icon_url
+        self.assertTrue(url.startswith(reverse('career_connect_company_icon', args=['burger-bills']) + '?v='))
+        for page in (reverse('career_connect'), c.get_absolute_url()):
+            r = self.client.get(page)
+            self.assertContains(r, f'<img class="icon-img" src="{url}"')
+            self.assertContains(r, 'has-img')
+        r = self.client.get(url)
+        self.assertEqual((r.status_code, r['Content-Type']), (200, 'image/png'))
+        r.close()
+        self.assertEqual(self.client.get(reverse('career_connect_company_icon', args=['taula'])).status_code, 404)
+
+    def test_admin_shows_the_icon_grid(self):
+        self.client.force_login(User.objects.create_superuser('boss', 'boss@example.com', 'x'))
+        c = Company.objects.get(slug='taula')
+        r = self.client.get(reverse('admin:career_connect_company_change', args=[c.pk]))
+        self.assertContains(r, 'class="cc-icon-grid"')
+        self.assertContains(r, 'value="burger"')
+        self.assertContains(r, 'name="icon_image"')
+        self.assertContains(r, 'career_connect/admin_icons.css')
+        d = Department.objects.filter(company=c).first() or Department.objects.first()
+        self.assertContains(self.client.get(reverse('admin:career_connect_department_change', args=[d.pk])), 'cc-icon-grid')
+
     def test_company_logo_faded_behind_card_and_heading(self):
         c = Company.objects.get(slug='taula')
         self.assertEqual((c.background_opacity, c.background_fit), (50, 'contain'))
@@ -602,7 +631,7 @@ class HRVacancyTests(TestCase):
         return (office_today() + datetime.timedelta(days=1)).isoformat()
 
     def _post(self, **extra):
-        data = {'department': self.fj_finance.pk, 'title': 'Accounts Assistant', 'summary': 'Daily bookkeeping',
+        data = {'place': f'd{self.fj_finance.pk}', 'title': 'Accounts Assistant', 'summary': 'Daily bookkeeping',
                 'expires_on': self._tomorrow(), 'responsibilities': 'Invoices\nReconciliations', 'qualifications': '',
                 'skills': '', 'apply_method': Role.APPLY_NONE, 'apply_email': '', 'apply_url': '',
                 'how_to_apply': '', 'is_published': 'on', **extra}
@@ -628,7 +657,53 @@ class HRVacancyTests(TestCase):
         r = self.client.get(reverse('hr_vacancy_add'))
         for c in Company.objects.all():
             self.assertContains(r, f'<optgroup label="{c.name}">')
-        self.assertContains(r, f'value="{self.fj_finance.pk}"')
+        self.assertContains(r, f'value="d{self.fj_finance.pk}"')
+        for c in Company.objects.all():   # every company can take a position without a department
+            self.assertContains(r, f'value="c{c.pk}"')
+
+    def test_post_a_vacancy_without_a_department(self):
+        taula = Company.objects.get(slug='taula')
+        r = self._post(place=f'c{taula.pk}', title='Store Supervisor')
+        self.assertRedirects(r, reverse('hr_vacancies'))
+        role = Role.objects.get(title='Store Supervisor')
+        self.assertEqual((role.company, role.department, role.place), (taula, None, 'Taula'))
+        self.assertEqual(role.get_absolute_url(), '/career-connect/careers/taula/roles/store-supervisor/')
+        # Listed on the company page, which opens straight to it, and on the main page's open positions
+        company_page = self.client.get(taula.get_absolute_url())
+        self.assertContains(company_page, 'Open positions')
+        self.assertContains(company_page, f'href="{role.get_absolute_url()}"')
+        self.assertContains(self.client.get(reverse('career_connect')), f'href="{role.get_absolute_url()}"')
+        page = self.client.get(role.get_absolute_url())
+        self.assertContains(page, 'Store Supervisor')
+        self.assertContains(page, '<div class="kicker">Taula</div>')
+        # Counted on the company card, and the HR list shows it under the company
+        self.assertContains(self.client.get(reverse('career_connect')), '1 Available Position<')
+        self.assertContains(self.client.get(reverse('hr_vacancies')), 'No department')
+        # Moving it into a department gives it the department address
+        dept = Department.objects.create(company=taula, name='Retail', slug='retail')
+        r = self.client.post(reverse('hr_vacancy_edit', args=[role.pk]), {
+            'place': f'd{dept.pk}', 'title': 'Store Supervisor', 'expires_on': self._tomorrow(),
+            'apply_method': Role.APPLY_NONE, 'is_published': 'on'})
+        self.assertRedirects(r, reverse('hr_vacancies'))
+        role.refresh_from_db()
+        self.assertEqual(role.get_absolute_url(), '/career-connect/careers/taula/retail/store-supervisor/')
+
+    def test_interest_form_for_a_role_without_a_department(self):
+        taula = Company.objects.get(slug='taula')
+        role = Role.objects.create(company=taula, title='Cashier', slug='cashier', apply_method=Role.APPLY_FORM)
+        self.assertEqual(role.interest_url, '/career-connect/careers/taula/roles/cashier/interest/')
+        self.client.logout()
+        r = self.client.post(role.interest_url, {'full_name': 'Lagi', 'email': 'lagi@example.com', 'consent': 'on'})
+        self.assertRedirects(r, role.get_absolute_url() + '?sent=1#apply', fetch_redirect_response=False)
+        self.assertEqual(role.interests.count(), 1)
+
+    def test_department_role_and_company_must_match(self):
+        from django.core.exceptions import ValidationError
+        role = Role(company=Company.objects.get(slug='taula'), department=self.fj_finance, title='X', slug='x')
+        with self.assertRaises(ValidationError):
+            role.full_clean()
+        role.save()   # saving always follows the department
+        self.assertEqual(role.company.slug, 'farmer-joe')
 
     def test_post_a_vacancy_for_another_company(self):
         r = self._post()
@@ -655,7 +730,7 @@ class HRVacancyTests(TestCase):
         self._post()
         role = Role.objects.get(department=self.fj_finance)
         r = self.client.post(reverse('hr_vacancy_edit', args=[role.pk]), {
-            'department': self.fj_finance.pk, 'title': 'Senior Accounts Assistant', 'expires_on': self._tomorrow(),
+            'place': f'd{self.fj_finance.pk}', 'title': 'Senior Accounts Assistant', 'expires_on': self._tomorrow(),
             'apply_method': Role.APPLY_NONE, 'is_published': 'on'})
         self.assertRedirects(r, reverse('hr_vacancies'))
         role.refresh_from_db()

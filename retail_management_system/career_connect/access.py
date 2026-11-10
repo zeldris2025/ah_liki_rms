@@ -13,8 +13,11 @@ PUBLIC_URL_NAMES = {
     'career_connect_department',
     'career_connect_role',
     'career_connect_interest',
+    'career_connect_company_role',
+    'career_connect_company_interest',
     'career_connect_image',
     'career_connect_company_image',
+    'career_connect_company_icon',
     'career_connect_department_image',
 }
 

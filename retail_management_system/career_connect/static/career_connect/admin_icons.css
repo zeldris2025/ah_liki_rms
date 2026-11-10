@@ -1,0 +1,10 @@
+/* The icon picker on the Company and Department pages: a grid of clickable icons */
+.cc-icon-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 8px; max-width: 760px; }
+.cc-icon-grid > div { margin: 0; }
+.cc-icon-grid label { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 10px 6px; border: 1px solid var(--border-color, #ddd);
+                      border-radius: 8px; cursor: pointer; font-size: 12px; text-align: center; line-height: 1.2; }
+.cc-icon-grid label:hover { border-color: #1E6FE0; }
+.cc-icon-grid input { position: absolute; opacity: 0; pointer-events: none; }
+.cc-icon-grid label:has(input:checked) { border-color: #1E6FE0; background: #E3EEFD; color: #0B3F8F; font-weight: 600; }
+.cc-icon-grid label:has(input:focus-visible) { outline: 2px solid #1E6FE0; outline-offset: 2px; }
+.cc-icon-grid svg { width: 26px; height: 26px; }

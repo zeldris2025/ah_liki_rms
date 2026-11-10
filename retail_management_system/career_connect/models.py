@@ -16,6 +16,11 @@ from django.db.models import Q
 from django.urls import reverse
 from django.utils import timezone
 
+from .templatetags.career_icons import BUSINESS_ICONS
+
+# The web address segment for roles posted without a department: /careers/<company>/roles/<role>/
+COMPANY_ROLES_PATH = 'roles'
+
 
 class PortalSettings(models.Model):
     """The single row of portal-wide content (company information, video, headquarters, contact)."""
@@ -159,6 +164,14 @@ def _photo_size(file):
         raise ValidationError(f'The photo must be smaller than {MAX_PHOTO_MB} MB.')
 
 
+MAX_ICON_MB = 2
+
+
+def _icon_size(file):
+    if file.size > MAX_ICON_MB * 1024 * 1024:
+        raise ValidationError(f'The icon must be smaller than {MAX_ICON_MB} MB.')
+
+
 def _photo_opacity(percent):
     """A photo-strength percentage as a CSS opacity, kept within 10–90%."""
     return f'{min(max(percent, 10), 90) / 100:.2f}'
@@ -183,7 +196,8 @@ class CompanyImage(models.Model):
 
 
 class Company(models.Model):
-    """A company in the Ah Liki Investment group. Its departments (and their roles) are listed on its careers page."""
+    """A company in the Ah Liki Investment group. Its departments (and their roles) are listed on its careers page,
+    and so are any roles posted straight to the company (companies without departments)."""
     COLOURS = {
         'blue':   ('#1E6FE0', '#0B3F8F', '#E3EEFD'),
         'purple': ('#7C3AED', '#4C1D95', '#EEE7FD'),
@@ -194,13 +208,16 @@ class Company(models.Model):
         'red':    ('#DC2626', '#7F1D1D', '#FDE4E4'),
     }
     COLOUR_CHOICES = [(k, k.title()) for k in COLOURS]
-    SYMBOL_CHOICES = [('store', 'Store (wholesale / retail)'), ('cart', 'Cart (supermarket)'),
-                      ('utensils', 'Utensils (food)'), ('leaf', 'Leaf (farm)'), ('building', 'Building')]
     FIT_CHOICES = [('contain', 'Whole picture, centred (best for logos)'), ('cover', 'Fill the card (best for photos)')]
 
     name = models.CharField(max_length=120)
     slug = models.SlugField(max_length=80, unique=True, help_text='Used in the web address, e.g. "farmer-joe".')
-    symbol = models.CharField('icon', max_length=20, choices=SYMBOL_CHOICES, default='building')
+    symbol = models.CharField('icon', max_length=20, choices=BUSINESS_ICONS, default='building')
+    icon_image = models.ImageField(
+        'own icon', upload_to='career_connect/icons/', blank=True,
+        validators=[FileExtensionValidator(PHOTO_TYPES), _icon_size],
+        help_text=f'Optional. Upload your own icon (e.g. the logo) to use instead of the one chosen above: a square '
+                  f'JPG, PNG or WebP under {MAX_ICON_MB} MB, shown in a white circle.')
     colour = models.CharField(max_length=20, choices=COLOUR_CHOICES, default='navy')
     background = models.ImageField(
         'background photo or logo', upload_to='career_connect/companies/', blank=True,
@@ -233,6 +250,14 @@ class Company(models.Model):
                 + '?v=' + quote(os.path.basename(self.background.name)))
 
     @property
+    def icon_url(self):
+        """The public address of the uploaded icon ('' if none), with ?v= so a new upload shows straight away."""
+        if not self.icon_image:
+            return ''
+        return (reverse('career_connect_company_icon', args=[self.slug])
+                + '?v=' + quote(os.path.basename(self.icon_image.name)))
+
+    @property
     def photo_opacity(self):
         return _photo_opacity(self.background_opacity)
 
@@ -253,14 +278,11 @@ class Department(models.Model):
         'navy':   ('#1E40AF', '#0B1F4D', '#E2E8F7'),
     }
     COLOUR_CHOICES = [(k, k.title()) for k in COLOURS]
-    SYMBOL_CHOICES = [('coins', 'Coins (finance)'), ('megaphone', 'Megaphone (marketing)'), ('people', 'People (HR)'),
-                      ('chart', 'Chart (sales)'), ('box', 'Box (warehouse)'), ('wrench', 'Wrench (trades)'),
-                      ('briefcase', 'Briefcase')]
 
     company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name='departments')
     name = models.CharField(max_length=120)
     slug = models.SlugField(max_length=80, help_text='Used in the web address, e.g. "finance"; unique within the company.')
-    symbol = models.CharField('icon', max_length=20, choices=SYMBOL_CHOICES, default='briefcase')
+    symbol = models.CharField('icon', max_length=20, choices=BUSINESS_ICONS, default='briefcase')
     colour = models.CharField(max_length=20, choices=COLOUR_CHOICES, default='blue')
     background = models.ImageField(
         'background photo', upload_to='career_connect/departments/', blank=True,
@@ -279,6 +301,10 @@ class Department(models.Model):
 
     def __str__(self):
         return f'{self.name} ({self.company})'
+
+    def clean(self):
+        if self.slug == COMPANY_ROLES_PATH:
+            raise ValidationError({'slug': f'"{COMPANY_ROLES_PATH}" is kept for roles posted without a department.'})
 
     def get_absolute_url(self):
         return reverse('career_connect_department', args=[self.company.slug, self.slug])
@@ -324,9 +350,19 @@ def recruiting_q(status):
     return undated & Q(vacancy_status=status)
 
 
+def public_roles_q(prefix=''):
+    """Roles students can see on the site: live, in a published company, and in a published department if they have
+    one (roles posted without a department sit straight on the company page)."""
+    return (live_roles_q(prefix) & Q(**{f'{prefix}company__is_published': True})
+            & (Q(**{f'{prefix}department__isnull': True}) | Q(**{f'{prefix}department__is_published': True})))
+
+
 class RoleQuerySet(models.QuerySet):
     def live(self):
         return self.filter(live_roles_q())
+
+    def public(self):
+        return self.filter(public_roles_q())
 
 
 class Role(models.Model):
@@ -344,9 +380,13 @@ class Role(models.Model):
         (APPLY_EMAIL, 'Button that emails the application address'),
     ]
 
-    department = models.ForeignKey(Department, on_delete=models.PROTECT, related_name='roles')
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name='roles')
+    department = models.ForeignKey(
+        Department, on_delete=models.PROTECT, related_name='roles', null=True, blank=True,
+        help_text='Optional. Leave empty for a company without departments: the role is listed on the company page.')
     title = models.CharField(max_length=150)
-    slug = models.SlugField(max_length=80, help_text='Used in the web address; unique within the department.')
+    slug = models.SlugField(max_length=80, help_text='Used in the web address; unique within the department '
+                                                     '(or within the company, for roles without a department).')
     summary = models.CharField(max_length=300, blank=True, help_text='One line shown on the department page.')
     description = models.TextField('job description', blank=True)
     responsibilities = models.TextField(blank=True, help_text='One per line.')
@@ -367,15 +407,41 @@ class Role(models.Model):
     objects = RoleQuerySet.as_manager()
 
     class Meta:
-        ordering = ('department__company__order', 'department__order', 'order', 'title')
-        constraints = [models.UniqueConstraint(fields=('department', 'slug'), name='career_role_unique_slug')]
+        ordering = ('company__order', 'department__order', 'order', 'title')
+        constraints = [
+            models.UniqueConstraint(fields=('department', 'slug'), name='career_role_unique_slug'),
+            models.UniqueConstraint(fields=('company', 'slug'), condition=Q(department__isnull=True),
+                                    name='career_company_role_unique_slug'),
+        ]
         permissions = [('manage_vacancies', 'Can post and update vacancies on the HR vacancies page')]
 
     def __str__(self):
-        return f'{self.title} ({self.department})'
+        return f'{self.title} ({self.department or self.company})'
+
+    def clean(self):
+        if self.department_id and self.company_id and self.department.company_id != self.company_id:
+            raise ValidationError({'department': f'Choose a department of {self.company}, or leave it empty.'})
+
+    @property
+    def place(self):
+        """'Farmer Joe · Finance', or just 'Farmer Joe' for a role without a department."""
+        return f'{self.company} · {self.department.name}' if self.department else str(self.company)
+
+    def _url(self, name):
+        if self.department:
+            return reverse(name, args=[self.company.slug, self.department.slug, self.slug])
+        return reverse(name.replace('career_connect_', 'career_connect_company_'), args=[self.company.slug, self.slug])
 
     def get_absolute_url(self):
-        return reverse('career_connect_role', args=[self.department.company.slug, self.department.slug, self.slug])
+        return self._url('career_connect_role')
+
+    @property
+    def interest_url(self):
+        return self._url('career_connect_interest')
+
+    @property
+    def palette(self):
+        return (self.department or self.company).palette
 
     @staticmethod
     def _lines(text):
@@ -398,6 +464,12 @@ class Role(models.Model):
         return self.expires_on is not None and self.expires_on <= office_today()
 
     @property
+    def is_public(self):
+        """Students can see it now (the same rule as public_roles_q)."""
+        return (self.is_published and not self.is_expired and self.company.is_published
+                and (self.department is None or self.department.is_published))
+
+    @property
     def recruiting_status(self):
         """What students and HR see. With an expiry date it follows the date: currently recruiting until the date is
         due, then not currently recruiting. Without one, it's the status HR chose."""
@@ -410,6 +482,8 @@ class Role(models.Model):
         return dict(self.VACANCY_CHOICES)[self.recruiting_status]
 
     def save(self, *args, **kwargs):
+        if self.department_id:   # a department's role always belongs to that department's company
+            self.company_id = self.department.company_id
         if self.expires_on is not None:   # keep the stored status in step with the date
             self.vacancy_status = self.recruiting_status
         super().save(*args, **kwargs)

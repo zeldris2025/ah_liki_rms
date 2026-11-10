@@ -8,6 +8,11 @@ urlpatterns = [
     path('career-connect/about/',                              views.about,       name='career_connect_about'),
     path('career-connect/careers/',                            views.careers,     name='career_connect_careers'),
     path('career-connect/careers/<slug:company_slug>/',        views.company,     name='career_connect_company'),
+    # Roles posted straight to a company (no department); before the department patterns, which would match too
+    path('career-connect/careers/<slug:company_slug>/roles/<slug:role_slug>/', views.role,
+         name='career_connect_company_role'),
+    path('career-connect/careers/<slug:company_slug>/roles/<slug:role_slug>/interest/', views.interest,
+         name='career_connect_company_interest'),
     path('career-connect/careers/<slug:company_slug>/<slug:dept_slug>/', views.department,
          name='career_connect_department'),
     path('career-connect/careers/<slug:company_slug>/<slug:dept_slug>/<slug:role_slug>/', views.role,
@@ -17,6 +22,7 @@ urlpatterns = [
     path('career-connect/images/<int:image_id>/',              views.image,       name='career_connect_image'),
     path('career-connect/images/company/<slug:company_slug>/', views.company_image,
          name='career_connect_company_image'),
+    path('career-connect/images/icon/<slug:company_slug>/', views.company_icon, name='career_connect_company_icon'),
     path('career-connect/images/department/<slug:company_slug>/<slug:dept_slug>/', views.department_image,
          name='career_connect_department_image'),
     # Staff only (signed in + permission)

@@ -6,9 +6,9 @@
   <div>
     <div class="hr-crumbs"><a href="{% url 'hr_vacancies' %}">Vacancies</a> › {% if role %}Edit{% else %}New{% endif %}</div>
     <h2>{% if role %}{{ role.title }}{% else %}Post a vacancy{% endif %}</h2>
-    <p>{% if role %}{{ role.department.company }} · {{ role.department.name }}{% else %}Choose the company and department, describe the position and how students can apply.{% endif %}</p>
+    <p>{% if role %}{{ role.place }}{% else %}Choose the company (and department, if it has them), describe the position and how students can apply.{% endif %}</p>
   </div>
-  {% if role and role.is_published and not role.is_expired and role.department.is_published and role.department.company.is_published %}
+  {% if role and role.is_public %}
   <a href="{{ role.get_absolute_url }}" target="_blank" rel="noopener" class="btn-sms btn-outline-custom" style="color:#fff;border-color:rgba(255,255,255,.35)">↗ View on Career Connect</a>
   {% endif %}
 </div>
@@ -22,7 +22,7 @@
     <div class="sms-card">
       <div class="hr-section">
         <div class="hr-section-head"><span class="hr-step">1</span><div><h3>The position</h3><p>Where it sits and what it's called.</p></div></div>
-        {% include 'career_connect/hr/_field.html' with field=form.department %}
+        {% include 'career_connect/hr/_field.html' with field=form.place %}
         {% include 'career_connect/hr/_field.html' with field=form.title %}
         {% include 'career_connect/hr/_field.html' with field=form.summary %}
         {% include 'career_connect/hr/_field.html' with field=form.expires_on %}
