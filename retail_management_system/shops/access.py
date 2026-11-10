@@ -2,7 +2,7 @@
 
 A user's level comes from their group (Sales / Marketing / Manager / Financial Controller / Finance Staff).
 Superusers are Managers. Sales and Marketing each have areas they can't open, and neither can download or
-export anything. Staff with no level only get the areas both Sales and Marketing share.
+export anything. Staff with no level only get a read-only Ah Liki Atlas (sign-in lands them there).
 Finance only get their dashboard, a read-only Ah Liki Atlas and Car Allocations (the Finance cars).
 HR only get the Career Connect vacancies pages (and the public portal).
 Social only get their dashboard, the Social analytics, a read-only Ah Liki Atlas, Social #s and Car Allocations.
@@ -28,6 +28,8 @@ CAR_URL_NAMES = {'car_allocations', 'car_bookings', 'car_booking_search', 'car_b
 FINANCE_ALLOWED = {'login', 'logout', 'dashboard', 'atlas'} | CAR_URL_NAMES | CAREER_CONNECT_PUBLIC
 # The only pages Social can open (the Atlas read-only too; their dashboard is the Social one)
 SOCIAL_ALLOWED = {'login', 'logout', 'dashboard', 'atlas'} | CAR_URL_NAMES | SOCIAL_URL_NAMES | CAREER_CONNECT_PUBLIC
+# The only pages staff with no access level can open: the Atlas, read-only (no pin-moving URL)
+VIEWER_ALLOWED = {'login', 'logout', 'atlas'} | CAREER_CONNECT_PUBLIC
 # The only pages Product QTY Sales can open (their dashboard is the QTY one)
 AJ_ALLOWED = {'login', 'logout', 'dashboard'} | AJ_URL_NAMES
 
@@ -108,6 +110,12 @@ def is_aj(user):
             and user.groups.filter(name=AJ_GROUP).exists() and not is_hr(user) and not is_social(user))
 
 
+def is_viewer(user):
+    """No access level at all: no office, Finance, HR, Social or Product QTY Sales group."""
+    return (user.is_authenticated and not user.is_superuser and not roles_of(user) and not finance_roles_of(user)
+            and not is_hr(user) and not is_social(user) and not is_aj(user))
+
+
 def blocked_areas(user):
     """Areas this user can't open. Several levels combine: an area is open if any of them allows it."""
     roles = roles_of(user)
@@ -154,7 +162,7 @@ class RoleAccessMiddleware:
     def __call__(self, request):
         user = request.user
         # FE users are handled by FEAccessMiddleware; anonymous users by @login_required
-        request.is_finance = request.is_hr = request.is_social = request.is_aj = False
+        request.is_finance = request.is_hr = request.is_social = request.is_aj = request.is_viewer = False
         if not user.is_authenticated or getattr(request, 'is_fe', False):
             request.blocked_areas, request.can_export = set(), True
             return self.get_response(request)
@@ -166,6 +174,8 @@ class RoleAccessMiddleware:
             return self.social(request)
         if is_aj(user):
             return self.aj(request)
+        if is_viewer(user):
+            return self.viewer(request)
 
         request.can_export = MANAGER in roles_of(user)
         request.blocked_areas = blocked_areas(user)
@@ -260,6 +270,27 @@ class RoleAccessMiddleware:
         return self.get_response(request)
 
 
+    def viewer(self, request):
+        """No access level: a read-only Ah Liki Atlas and nothing else. The dashboard (where sign-in lands)
+        sends them to the Atlas."""
+        from django.conf import settings
+        request.is_viewer, request.can_export, request.blocked_areas = True, False, set(AREAS)
+        if not request.path_info.startswith((settings.STATIC_URL, settings.MEDIA_URL)):
+            try:
+                match = resolve(request.path_info)
+            except Resolver404:
+                match = None
+            name = (match.url_name or '') if match else ''
+            if match and match.app_name != 'admin' and name == 'dashboard':
+                return redirect('atlas')
+            if match and (match.app_name == 'admin' or name not in VIEWER_ALLOWED):
+                return deny(request, 'the admin site' if match.app_name == 'admin' else 'this page')
+        response = self.get_response(request)
+        if 'attachment' in response.get('Content-Disposition', ''):
+            return deny(request, 'downloads and exports')
+        return response
+
+
 def deny(request, what):
     """The 'No access' page, e.g. deny(request, 'this page')."""
     return render(request, 'shops/no_access.html', {'what': what, 'role': role_label(request.user)}, status=403)
@@ -275,5 +306,6 @@ def access_context(request):
         'is_hr': getattr(request, 'is_hr', False),
         'is_social': getattr(request, 'is_social', False),
         'is_aj': getattr(request, 'is_aj', False),
+        'is_viewer': getattr(request, 'is_viewer', False),
         'user_role': role_label(request.user) if getattr(request, 'user', None) else '',
     }

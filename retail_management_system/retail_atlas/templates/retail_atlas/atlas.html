@@ -160,7 +160,7 @@
 
 <aside class="panel" id="panel">
   <div class="panel-head">
-    {% if is_fe %}<a class="back" href="{% url 'fe_home' %}">← Back to FE home</a>{% else %}<a class="back" href="{% url 'dashboard' %}">← Back to dashboard</a>{% endif %}
+    {% if is_fe %}<a class="back" href="{% url 'fe_home' %}">← Back to FE home</a>{% elif is_viewer %}{% else %}<a class="back" href="{% url 'dashboard' %}">← Back to dashboard</a>{% endif %}
     <div class="panel-label">Retail &amp; Supermarkets</div>
     <div class="panel-title">Ah Liki Atlas</div>
     <div class="panel-stat" id="panel-stat"></div>
@@ -180,7 +180,7 @@
     </div>
     <details class="unmapped" id="unmapped">
       <summary><span class="section-label" id="unmapped-label"></span></summary>
-      <div class="unmapped-hint">These shops have no recognisable village in their address.{% if not is_finance and not is_social %} Click <b>Place</b>, then click the map to pin them — or, when you're standing at the shop, choose <b>Use my location</b>.{% endif %}</div>
+      <div class="unmapped-hint">These shops have no recognisable village in their address.{% if not is_finance and not is_social and not is_viewer %} Click <b>Place</b>, then click the map to pin them — or, when you're standing at the shop, choose <b>Use my location</b>.{% endif %}</div>
       <div id="unmapped-list"></div>
     </details>
   </div>

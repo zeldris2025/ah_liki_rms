@@ -24,7 +24,9 @@ class GazetteerTests(TestCase):
 
 class AtlasViewTests(TestCase):
     def setUp(self):
+        from django.contrib.auth.models import Group
         self.user = User.objects.create_user('staff', password='pw')
+        self.user.groups.add(Group.objects.get(name='Sales'))   # staff with no access level can't move pins
         self.client.login(username='staff', password='pw')
         self.shop = Shop.objects.create(name='Jane Store', address='LALOVAEA', territory='EC2')
         self.lost = Shop.objects.create(name='Lost Store', address='n/a')

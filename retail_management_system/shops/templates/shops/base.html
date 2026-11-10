@@ -225,6 +225,9 @@
       <a href="{% url 'hr_vacancies' %}"     class="nav-item-custom {% if n == 'hr_vacancies' or n == 'hr_vacancy_edit' %}active{% endif %}"><span class="nav-icon">💼</span>Vacancies</a>
       <a href="{% url 'hr_vacancy_add' %}"   class="nav-item-custom {% if n == 'hr_vacancy_add' %}active{% endif %}"><span class="nav-icon">➕</span>Post a Vacancy</a>
       <a href="{% url 'career_connect' %}" target="_blank" rel="noopener" class="nav-item-custom"><span class="nav-icon">🎓</span>View Career Connect ↗</a>
+      {% elif is_viewer %}
+      <!-- No access level: a read-only Ah Liki Atlas only -->
+      <a href="{% url 'atlas' %}"            class="nav-item-custom {% if n == 'atlas' %}active{% endif %}"><span class="nav-icon">🗺️</span>Ah Liki Atlas</a>
       {% elif is_aj %}
       <!-- Product QTY Sales only -->
       <a href="{% url 'dashboard' %}"        class="nav-item-custom {% if n == 'dashboard' %}active{% endif %}"><span class="nav-icon">📊</span>Dashboard</a>
@@ -330,7 +333,7 @@
 
   <!-- Main -->
   <main class="main-content">
-    <div class="top-actions">{% if not is_hr %}{% include 'car_allocations/_notifications.html' %}{% endif %}</div>
+    <div class="top-actions">{% if not is_hr and not is_viewer %}{% include 'car_allocations/_notifications.html' %}{% endif %}</div>
     {% block content %}{% endblock %}
   </main>
 </div>

@@ -1265,12 +1265,21 @@ class AccessLevelTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn('attachment', response['Content-Disposition'])
 
-    def test_no_access_level_gets_only_shared_areas(self):
+    def test_no_access_level_gets_only_a_read_only_atlas(self):
         User.objects.create_user('nobody', password='pw')
         self.client.login(username='nobody', password='pw')
-        self.assertEqual(self.status('shop_list'), 200)
-        for name in ('corporate_sales', 'promotion_list', 'reports'):
+        self.assertRedirects(self.client.get(reverse('dashboard')), reverse('atlas'))
+        response = self.client.get(reverse('atlas'))
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.context['atlas_data']['read_only'])
+        self.assertNotIn(reverse('shop_list'), response.content.decode())
+        for name in ('shop_list', 'corporate_sales', 'promotion_list', 'reports', 'car_allocations'):
             self.assertEqual(self.status(name), 403, name)
+        from .models import Shop
+        shop = Shop.objects.create(name='Pinned Store')
+        r = self.client.post(reverse('atlas_shop_location', args=[shop.id]), '{"lat": -13.84, "lng": -171.77}',
+                             content_type='application/json')
+        self.assertEqual(r.status_code, 403)
 
 
 class RepCorporateSalesTests(TestCase):

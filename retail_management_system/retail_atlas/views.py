@@ -75,8 +75,8 @@ def atlas(request):
             'savaii':      SAVAII_CENTER,
             'bounds':      SAMOA_BOUNDS,
             'is_fe':       request.is_fe,
-            # Finance and Social look but don't touch
-            'read_only':   getattr(request, 'is_finance', False) or getattr(request, 'is_social', False),
+            # Finance, Social and staff with no access level look but don't touch
+            'read_only':   any(getattr(request, f, False) for f in ('is_finance', 'is_social', 'is_viewer')),
             'order_url':   reverse('fe_place_order'),
         },
     })
