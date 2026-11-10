@@ -44,7 +44,7 @@ SAMOAN = {
     'Career path': 'Ala o galuega',
     'Career paths': 'Ala o galuega',
     'Join our team': 'Auai i la matou ’au',
-    'Closes {date}': 'E tapuni {date}',
+    'Closes {date}': 'Tapunia i le aso {date}',
     'Apply now': 'Apalai nei loa',
     'Career opportunities': 'Avanoa Faigaluega',
     'Companies of Ah Liki Investment': 'Kamupani a Ah Liki Investment',
