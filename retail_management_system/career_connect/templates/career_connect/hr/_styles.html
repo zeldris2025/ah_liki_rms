@@ -36,7 +36,8 @@
   .hr-title:hover { color: var(--info); text-decoration: underline; }
   .hr-summary { color: var(--muted); font-size: 12px; margin-top: 2px; max-width: 420px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .hr-actions { display: flex; gap: 6px; justify-content: flex-end; }
-  .hr-menu .dropdown-item { font-size: 13px; padding: 8px 14px; width: 100%; text-align: left; background: none; border: none; }
+  .hr-menu .dropdown-menu { z-index: 1060; min-width: 230px; }
+  .hr-menu .dropdown-item {font-size: 13px; padding: 8px 14px; width: 100%; text-align: left; background: none; border: none; }
   .hr-menu .dropdown-item:hover { background: var(--surface); }
   .hr-menu .dropdown-item.danger { color: var(--danger); }
 

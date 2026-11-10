@@ -81,7 +81,7 @@
             <a href="{% url 'hr_vacancy_edit' r.pk %}" class="btn-sms sm btn-outline-custom">Edit</a>
             <a href="{% url 'hr_applications' r.pk %}" class="btn-sms sm btn-outline-custom">Applications</a>
             <div class="dropdown hr-menu">
-              <button type="button" class="btn-sms sm btn-outline-custom" data-bs-toggle="dropdown" aria-expanded="false" aria-label="More actions for {{ r.title }}">⋯</button>
+              <button type="button" class="btn-sms sm btn-outline-custom" data-bs-toggle="dropdown" data-bs-popper-config='{"strategy":"fixed"}' aria-expanded="false" aria-label="More actions for {{ r.title }}">⋯</button>
               <div class="dropdown-menu dropdown-menu-end shadow-sm">
                 <form method="post" action="{% url 'hr_vacancy_status' r.pk %}">
                   {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
