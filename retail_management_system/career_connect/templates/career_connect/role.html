@@ -1,5 +1,5 @@
 {% extends 'career_connect/base.html' %}
-{% load career_icons %}
+{% load career_icons cc_i18n %}
 {% block title %}{{ role.title }} — Ah Liki Career Connect{% endblock %}
 {% block extra_style %}
   .page-head.dept { background: linear-gradient(105deg, var(--navy-deep) 0%, var(--c-dark) 55%, var(--c) 130%); }
@@ -17,7 +17,7 @@
 <div class="page-head dept">
   <div class="wrap">
     <nav class="crumbs" aria-label="Breadcrumb">
-      <a href="{% url 'career_connect' %}">Career Opportunities</a> ›
+      <a href="{% url 'career_connect' %}">{% t "Career Opportunities" %}</a> ›
       <a href="{{ role.company.get_absolute_url }}">{{ role.company.name }}</a> ›
       {% if role.department %}<a href="{{ role.department.get_absolute_url }}">{{ role.department.name }}</a> ›{% endif %} {{ role.title }}
     </nav>
@@ -26,42 +26,42 @@
     {% if role.summary %}<p>{{ role.summary }}</p>{% endif %}
     <div class="pills">
       {% if role.recruiting_status != 'not_stated' %}<span class="pill {% if role.recruiting_status == 'open' %}open{% else %}closed{% endif %}">
-        {{ role.recruiting_status_label }}</span>{% endif %}
-      {% if role.expires_on %}<span class="pill">{% icon 'clock' 14 %} Closes {{ role.expires_on|date:"j F Y" }}</span>{% endif %}
+        {% t role.recruiting_status_label %}</span>{% endif %}
+      {% if role.expires_on %}<span class="pill">{% icon 'clock' 14 %} {% cc_date role.expires_on 'j F Y' as d %}{% t 'Closes {date}' date=d %}</span>{% endif %}
     </div>
-    <div class="actions" style="margin-top:18px"><a class="btn btn-primary" href="#apply">Apply now {% icon 'arrow' 16 %}</a></div>
+    <div class="actions" style="margin-top:18px"><a class="btn btn-primary" href="#apply">{% t "Apply now" %} {% icon 'arrow' 16 %}</a></div>
   </div>
 </div>
 
 <div class="page-body"><div class="wrap">
   <div class="two-col">
     <section class="panel" aria-labelledby="desc">
-      <h2 id="desc"><span class="icon-dot">{% icon 'briefcase' 22 %}</span>Job description</h2>
+      <h2 id="desc"><span class="icon-dot">{% icon 'briefcase' 22 %}</span>{% t 'Job description' %}</h2>
       {% if role.description %}<div class="prose">{{ role.description|linebreaks }}</div>{% endif %}
       {% if role.jd_url %}
         <div class="actions"{% if role.description %} style="margin-top:4px"{% endif %}>
-          <a class="btn btn-primary" href="{{ role.jd_url }}" target="_blank" rel="noopener">{% icon 'book' 16 %} View job description</a>
+          <a class="btn btn-primary" href="{{ role.jd_url }}" target="_blank" rel="noopener">{% icon 'book' 16 %} {% t 'View job description' %}</a>
         </div>
       {% elif not role.description %}
-        <p>For the full job description, please email
+        <p>{% t 'For the full job description, please email' %}
           <a href="mailto:hr@ahliki.com?subject={{ role.title|urlencode }}%20%E2%80%94%20Job%20description%20request">hr@ahliki.com</a>.</p>
       {% endif %}
 
       {% if role.is_corporate and role.responsibility_list %}
-      <h3>Responsibilities</h3>
+      <h3>{% t 'Responsibilities' %}</h3>
       <ul class="checks">{% for x in role.responsibility_list %}<li><span class="tick">{% icon 'check' 13 %}</span><span>{{ x }}</span></li>{% endfor %}</ul>
       {% endif %}
     </section>
 
     {% if role.is_corporate and role.qualification_list or role.is_corporate and role.skill_list %}
     <section class="panel" aria-labelledby="quals">
-      <h2 id="quals"><span class="icon-dot">{% icon 'check' 22 %}</span>Qualifications &amp; skills</h2>
+      <h2 id="quals"><span class="icon-dot">{% icon 'check' 22 %}</span>{% t 'Qualifications & skills' %}</h2>
       {% if role.qualification_list %}
-      <h3 style="margin-top:0">Required qualifications</h3>
+      <h3 style="margin-top:0">{% t "Required qualifications" %}</h3>
       <ul class="checks">{% for x in role.qualification_list %}<li><span class="tick">{% icon 'check' 13 %}</span><span>{{ x }}</span></li>{% endfor %}</ul>
       {% endif %}
       {% if role.skill_list %}
-      <h3>Skills</h3>
+      <h3>{% t 'Skills' %}</h3>
       <ul class="checks">{% for x in role.skill_list %}<li><span class="tick">{% icon 'check' 13 %}</span><span>{{ x }}</span></li>{% endfor %}</ul>
       {% endif %}
     </section>
@@ -69,23 +69,23 @@
   </div>
 
   <section class="panel" id="apply" aria-labelledby="apply-title" style="margin-top:22px">
-    <h2 id="apply-title"><span class="icon-dot">{% icon 'mail' 22 %}</span>Apply now</h2>
+    <h2 id="apply-title"><span class="icon-dot">{% icon 'mail' 22 %}</span>{% t 'Apply now' %}</h2>
     {% if role.how_to_apply %}<div class="prose">{{ role.how_to_apply|linebreaks }}</div>
     {% elif portal.application_instructions %}<div class="prose">{{ portal.application_instructions|linebreaks }}</div>{% endif %}
 
     {% if role.apply_method == 'external_link' and role.apply_url %}
       <div class="actions" style="margin-top:16px">
-        <a class="btn btn-primary" href="{{ role.apply_url }}" target="_blank" rel="noopener noreferrer">Apply now {% icon 'external' 16 %}</a>
+        <a class="btn btn-primary" href="{{ role.apply_url }}" target="_blank" rel="noopener noreferrer">{% t 'Apply now' %} {% icon 'external' 16 %}</a>
       </div>
     {% elif role.apply_method == 'email' and role.apply_email %}
       <div class="actions" style="margin-top:16px">
-        <a class="btn btn-primary" href="mailto:{{ role.apply_email }}?subject={{ role.title|urlencode }}%20%E2%80%94%20Career%20Connect">{% icon 'mail' 16 %} Email your application</a>
+        <a class="btn btn-primary" href="mailto:{{ role.apply_email }}?subject={{ role.title|urlencode }}%20%E2%80%94%20Career%20Connect">{% icon 'mail' 16 %} {% t 'Email your application' %}</a>
       </div>
     {% elif form %}
       {% if sent %}
-        <div class="notice ok" role="status">Thank you! Your application for {{ role.title }} has been sent to {{ role.company.name }}.</div>
+        <div class="notice ok" role="status">{% t "Thank you! Your application for {role} has been sent to {company}." role=role.title company=role.company.name %}</div>
       {% else %}
-        <p class="form-intro">{% if role.is_corporate %}Fill in your details and attach your CV and cover letter (and your qualifications, if you have copies).{% else %}Fill in your details below. All fields are needed.{% endif %}</p>
+        <p class="form-intro">{% if role.is_corporate %}{% t "Fill in your details below. Everything is needed except your email. If you have them, you can also attach your CV, cover letter and qualifications." %}{% else %}{% t "Fill in your details below. Everything is needed except your email." %}{% endif %}</p>
         <form method="post" action="{{ role.interest_url }}" novalidate style="max-width:620px"{% if role.is_corporate %} enctype="multipart/form-data"{% endif %}>
           {% csrf_token %}
           {% if form.non_field_errors %}<div class="form-errors" role="alert">{{ form.non_field_errors|join:" " }}</div>{% endif %}
@@ -96,7 +96,7 @@
               <div class="form-row form-check">{{ field }}<label for="{{ field.id_for_label }}" style="font-weight:400">{{ field.label }}</label></div>
               {% if field.errors %}<div class="form-row err" role="alert">{{ field.errors|join:" " }}</div>{% endif %}
             {% else %}
-              {% if field.name == 'cv' %}<h3 style="margin-top:22px">Attachments</h3>{% endif %}
+              {% if field.name == 'cv' %}<h3 style="margin-top:22px">{% t "Attachments" %}</h3>{% endif %}
               <div class="form-row{% if field.widget_type == 'clearablefile' %} file-row{% endif %}">
                 <label for="{{ field.id_for_label }}">{{ field.label }}{% if field.field.required %} <span aria-hidden="true">*</span>{% endif %}</label>
                 {{ field }}
@@ -105,7 +105,7 @@
               </div>
             {% endif %}
           {% endfor %}
-          <button type="submit" class="btn btn-primary">Submit application</button>
+          <button type="submit" class="btn btn-primary">{% t "Submit application" %}</button>
         </form>
       {% endif %}
     {% endif %}

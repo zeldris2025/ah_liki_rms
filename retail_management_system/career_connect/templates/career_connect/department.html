@@ -1,5 +1,5 @@
 {% extends 'career_connect/base.html' %}
-{% load career_icons %}
+{% load career_icons cc_i18n %}
 {% block title %}{{ department.name }} — Ah Liki Career Connect{% endblock %}
 {% block extra_style %}
   .page-head.dept { background: linear-gradient(105deg, var(--navy-deep) 0%, var(--c-dark) 55%, var(--c) 130%); }
@@ -11,7 +11,7 @@
      style="--c:{{ department.palette.main }};--c-dark:{{ department.palette.dark }};{% if department.image_url %}--photo:url('{{ department.image_url }}');--photo-opacity:{{ department.photo_opacity }};{% endif %}">
   <div class="wrap">
     <nav class="crumbs" aria-label="Breadcrumb">
-      <a href="{% url 'career_connect' %}">Career Opportunities</a> ›
+      <a href="{% url 'career_connect' %}">{% t "Career Opportunities" %}</a> ›
       <a href="{{ department.company.get_absolute_url }}">{{ department.company.name }}</a> › {{ department.name }}
     </nav>
     <div class="head-row">
@@ -27,19 +27,19 @@
 
 <div class="page-body"><div class="wrap">
   <section aria-labelledby="roles">
-    <h2 class="section-title" id="roles" style="font-size:24px;margin-bottom:18px">Roles</h2>
+    <h2 class="section-title" id="roles" style="font-size:24px;margin-bottom:18px">{% t "Roles" %}</h2>
     {% for r in roles %}
     <a class="role-row" href="{{ r.get_absolute_url }}" style="--c:{{ department.palette.main }}">
       <span class="body">
         <span class="t">{{ r.title }}</span>
         {% if r.summary %}<span class="s" style="display:block">{{ r.summary }}</span>{% endif %}
         {% if r.recruiting_status != 'not_stated' %}<span class="pill {% if r.recruiting_status == 'open' %}open{% else %}closed{% endif %}">
-          {{ r.recruiting_status_label }}</span>{% endif %}
+          {% t r.recruiting_status_label %}</span>{% endif %}
       </span>
-      <span class="apply-btn">Apply now</span>
+      <span class="apply-btn">{% t "Apply now" %}</span>
     </a>
     {% empty %}
-    <p class="section-lead">No open roles in this department right now.</p>
+    <p class="section-lead">{% t "No open roles in this department right now." %}</p>
     {% endfor %}
   </section>
 

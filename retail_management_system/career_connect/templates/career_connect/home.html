@@ -1,6 +1,6 @@
 {% extends 'career_connect/base.html' %}
-{% load static career_icons %}
-{% block title %}Career Opportunities — Ah Liki Career Connect{% endblock %}
+{% load static career_icons cc_i18n %}
+{% block title %}{% t 'Career Opportunities' %} — Ah Liki Career Connect{% endblock %}
 {% block extra_style %}
   /* Hero: the video fills the background, a navy wash keeps the text readable */
   .hero { position: relative; overflow: hidden; color: #fff; background: var(--navy-deep); isolation: isolate;
@@ -77,19 +77,19 @@
   </video>
   <div class="wrap">
     <div class="hero-text">
-      <div class="eyebrow">{% if hiring_count %}<span class="live" aria-hidden="true"></span>Now hiring{% else %}Careers at Ah Liki{% endif %}</div>
-      <h1 id="hero-title">{{ portal.tagline }}</h1>
-      <p>{{ portal.hero_text }}</p>
+      <div class="eyebrow">{% if hiring_count %}<span class="live" aria-hidden="true"></span>{% t "Now hiring" %}{% else %}{% t "Careers at Ah Liki" %}{% endif %}</div>
+      <h1 id="hero-title">{% t portal.tagline %}</h1>
+      <p>{% t portal.hero_text %}</p>
       <div class="actions">
-        <a class="btn btn-primary" href="{% if hiring_count %}#open{% else %}#companies{% endif %}">See Open Roles {% icon 'arrow' 16 %}</a>
+        <a class="btn btn-primary" href="{% if hiring_count %}#open{% else %}#companies{% endif %}">{% t 'See Open Roles' %} {% icon 'arrow' 16 %}</a>
         {% if portal.video_url %}<a class="btn btn-ghost" href="{{ portal.video_url }}" target="_blank" rel="noopener noreferrer"
-           title="{{ portal.video_title }} (opens YouTube)"><span class="ring">{% icon 'play' 13 %}</span>Watch Video</a>{% endif %}
+           title="{{ portal.video_title }} (opens YouTube)"><span class="ring">{% icon 'play' 13 %}</span>{% t 'Watch Video' %}</a>{% endif %}
       </div>
     </div>
-    <ul class="stats" aria-label="At a glance">
-      <li><b>{{ hiring_count }}</b><span>Open position{{ hiring_count|pluralize }}</span></li>
-      <li><b>{{ companies|length }}</b><span>Compan{{ companies|length|pluralize:"y,ies" }}</span></li>
-      <li><b>{{ role_count }}</b><span>Career path{{ role_count|pluralize }}</span></li>
+    <ul class="stats" aria-label="{% t 'At a glance' %}">
+      <li><b>{{ hiring_count }}</b><span>{% tp hiring_count 'Open position' 'Open positions' %}</span></li>
+      <li><b>{{ companies|length }}</b><span>{% tp companies|length 'Company' 'Companies' %}</span></li>
+      <li><b>{{ role_count }}</b><span>{% tp role_count 'Career path' 'Career paths' %}</span></li>
     </ul>
   </div>
 </section>
@@ -98,8 +98,8 @@
   {% if hiring %}
   <section class="block" id="open" aria-labelledby="open-title">
     <div class="block-head">
-      <div class="kicker">Open positions</div>
-      <h2 class="section-title" id="open-title">Join our team</h2>
+      <div class="kicker">{% t "Open positions" %}</div>
+      <h2 class="section-title" id="open-title">{% t "Join our team" %}</h2>
     </div>
     <div class="jobs">
       {% for r in hiring %}
@@ -109,10 +109,10 @@
           <span class="meta">
             <span>{% icon 'building' 14 %} {{ r.company.name }}</span>
             {% if r.department %}<span>{% icon r.department.symbol 14 %} {{ r.department.name }}</span>{% endif %}
-            {% if r.expires_on %}<span>{% icon 'clock' 14 %} Closes {{ r.expires_on|date:"j M Y" }}</span>{% endif %}
+            {% if r.expires_on %}<span>{% icon 'clock' 14 %} {% cc_date r.expires_on 'j M Y' as d %}{% t 'Closes {date}' date=d %}</span>{% endif %}
           </span>
         </span>
-        <span class="apply-btn">Apply now</span>
+        <span class="apply-btn">{% t "Apply now" %}</span>
       </a>
       {% endfor %}
     </div>
@@ -121,9 +121,9 @@
 
   <section class="block" id="companies" aria-labelledby="dept-title">
     <div class="block-head">
-      <div class="kicker">Career opportunities</div>
-      <h2 class="section-title" id="dept-title">Companies of Ah Liki Investment</h2>
-      <p class="section-lead">Select a company to see its departments and roles.</p>
+      <div class="kicker">{% t "Career opportunities" %}</div>
+      <h2 class="section-title" id="dept-title">{% t "Companies of Ah Liki Investment" %}</h2>
+      <p class="section-lead">{% t "Select a company to see its departments and roles." %}</p>
     </div>
     {% include 'career_connect/_company_cards.html' %}
   </section>
@@ -132,22 +132,22 @@
 {% if hiring %}
 <dialog class="hiring" id="hiring" aria-labelledby="hiring-title">
   <div class="hiring-head">
-    <p class="kicker">We're hiring</p>
-    <h2 id="hiring-title">{{ hiring_count }} position{{ hiring_count|pluralize }} open now</h2>
-    <form method="dialog"><button class="hiring-x" aria-label="Close">×</button></form>
+    <p class="kicker">{% t "We're hiring" %}</p>
+    <h2 id="hiring-title">{% tp hiring_count "{n} position open now" "{n} positions open now" %}</h2>
+    <form method="dialog"><button class="hiring-x" aria-label="{% t 'Close' %}">×</button></form>
   </div>
   <ul>
     {% for r in hiring|slice:":5" %}
     <li><a href="{{ r.get_absolute_url }}">
       <span><span class="t">{{ r.title }}</span>
-        <small>{{ r.place }}{% if r.expires_on %} · Closes {{ r.expires_on|date:"j M" }}{% endif %}</small></span>
-      <span class="apply-btn sm">Apply now</span>
+        <small>{{ r.place }}{% if r.expires_on %} · {% cc_date r.expires_on "j M" as d %}{% t "Closes {date}" date=d %}{% endif %}</small></span>
+      <span class="apply-btn sm">{% t "Apply now" %}</span>
     </a></li>
     {% endfor %}
   </ul>
   <div class="hiring-foot">
-    <a class="btn btn-primary" href="#open" data-close>See all open positions</a>
-    <form method="dialog" style="display:contents"><button class="btn btn-light">Maybe later</button></form>
+    <a class="btn btn-primary" href="#open" data-close>{% t "See all open positions" %}</a>
+    <form method="dialog" style="display:contents"><button class="btn btn-light">{% t "Maybe later" %}</button></form>
   </div>
 </dialog>
 {% endif %}

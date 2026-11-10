@@ -1,4 +1,4 @@
-{% load career_icons %}{% if companies %}
+{% load career_icons cc_i18n %}{% if companies %}
 <div class="dept-grid">
   {% for c in companies %}
   <a class="dept-card company-card{% if c.image_url %} has-photo fit-{{ c.background_fit }}{% endif %}" href="{{ c.get_absolute_url }}"
@@ -6,11 +6,11 @@
     {% if not c.icon_url %}<span class="mark">{% icon c.symbol 150 %}</span>{% endif %}
     <span class="badge{% if c.icon_url %} has-img{% endif %}">{% badge_icon c 30 %}</span>
     <span class="name">{{ c.name }}</span>
-    <span class="count">{{ c.position_count }} Available Position{{ c.position_count|pluralize }}</span>
+    <span class="count">{% tp c.position_count "{n} Available Position" "{n} Available Positions" %}</span>
     <span class="go">{% icon 'arrow' 16 %}</span>
   </a>
   {% endfor %}
 </div>
 {% else %}
-{% include 'career_connect/_missing.html' with what='Company information' %}
+{% t 'Company information' as what %}{% include 'career_connect/_missing.html' with what=what %}
 {% endif %}

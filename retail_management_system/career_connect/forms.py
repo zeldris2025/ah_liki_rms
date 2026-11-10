@@ -1,14 +1,16 @@
 from django import forms
 from django.utils.text import slugify
 
+from . import i18n
 from .models import ATTACHMENT_TYPES, MAX_ATTACHMENT_MB, Company, Department, ExpressionOfInterest, Role, office_today
 
 ACCEPT = ','.join('.' + t for t in ATTACHMENT_TYPES)
 FILE_HELP = f'PDF, Word or a photo, under {MAX_ATTACHMENT_MB} MB.'
+QUALIFICATIONS_HELP = 'Certificates or transcripts in one file. ' + FILE_HELP
 
 
 class ApplicationForm(forms.ModelForm):
-    """The application for a general position: every detail is needed."""
+    """The application for a general position: every detail is needed except the email (not everyone has one)."""
     # Left empty by people; bots that fill every field are quietly ignored
     website = forms.CharField(required=False, widget=forms.TextInput(attrs={'tabindex': '-1', 'autocomplete': 'off'}))
     consent = forms.BooleanField(
@@ -25,38 +27,67 @@ class ApplicationForm(forms.ModelForm):
             'phone': forms.TextInput(attrs={'autocomplete': 'tel', 'inputmode': 'tel'}),
             'highest_qualification': forms.TextInput(attrs={'placeholder': 'e.g. Year 13 certificate, or 2 years in retail'}),
         }
-        labels = {'full_name': 'Name', 'phone': 'Phone number',
+        labels = {'full_name': 'Name', 'email': 'Email (optional)', 'phone': 'Phone number',
                   'highest_qualification': 'Experience (highest qualification)'}
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, lang=i18n.ENGLISH, **kwargs):
         super().__init__(*args, **kwargs)
+        self.lang = lang
         for name in ApplicationForm.Meta.fields:
-            self.fields[name].required = True
+            self.fields[name].required = name != 'email'   # not everyone has an email address
+
+    def _translate(self):
+        """Labels, hints and the usual error messages in the applicant's language."""
+        if self.lang == i18n.ENGLISH:
+            return
+        tr = lambda text: i18n.translate(text, self.lang)
+        mb = {'mb': MAX_ATTACHMENT_MB}
+        hints = {FILE_HELP: i18n.translate('PDF, Word or a photo, under {mb} MB.', self.lang, **mb),
+                 QUALIFICATIONS_HELP: i18n.translate(
+                     'Certificates or transcripts in one file. PDF, Word or a photo, under {mb} MB.',
+                     self.lang, **mb)}
+        for field in self.fields.values():
+            field.label = tr(field.label)
+            if field.help_text:
+                field.help_text = hints.get(field.help_text, tr(field.help_text))
+            if 'placeholder' in field.widget.attrs:
+                field.widget.attrs['placeholder'] = tr(field.widget.attrs['placeholder'])
+            field.error_messages = {key: i18n.translate_error(msg, self.lang) for key, msg in field.error_messages.items()}
+
+    def full_clean(self):
+        super().full_clean()
+        # Messages from validators (file type and size, age limits) arrive already written in English
+        if self.lang != i18n.ENGLISH and self._errors:
+            for errors in self._errors.values():
+                errors.data = [i18n.translate_error(e, self.lang) for e in errors]
 
     def is_bot(self):
         return bool(self.cleaned_data.get('website'))
 
 
 class CorporateApplicationForm(ApplicationForm):
-    """A corporate position also asks for the CV and cover letter, and copies of qualifications if there are any."""
+    """A corporate position also takes the CV, cover letter and copies of qualifications, all optional."""
     class Meta(ApplicationForm.Meta):
         fields = ApplicationForm.Meta.fields + ('cv', 'cover_letter', 'qualifications_file')
         widgets = {**ApplicationForm.Meta.widgets,
                    **{name: forms.ClearableFileInput(attrs={'accept': ACCEPT})
                       for name in ('cv', 'cover_letter', 'qualifications_file')}}
-        labels = {**ApplicationForm.Meta.labels, 'cv': 'CV', 'cover_letter': 'Cover letter',
-                  'qualifications_file': 'Qualifications (certificates)'}
+        labels = {**ApplicationForm.Meta.labels, 'cv': 'CV (optional)', 'cover_letter': 'Cover letter (optional)',
+                  'qualifications_file': 'Qualifications (optional)'}
         help_texts = {'cv': FILE_HELP, 'cover_letter': FILE_HELP,
-                      'qualifications_file': 'Optional: certificates or transcripts in one file. ' + FILE_HELP}
+                      'qualifications_file': QUALIFICATIONS_HELP}
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields['cv'].required = self.fields['cover_letter'].required = True
+        for name in ('cv', 'cover_letter', 'qualifications_file'):   # all optional: not everyone has them to hand
+            self.fields[name].required = False
 
 
 def application_form(role, *args, **kwargs):
-    """The form applicants fill in for this role."""
-    return (CorporateApplicationForm if role.is_corporate else ApplicationForm)(*args, **kwargs)
+    """The form applicants fill in for this role (pass lang='sm' for Samoan)."""
+    form = (CorporateApplicationForm if role.is_corporate else ApplicationForm)(*args, **kwargs)
+    form._translate()
+    return form
 
 
 class VacancyForm(forms.ModelForm):

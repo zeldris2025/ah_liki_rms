@@ -28,7 +28,7 @@
           {% if a.message %}<div class="hr-summary" title="{{ a.message }}">{{ a.message|truncatewords:20 }}</div>{% endif %}</td>
         <td>{{ a.age|default:"—" }}</td>
         <td>{{ a.village|default:"—" }}</td>
-        <td><a href="mailto:{{ a.email }}">{{ a.email }}</a>{% if a.phone %}<div class="hr-summary"><a href="tel:{{ a.phone|cut:' ' }}">{{ a.phone }}</a></div>{% endif %}</td>
+        <td>{% if a.email %}<a href="mailto:{{ a.email }}">{{ a.email }}</a>{% else %}<span style="color:var(--muted)">No email</span>{% endif %}{% if a.phone %}<div class="hr-summary"><a href="tel:{{ a.phone|cut:' ' }}">{{ a.phone }}</a></div>{% endif %}</td>
         <td>{{ a.highest_qualification|default:"—" }}</td>
         {% if role.is_corporate %}
         <td><div class="hr-files">

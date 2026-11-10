@@ -1,5 +1,5 @@
 {% extends 'career_connect/base.html' %}
-{% load career_icons %}
+{% load career_icons cc_i18n %}
 {% block title %}{{ company.name }} — Ah Liki Career Connect{% endblock %}
 {% block extra_style %}
   .page-head.dept { background: linear-gradient(105deg, var(--navy-deep) 0%, var(--c-dark) 55%, var(--c) 130%); }
@@ -11,7 +11,7 @@
      style="--c:{{ company.palette.main }};--c-dark:{{ company.palette.dark }};{% if company.image_url %}--photo:url('{{ company.image_url }}');--photo-opacity:{{ company.photo_opacity }};{% endif %}">
   <div class="wrap">
     <nav class="crumbs" aria-label="Breadcrumb">
-      <a href="{% url 'career_connect' %}">Career Opportunities</a> › {{ company.name }}
+      <a href="{% url 'career_connect' %}">{% t "Career Opportunities" %}</a> › {{ company.name }}
     </nav>
     <div class="head-row">
       <span class="head-badge{% if company.icon_url %} has-img{% endif %}">{% badge_icon company 34 %}</span>
@@ -27,30 +27,30 @@
 <div class="page-body"><div class="wrap">
   {% if roles %}
   <section aria-labelledby="roles">
-    <h2 class="section-title" id="roles" style="font-size:24px;margin-bottom:18px">Open positions</h2>
+    <h2 class="section-title" id="roles" style="font-size:24px;margin-bottom:18px">{% t "Open positions" %}</h2>
     {% for r in roles %}
     <a class="role-row" href="{{ r.get_absolute_url }}" style="--c:{{ company.palette.main }}">
       <span class="body">
         <span class="t">{{ r.title }}</span>
         {% if r.summary %}<span class="s" style="display:block">{{ r.summary }}</span>{% endif %}
         {% if r.recruiting_status != 'not_stated' %}<span class="pill {% if r.recruiting_status == 'open' %}open{% else %}closed{% endif %}">
-          {{ r.recruiting_status_label }}</span>{% endif %}
-        {% if r.expires_on %}<span class="pill light">{% icon 'clock' 12 %} Closes {{ r.expires_on|date:"j M Y" }}</span>{% endif %}
+          {% t r.recruiting_status_label %}</span>{% endif %}
+        {% if r.expires_on %}<span class="pill light">{% icon 'clock' 12 %} {% cc_date r.expires_on 'j M Y' as d %}{% t 'Closes {date}' date=d %}</span>{% endif %}
       </span>
-      <span class="apply-btn">Apply now</span>
+      <span class="apply-btn">{% t "Apply now" %}</span>
     </a>
     {% endfor %}
   </section>
   {% endif %}
 
   {% if departments %}
-  <h2 class="section-title" style="font-size:24px;margin:{% if roles %}34px{% else %}0{% endif %} 0 18px">Departments</h2>
+  <h2 class="section-title" style="font-size:24px;margin:{% if roles %}34px{% else %}0{% endif %} 0 18px">{% t "Departments" %}</h2>
   {% include 'career_connect/_dept_cards.html' %}
   {% elif not roles %}
-  <p class="section-lead">No open positions at {{ company.name }} right now. Please check back soon.</p>
+  <p class="section-lead">{% t "No open positions at {company} right now. Please check back soon." company=company.name %}</p>
   {% endif %}
   <div class="actions" style="margin-top:28px">
-    <a class="btn btn-light" href="{% url 'career_connect' %}#companies">{% icon 'back' 16 %} All companies</a>
+    <a class="btn btn-light" href="{% url 'career_connect' %}#companies">{% icon 'back' 16 %} {% t 'All companies' %}</a>
   </div>
 </div></div>
 {% endblock %}

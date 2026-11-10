@@ -17,9 +17,12 @@ from django.core.cache import cache
 from django.db.models import Count, F, Prefetch, Q
 from django.http import FileResponse, Http404, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
+from django.utils.cache import patch_vary_headers
+from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_GET, require_POST
 
-from . import qr
+from . import i18n, qr
 from .access import MANAGE_PERMISSION
 from .forms import application_form
 from .notify import notify_new_application
@@ -32,10 +35,15 @@ def public_page(view):
     @functools.wraps(view)
     def wrapped(request, *args, **kwargs):
         portal = PortalSettings.load()
+        request.cc_lang = i18n.get_language(request)
         if not portal.is_published:
-            return render(request, 'career_connect/unavailable.html', {'portal': portal}, status=503)
-        request.portal = portal
-        return view(request, *args, **kwargs)
+            response = render(request, 'career_connect/unavailable.html',
+                              {'portal': portal, 'cc_lang': request.cc_lang}, status=503)
+        else:
+            request.portal = portal
+            response = view(request, *args, **kwargs)
+        patch_vary_headers(response, ['Cookie'])   # English and Samoan pages share one address
+        return response
     return wrapped
 
 
@@ -54,7 +62,22 @@ def _published_departments(company):
 
 
 def _context(request, **extra):
-    return {'portal': request.portal, **extra}
+    return {'portal': request.portal, 'cc_lang': request.cc_lang, **extra}
+
+
+@require_GET
+def set_language(request):
+    """The header button: ?to=en|sm, back to ?next (a page on this site) with the choice kept in a cookie for a year."""
+    lang = request.GET.get('to')
+    target = request.GET.get('next', '')
+    if not url_has_allowed_host_and_scheme(target, allowed_hosts={request.get_host()},
+                                           require_https=request.is_secure()):
+        target = reverse('career_connect')
+    response = redirect(target)
+    if lang in i18n.LANGUAGES:
+        response.set_cookie(i18n.COOKIE, lang, max_age=i18n.COOKIE_AGE, samesite='Lax',
+                            secure=request.is_secure(), httponly=True)
+    return response
 
 
 @require_GET
@@ -114,7 +137,7 @@ def _published_role(company_slug, dept_slug, role_slug):
 @public_page
 def role(request, company_slug, role_slug, dept_slug=None):
     r = _published_role(company_slug, dept_slug, role_slug)
-    form = application_form(r) if r.accepts_interest else None
+    form = application_form(r, lang=request.cc_lang) if r.accepts_interest else None
     return render(request, 'career_connect/role.html', _context(
         request, role=r, form=form, sent=request.GET.get('sent') == '1', nav='careers'))
 
@@ -162,12 +185,13 @@ def interest(request, company_slug, role_slug, dept_slug=None):
     r = _published_role(company_slug, dept_slug, role_slug)
     if not r.accepts_interest:
         raise Http404('This role does not take expressions of interest.')
-    form = application_form(r, request.POST, request.FILES)
+    form = application_form(r, request.POST, request.FILES, lang=request.cc_lang)
     if form.is_valid():
         if form.is_bot():
             return redirect(r.get_absolute_url() + '?sent=1')
         if _rate_limited(request):
-            form.add_error(None, 'Too many submissions from your network. Please try again in an hour.')
+            form.add_error(None, i18n.translate('Too many submissions from your network. Please try again in an hour.',
+                                                request.cc_lang))
         else:
             eoi = form.save(commit=False)
             eoi.role, eoi.role_title = r, r.title

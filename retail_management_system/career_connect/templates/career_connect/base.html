@@ -1,11 +1,11 @@
-{% load static career_icons %}<!DOCTYPE html>
-<html lang="en">
+{% load static career_icons cc_i18n %}<!DOCTYPE html>
+<html lang="{{ cc_lang|default:'en' }}">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="referrer" content="strict-origin-when-cross-origin">
   <meta name="theme-color" content="#0A2558">
-  <meta name="description" content="Ah Liki Career Connect — {{ portal.tagline }}">
+  <meta name="description" content="Ah Liki Career Connect — {% t portal.tagline %}">
   <title>{% block title %}Ah Liki Career Connect{% endblock %}</title>
   <link rel="icon" href="{% static 'imgs/ahliki_logo.png' %}">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -45,6 +45,11 @@
     .wordmark .w1 { font-weight: 800; font-size: 27px; letter-spacing: .01em; }
     .wordmark .w2 { font-weight: 500; font-size: 10.5px; letter-spacing: .48em; margin-top: 5px; color: #DCE7FA; }
     .header-cta { margin-left: auto; min-height: 40px; padding: 8px 20px; font-size: 14px; }
+    .lang-btn { display: inline-flex; align-items: center; gap: 8px; min-height: 40px; padding: 7px 16px; border-radius: 999px;
+                border: 1.5px solid rgba(255,255,255,.55); color: #fff; text-decoration: none; font-size: 13.5px; font-weight: 600;
+                white-space: nowrap; transition: background .15s, border-color .15s; }
+    .lang-btn:hover { background: rgba(255,255,255,.12); border-color: #fff; }
+    .lang-btn .flag { font-size: 11px; font-weight: 700; letter-spacing: .06em; background: #fff; color: var(--navy); border-radius: 999px; padding: 1px 7px; }
 
     /* ── Buttons ── */
     .btn { display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 46px; padding: 11px 24px;
@@ -188,14 +193,18 @@
   </style>
 </head>
 <body>
-  <a class="skip" href="#main">Skip to content</a>
+  <a class="skip" href="#main">{% t "Skip to content" %}</a>
   <header class="site-header">
     <div class="wrap">
-      <a class="brand" href="{% url 'career_connect' %}" aria-label="Ah Liki Wholesale Career Connect — home">
+      <a class="brand" href="{% url 'career_connect' %}" aria-label="{% t 'Ah Liki Career Connect — home' %}">
         <span class="brand-badge"><img src="{% static 'imgs/ahliki_logo.png' %}" alt="" width="52" height="52"></span>
         <span class="wordmark"><span class="w1">AH LIKI</span><span class="w2">INVESTMENT CORP</span></span>
       </a>
-      <a class="btn btn-primary header-cta" href="{% url 'career_connect' %}#companies">Career Opportunities</a>
+      <a class="btn btn-primary header-cta" href="{% url 'career_connect' %}#companies">{% t "Career Opportunities" %}</a>
+      {# English is the default; the button switches every Career Connect page to the other language #}
+      <a class="lang-btn" href="{% lang_switch_url %}" rel="nofollow"
+         {% if cc_lang == 'sm' %}lang="en" hreflang="en" title="{% t 'Read this site in English' %}"><span class="flag">EN</span>English
+         {% else %}lang="sm" hreflang="sm" title="{% t 'Read this site in Samoan' %}"><span class="flag">SM</span>Gagana Sāmoa{% endif %}</a>
     </div>
   </header>
 
@@ -205,7 +214,7 @@
     <div class="wrap">
       <div class="footer-top">
         <div>
-          <a class="brand" href="{% url 'career_connect' %}" aria-label="Career Connect home">
+          <a class="brand" href="{% url 'career_connect' %}" aria-label="{% t 'Career Connect home' %}">
             <span class="brand-badge"><img src="{% static 'imgs/ahliki_logo.png' %}" alt="" width="44" height="44"></span>
             <span class="wordmark"><span class="w1">AH LIKI</span><span class="w2">WHOLESALE</span></span>
           </a>
@@ -220,7 +229,7 @@
         {% endif %}
       </div>
       <div class="footer-bottom">
-        <p>© {% now 'Y' %} Ah Liki Wholesale. All rights reserved.{% if portal.footer_text %} {{ portal.footer_text }}{% endif %}</p>
+        <p>© {% now 'Y' %} Ah Liki Wholesale. {% t 'All rights reserved.' %}{% if portal.footer_text %} {{ portal.footer_text }}{% endif %}</p>
         {% if portal.footer_closing %}<p>{{ portal.footer_closing }}</p>{% endif %}
       </div>
     </div>
@@ -229,7 +238,7 @@
     // Visible feedback while a form is sending
     document.addEventListener('submit', function (e) {
       var btn = e.target.querySelector('button[type=submit]');
-      if (btn) { btn.setAttribute('aria-busy', 'true'); btn.dataset.label = btn.textContent; btn.textContent = 'Sending…'; }
+      if (btn) { btn.setAttribute('aria-busy', 'true'); btn.dataset.label = btn.textContent; btn.textContent = '{% t "Sending…" as sending %}{{ sending|escapejs }}'; }
     });
     window.addEventListener('pageshow', function () {
       document.querySelectorAll('button[aria-busy=true]').forEach(function (b) { b.removeAttribute('aria-busy'); b.textContent = b.dataset.label || b.textContent; });

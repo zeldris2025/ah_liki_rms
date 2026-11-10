@@ -1,1 +1,1 @@
-<p class="missing">{{ what|default:"This information" }} — not provided yet.</p>
+{% load cc_i18n %}<p class="missing">{% t "{what} — not provided yet." what=what|default:"This information" %}</p>

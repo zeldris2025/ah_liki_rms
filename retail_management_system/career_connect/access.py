@@ -20,6 +20,7 @@ PUBLIC_URL_NAMES = {
     'career_connect_company_icon',
     'career_connect_role_jd',
     'career_connect_department_image',
+    'career_connect_language',
 }
 
 # Who may print the QR code and see the Career Connect link in the sidebar (content itself is edited in the admin

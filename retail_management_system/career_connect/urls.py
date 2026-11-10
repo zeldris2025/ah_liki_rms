@@ -5,6 +5,7 @@ from . import hr_views, views
 urlpatterns = [
     # Public (no sign-in) — every name here is listed in access.PUBLIC_URL_NAMES
     path('career-connect/',                                    views.home,        name='career_connect'),
+    path('career-connect/language/',                           views.set_language, name='career_connect_language'),
     path('career-connect/about/',                              views.about,       name='career_connect_about'),
     path('career-connect/careers/',                            views.careers,     name='career_connect_careers'),
     path('career-connect/careers/<slug:company_slug>/',        views.company,     name='career_connect_company'),

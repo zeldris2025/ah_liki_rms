@@ -50,7 +50,7 @@ def application_email(app, url, not_attached=()):
     role = app.role
     rows = [('Position', f'{app.role_title} ({role.get_position_type_display()})' if role else app.role_title),
             ('Company', role.place if role else ''), ('Name', app.full_name), ('Age', app.age), ('Village', app.village),
-            ('Email', app.email), ('Phone', app.phone), ('Experience (highest qualification)', app.highest_qualification),
+            ('Email', app.email or 'Not given'), ('Phone', app.phone), ('Experience (highest qualification)', app.highest_qualification),
             ('Received', timezone.localtime(app.created_at).strftime('%d %b %Y, %I:%M %p'))]
     files = [label for _, label, _ in app.attachments()]
     if files:

@@ -100,7 +100,7 @@ class PublicPortalTests(TestCase):
             if url in seen:
                 continue
             seen.add(url)
-            r = self.client.get(url)
+            r = self.client.get(url, follow=True)   # the language button redirects back to a page
             self.assertEqual(r.status_code, 200, url)
             for href in re.findall(r'href="(/[^"#?]*)', r.content.decode()):
                 if not href.startswith('/static/'):
@@ -876,8 +876,9 @@ class ApplicationTests(TestCase):
 
     def test_general_form_asks_for_the_six_details_only(self):
         r = self.client.get(self.role.get_absolute_url())
-        for label in ('Name', 'Age', 'Village', 'Email', 'Phone number', 'Experience (highest qualification)'):
+        for label in ('Name', 'Age', 'Village', 'Phone number', 'Experience (highest qualification)'):
             self.assertContains(r, f'>{label} <span aria-hidden="true">*</span>')
+        self.assertContains(r, '>Email (optional)</label>')   # not everyone has an email address
         self.assertNotContains(r, 'type="file"')
         self.assertNotContains(r, 'multipart/form-data')
         missing = self.client.post(self.role.interest_url, {**self.details, 'village': ''})
@@ -885,14 +886,23 @@ class ApplicationTests(TestCase):
         self.assertRedirects(self.client.post(self.role.interest_url, self.details),
                              self.role.get_absolute_url() + '?sent=1#apply', fetch_redirect_response=False)
 
-    def test_corporate_form_needs_cv_and_cover_letter(self):
+    def test_email_is_optional(self):
+        r = self.client.post(self.role.interest_url, {**self.details, 'email': ''})
+        self.assertEqual(r.status_code, 302)
+        self.assertEqual(ExpressionOfInterest.objects.get().email, '')
+        self.assertEqual(self.client.post(self.role.interest_url, {**self.details, 'email': 'not-an-email'}).status_code,
+                         400)   # but one that's given must be real
+
+    def test_corporate_form_takes_optional_attachments(self):
         self.role.position_type = Role.CORPORATE
         self.role.save()
         r = self.client.get(self.role.get_absolute_url())
         self.assertContains(r, 'enctype="multipart/form-data"')
         for name in ('cv', 'cover_letter', 'qualifications_file'):
             self.assertContains(r, f'name="{name}"')
-        self.assertEqual(self.client.post(self.role.interest_url, self.details).status_code, 400)
+            self.assertNotContains(r, f'name="{name}" required')
+        for label in ('CV (optional)', 'Cover letter (optional)', 'Qualifications (optional)'):
+            self.assertContains(r, f'>{label}</label>')
         bad = {**self.details, **self._files(), 'cv': SimpleUploadedFile('cv.exe', b'MZ', 'application/octet-stream')}
         self.assertEqual(self.client.post(self.role.interest_url, bad).status_code, 400)
         self.assertFalse(ExpressionOfInterest.objects.exists())
@@ -903,6 +913,13 @@ class ApplicationTests(TestCase):
         # Kept outside MEDIA_ROOT, so /media/ can never hand them out
         self.assertTrue(app.cv.path.startswith(os.path.abspath(self.private)))
         self.assertFalse(os.listdir(self.media))
+
+    def test_corporate_application_without_attachments(self):
+        self.role.position_type = Role.CORPORATE
+        self.role.save()
+        r = self.client.post(self.role.interest_url, {**self.details, 'email': ''})
+        self.assertEqual(r.status_code, 302)
+        self.assertEqual(ExpressionOfInterest.objects.get().attachments(), [])
 
     def test_only_hr_can_see_applications_and_download_files(self):
         self.role.position_type = Role.CORPORATE
@@ -1122,3 +1139,62 @@ class LargeAttachmentMailTests(TestCase):
         calls = self.run_send([('letter.pdf', 'application/pdf', big)], fail_on='createUploadSession')
         self.assertEqual(calls[-1][0], 'DELETE')
         self.assertFalse(any(u.endswith('/send') for _, u, _, _ in calls))
+
+
+class LanguageTests(TestCase):
+    """English by default; the header button switches every public page (and the form) to Samoan and back."""
+
+    def setUp(self):
+        cache.clear()
+        self.role = Role.objects.get(slug='accountant')
+        self.role.apply_method = Role.APPLY_FORM
+        self.role.save()
+
+    def _switch(self, to, next_url):
+        return self.client.get(reverse('career_connect_language'), {'to': to, 'next': next_url})
+
+    def test_english_by_default_with_a_samoan_button(self):
+        r = self.client.get(reverse('career_connect'))
+        self.assertContains(r, '<html lang="en">')
+        self.assertContains(r, 'Gagana Sāmoa')
+        self.assertContains(r, 'Companies of Ah Liki Investment')
+
+    def test_switching_to_samoan_and_back(self):
+        page = self.role.get_absolute_url()
+        r = self._switch('sm', page)
+        self.assertRedirects(r, page, fetch_redirect_response=False)
+        self.assertEqual(r.cookies['cc_lang'].value, 'sm')
+
+        r = self.client.get(page)
+        self.assertContains(r, '<html lang="sm">')
+        self.assertContains(r, 'Auina atu le talosaga')                  # Submit application
+        self.assertContains(r, '>Igoa <span aria-hidden="true">*</span>')  # the form labels too
+        self.assertNotContains(r, 'Submit application')
+        self.assertContains(r, '>EN</span>English')
+        home = self.client.get(reverse('career_connect'))
+        self.assertContains(home, 'Kamupani a Ah Liki Investment')
+        self.assertContains(home, 'Saili Avanoa. Fausia Lou Lumana’i.')    # the default tagline
+        self.assertIn('Cookie', r['Vary'])
+
+        self._switch('en', page)
+        self.assertContains(self.client.get(page), 'Submit application')
+
+    def test_form_errors_in_samoan(self):
+        self._switch('sm', '/')
+        r = self.client.post(self.role.interest_url, {'full_name': 'Sina', 'email': 'nope', 'consent': 'on'})
+        self.assertEqual(r.status_code, 400)
+        self.assertContains(r, 'E mana’omia lenei vaega.', status_code=400)
+        self.assertContains(r, 'Tusi mai se tuatusi imeli sa’o.', status_code=400)
+        self.assertNotContains(r, 'This field is required.', status_code=400)
+
+    def test_samoan_dates(self):
+        from .i18n import format_date
+        import datetime
+        self.assertEqual(format_date(datetime.date(2026, 12, 5), 'j M Y', 'sm'), '5 Tesema 2026')
+        self.assertEqual(format_date(datetime.date(2026, 12, 5), 'j M Y', 'en'), '5 Dec 2026')
+
+    def test_only_goes_back_to_this_site(self):
+        r = self._switch('sm', 'https://evil.example.com/')
+        self.assertRedirects(r, reverse('career_connect'), fetch_redirect_response=False)
+        r = self._switch('xx', reverse('career_connect'))
+        self.assertNotIn('cc_lang', r.cookies)

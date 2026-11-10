@@ -589,7 +589,7 @@ class ExpressionOfInterest(models.Model):
     full_name = models.CharField('name', max_length=120)
     age = models.PositiveSmallIntegerField(null=True, blank=True, validators=[MinValueValidator(14), MaxValueValidator(99)])
     village = models.CharField(max_length=120, blank=True)
-    email = models.EmailField()
+    email = models.EmailField(blank=True)   # optional: not every applicant has one
     phone = models.CharField('phone number', max_length=40, blank=True)
     highest_qualification = models.CharField('experience (highest qualification)', max_length=200, blank=True)
     cv = _attachment('CV')
