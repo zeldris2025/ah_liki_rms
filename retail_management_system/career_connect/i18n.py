@@ -43,7 +43,7 @@ SAMOAN = {
     'Companies': 'Kamupani',
     'Career path': 'Ala o galuega',
     'Career paths': 'Ala o galuega',
-    'Join our team': 'Auai i la matou ’au',
+    # 'Join our team': 'Auai i la matou ’au',
     'Closes {date}': 'Tapunia i le aso {date}',
     'Apply now': 'Apalai nei loa',
     'Career opportunities': 'Avanoa Faigaluega',
