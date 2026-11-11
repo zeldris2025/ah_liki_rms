@@ -88,6 +88,22 @@ class PublicPortalTests(TestCase):
         accountant.department.save()
         self.assertNotContains(self.client.get(reverse('career_connect')), 'id="hiring"')
 
+    def test_open_positions_show_five_a_page(self):
+        accountant = Role.objects.get(slug='accountant')
+        for i in range(7):
+            Role.objects.create(company=accountant.company, department=accountant.department, title=f'Clerk {i}',
+                                slug=f'clerk-{i}', vacancy_status=Role.OPEN)
+        r = self.client.get(reverse('career_connect'))
+        self.assertEqual((len(r.context['jobs']), r.context['jobs'].paginator.num_pages), (5, 2))
+        self.assertEqual(len(r.context['hiring']), 7)          # the pop-up still lists them all
+        self.assertContains(r, 'Page 1 of 2')
+        self.assertContains(r, 'href="?page=2#open"')
+        r = self.client.get(reverse('career_connect'), {'page': 2})
+        self.assertEqual(len(r.context['jobs']), 2)
+        self.assertContains(r, 'href="?page=1#open"')
+        self.assertEqual(self.client.get(reverse('career_connect'), {'page': 'x'}).context['jobs'].number, 1)
+        self.assertEqual(self.client.get(reverse('career_connect'), {'page': 99}).context['jobs'].number, 2)
+
     def test_old_about_and_careers_links_go_to_career_opportunities(self):
         for name in ('career_connect_about', 'career_connect_careers'):
             self.assertRedirects(self.client.get(reverse(name)), reverse('career_connect'))

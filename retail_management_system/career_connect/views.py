@@ -14,6 +14,7 @@ import os
 from django.conf import settings
 from django.contrib.auth.decorators import login_required, permission_required
 from django.core.cache import cache
+from django.core.paginator import Paginator
 from django.db.models import Count, F, Prefetch, Q
 from django.http import FileResponse, Http404, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -80,6 +81,9 @@ def set_language(request):
     return response
 
 
+JOBS_PER_PAGE = 5
+
+
 @require_GET
 @public_page
 def home(request):
@@ -89,8 +93,10 @@ def home(request):
               .select_related('company', 'department').order_by(F('expires_on').asc(nulls_last=True), 'title'))
     hiring = list(hiring)
     companies = list(_published_companies())
+    # The open positions list shows JOBS_PER_PAGE at a time (?page=2 ...); the pop-up lists them all
+    jobs = Paginator(hiring, JOBS_PER_PAGE).get_page(request.GET.get('page'))
     return render(request, 'career_connect/home.html', _context(
-        request, companies=companies, hiring=hiring, hiring_count=len(hiring),
+        request, companies=companies, hiring=hiring, hiring_count=len(hiring), jobs=jobs,
         role_count=sum(c.position_count for c in companies)))
 
 

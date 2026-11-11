@@ -31,6 +31,10 @@
 
   /* Open positions */
   .jobs { display: grid; gap: 12px; }
+  .pager { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 18px; }
+  .pager .btn { min-height: 42px; padding: 9px 20px; }
+  .pager [aria-disabled="true"] { opacity: .4; pointer-events: none; box-shadow: none; }
+  .pager-count { color: var(--muted); font-size: 14px; font-weight: 600; text-align: center; }
   .job { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 16px; background: #fff; border: 1px solid var(--line);
          border-radius: 12px; padding: 18px 22px; text-decoration: none; color: inherit; transition: border-color .15s, box-shadow .15s, transform .15s; }
   .job:hover { border-color: #B7CDF2; box-shadow: 0 10px 26px rgba(13,40,92,.10); transform: translateY(-1px); }
@@ -42,7 +46,7 @@
   .hiring { width: min(460px, calc(100vw - 32px)); border: 0; border-radius: 16px; padding: 0; color: var(--text);
             box-shadow: 0 24px 60px rgba(7,28,69,.35); }
   .hiring::backdrop { background: rgba(7,28,69,.55); }
-  .hiring[open] { animation: pop .22s ease-out; }
+  .hiring[open] { animation: pop .22s ease-out; display: flex; flex-direction: column; max-height: calc(100dvh - 32px); }
   @keyframes pop { from { opacity: 0; transform: translateY(12px) scale(.97); } }
   .hiring-head { background: linear-gradient(105deg, var(--navy-deep), var(--blue)); color: #fff; padding: 22px 24px 20px; position: relative; }
   .hiring-head .kicker { color: #fff; opacity: .85; margin: 0; }
@@ -50,7 +54,15 @@
   .hiring-x { position: absolute; top: 12px; right: 12px; width: 34px; height: 34px; border: 0; border-radius: 50%;
               background: rgba(255,255,255,.16); color: #fff; font-size: 20px; line-height: 1; cursor: pointer; }
   .hiring-x:hover { background: rgba(255,255,255,.28); }
-  .hiring ul { list-style: none; margin: 0; padding: 8px 12px; }
+  /* About five positions show; the rest scroll. The shadows at the top and bottom edges show there's more */
+  .hiring ul { list-style: none; margin: 0; padding: 8px 12px; max-height: 330px; min-height: 0; flex: 0 1 auto;
+               overflow-y: auto; overscroll-behavior: contain;
+               background: linear-gradient(#fff 30%, rgba(255,255,255,0)) top / 100% 24px no-repeat local,
+                           linear-gradient(rgba(255,255,255,0), #fff 70%) bottom / 100% 24px no-repeat local,
+                           radial-gradient(farthest-side at 50% 0, rgba(7,28,69,.16), rgba(7,28,69,0)) top / 100% 10px no-repeat scroll,
+                           radial-gradient(farthest-side at 50% 100%, rgba(7,28,69,.16), rgba(7,28,69,0)) bottom / 100% 10px no-repeat scroll;
+               background-color: #fff; }
+  .hiring-head, .hiring-foot { flex-shrink: 0; }
   .hiring li a { display: flex; align-items: center; gap: 12px; padding: 12px; border-radius: 10px; text-decoration: none; color: var(--ink); }
   .hiring li a:hover, .hiring li a:focus-visible { background: var(--blue-soft); }
   .hiring li .t { font-weight: 600; display: block; }
@@ -102,7 +114,7 @@
       <h2 class="section-title" id="open-title">{% t "Join our team" %}</h2>
     </div>
     <div class="jobs">
-      {% for r in hiring %}
+      {% for r in jobs %}
       <a class="job" href="{{ r.get_absolute_url }}">
         <span>
           <span class="t">{{ r.title }}</span>
@@ -116,6 +128,15 @@
       </a>
       {% endfor %}
     </div>
+    {% if jobs.has_other_pages %}
+    <nav class="pager" aria-label="{% t 'Open positions' %}">
+      {% if jobs.has_previous %}<a class="btn btn-light" href="?page={{ jobs.previous_page_number }}#open" rel="prev">‹ {% t "Previous" %}</a>
+      {% else %}<span class="btn btn-light" aria-disabled="true">‹ {% t "Previous" %}</span>{% endif %}
+      <span class="pager-count">{% t "Page {n} of {total}" n=jobs.number total=jobs.paginator.num_pages %}</span>
+      {% if jobs.has_next %}<a class="btn btn-primary" href="?page={{ jobs.next_page_number }}#open" rel="next">{% t "Next" %} ›</a>
+      {% else %}<span class="btn btn-primary" aria-disabled="true">{% t "Next" %} ›</span>{% endif %}
+    </nav>
+    {% endif %}
   </section>
   {% endif %}
 
@@ -136,8 +157,8 @@
     <h2 id="hiring-title">{% tp hiring_count "{n} position open now" "{n} positions open now" %}</h2>
     <form method="dialog"><button class="hiring-x" aria-label="{% t 'Close' %}">×</button></form>
   </div>
-  <ul>
-    {% for r in hiring|slice:":5" %}
+  <ul id="hiring-list" tabindex="0" aria-label="{% t 'Open positions' %}">
+    {% for r in hiring %}
     <li><a href="{{ r.get_absolute_url }}">
       <span><span class="t">{{ r.title }}</span>
         <small>{{ r.place }}{% if r.expires_on %} · {% cc_date r.expires_on "j M" as d %}{% t "Closes {date}" date=d %}{% endif %}</small></span>
@@ -163,7 +184,15 @@
     try { if (sessionStorage.getItem(key)) return; } catch (e) {}
     d.addEventListener('close', function () { try { sessionStorage.setItem(key, '1'); } catch (e) {} });
     d.addEventListener('click', function (e) { if (e.target === d || e.target.hasAttribute('data-close')) d.close(); });
-    setTimeout(function () { d.showModal(); }, 600);
+    setTimeout(function () {
+      d.showModal();
+      // Fit exactly five positions in view (titles can wrap), the rest scroll
+      var list = document.getElementById('hiring-list'), items = list.children;
+      if (items.length > 5) {
+        var padBottom = parseFloat(getComputedStyle(list).paddingBottom) || 0;   // border-box: padding counts
+        list.style.maxHeight = (items[5].getBoundingClientRect().top - list.getBoundingClientRect().top + padBottom) + 'px';
+      }
+    }, 600);
   })();
 </script>
 {% endblock %}
