@@ -31,8 +31,8 @@ MANAGE_PERMISSION = 'career_connect.manage_career_connect'
 # (and no office level) are an access level of their own: they only get these pages plus the public portal.
 HR_GROUP = 'HR'
 VACANCY_PERMISSION = 'career_connect.manage_vacancies'
-HR_URL_NAMES = {'hr_vacancies', 'hr_vacancy_add', 'hr_vacancy_edit', 'hr_vacancy_status', 'hr_vacancy_delete',
-                'hr_applications', 'hr_application_reviewed', 'hr_application_file'}
+HR_URL_NAMES = {'hr_dashboard', 'hr_turnover', 'hr_vacancies', 'hr_vacancy_add', 'hr_vacancy_edit', 'hr_vacancy_status', 'hr_vacancy_delete',
+                'hr_applications', 'hr_application_reviewed', 'hr_application_stage', 'hr_application_file'}
 HR_ALLOWED = {'login', 'logout'} | HR_URL_NAMES | PUBLIC_URL_NAMES
 # The one download HR may make (they can't export anything else): an applicant's CV, cover letter or qualifications
 HR_DOWNLOADS = {'hr_application_file'}

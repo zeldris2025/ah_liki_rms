@@ -18,12 +18,12 @@
   <table class="sms-table hr-apps">
     <thead>
       <tr><th>Applicant</th><th>Age</th><th>Village</th><th>Contact</th><th>Experience (highest qualification)</th>
-        {% if role.is_corporate %}<th>Attachments</th>{% endif %}<th>Received</th><th style="text-align:right">Reviewed</th></tr>
+        {% if role.is_corporate %}<th>Attachments</th>{% endif %}<th>Received</th><th>Stage</th></tr>
     </thead>
     <tbody>
       {% for a in applications %}
       <tr{% if not a.reviewed %} style="background:#F5F8FF"{% endif %}>
-        <td><b>{{ a.full_name }}</b>{% if not a.reviewed %} <span class="badge-custom badge-purple">New</span>{% endif %}
+        <td><b>{{ a.full_name }}</b>
           {% if a.school %}<div class="hr-summary">{{ a.school }}</div>{% endif %}
           {% if a.message %}<div class="hr-summary" title="{{ a.message }}">{{ a.message|truncatewords:20 }}</div>{% endif %}</td>
         <td>{{ a.age|default:"—" }}</td>
@@ -38,11 +38,17 @@
         {% endif %}
         <td style="white-space:nowrap">{{ a.created_at|date:"j M Y, g:i A" }}
           {% if a.email_status %}<div class="hr-summary" title="{{ a.email_status }}">{% if a.email_status|slice:":4" == "Sent" %}✉ Emailed{% elif a.email_status == "Sending" %}✉ Sending…{% elif a.email_status == "Not configured" %}No email set up{% else %}⚠ Email failed{% endif %}</div>{% endif %}</td>
-        <td style="text-align:right">
-          <form method="post" action="{% url 'hr_application_reviewed' a.pk %}">
+        <td>
+          <form method="post" action="{% url 'hr_application_stage' a.pk %}" class="hr-stage">
             {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
-            {% if a.reviewed %}<button class="btn-sms sm btn-outline-custom" name="reviewed" value="0">✓ Reviewed</button>
-            {% else %}<button class="btn-sms sm btn-accent-custom" name="reviewed" value="1">Mark reviewed</button>{% endif %}
+            <span class="badge-custom {{ a.stage_badge }}">{{ a.get_stage_display }}</span>
+            <select name="stage" class="sms-input" aria-label="Stage for {{ a.full_name }}">
+              {% for value, label in stages %}<option value="{{ value }}"{% if value == a.stage %} selected{% endif %}>{{ label }}</option>{% endfor %}
+            </select>
+            <input type="datetime-local" name="interview_at" class="sms-input" aria-label="Interview date and time for {{ a.full_name }}"
+                   value="{% if a.interview_at %}{{ a.interview_local|date:'Y-m-d\TH:i' }}{% endif %}"{% if a.stage != 'interview' %} hidden{% endif %}>
+            {% if a.interview_at and a.stage != 'interview' %}<div class="hr-summary">Interviewed {{ a.interview_local|date:"j M Y" }}</div>{% endif %}
+            <button class="btn-sms sm btn-outline-custom">Save</button>
           </form>
         </td>
       </tr>
@@ -55,4 +61,18 @@
 {% endif %}
 
 <div style="margin-top:16px"><a href="{% url 'hr_vacancies' %}" class="btn-sms btn-outline-custom">← All vacancies</a></div>
+<style>
+  .hr-stage { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; min-width: 190px; }
+  .hr-stage .sms-input { padding: 6px 8px; font-size: 13px; width: 100%; }
+</style>
+<script>
+  // The interview date only matters at the Interview stage
+  document.querySelectorAll('.hr-stage select').forEach(function (sel) {
+    sel.addEventListener('change', function () {
+      var when = sel.form.querySelector('[name=interview_at]');
+      when.hidden = sel.value !== 'interview';
+      if (!when.hidden) when.focus();
+    });
+  });
+</script>
 {% endblock %}

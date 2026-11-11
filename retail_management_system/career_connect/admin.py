@@ -8,7 +8,7 @@ from django.contrib import admin
 from django.urls import reverse
 from django.utils.html import format_html
 
-from .models import Company, CompanyImage, Department, ExpressionOfInterest, PortalSettings, Role
+from .models import Company, CompanyImage, Department, ExpressionOfInterest, PortalSettings, Role, StaffTurnover
 from .templatetags.career_icons import BUSINESS_ICONS, icon
 
 
@@ -204,14 +204,22 @@ class CompanyImageAdmin(admin.ModelAdmin):
     search_fields = ('caption', 'alt_text', 'image')
 
 
+@admin.register(StaffTurnover)
+class StaffTurnoverAdmin(admin.ModelAdmin):
+    list_display = ('company', 'week', 'leavers', 'employees', 'rate', 'note', 'updated_by', 'updated_at')
+    readonly_fields = ('rate',)
+    list_filter = ('company',)
+    date_hierarchy = 'week'
+
+
 @admin.register(ExpressionOfInterest)
 class ExpressionOfInterestAdmin(admin.ModelAdmin):
-    list_display = ('full_name', 'role_title', 'age', 'village', 'email', 'phone', 'created_at', 'email_status', 'reviewed')
-    list_filter = ('reviewed', 'role__company', 'role__department', 'created_at')
-    list_editable = ('reviewed',)
+    list_display = ('full_name', 'role_title', 'age', 'village', 'email', 'phone', 'created_at', 'email_status', 'stage')
+    list_filter = ('stage', 'role__company', 'role__department', 'created_at')
+    list_editable = ('stage',)
     search_fields = ('full_name', 'email', 'village', 'role_title')
     readonly_fields = ('role', 'role_title', 'full_name', 'age', 'village', 'email', 'phone', 'highest_qualification',
-                       'school', 'message', 'created_at', 'email_status')
+                       'school', 'message', 'created_at', 'email_status', 'reviewed', 'stage_changed_at')
     exclude = ('cv', 'cover_letter', 'qualifications_file')   # downloaded from the HR applications page
 
     def has_add_permission(self, request):

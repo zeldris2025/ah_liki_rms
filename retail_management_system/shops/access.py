@@ -4,7 +4,7 @@ A user's level comes from their group (Sales / Marketing / Manager / Financial C
 Superusers are Managers. Sales and Marketing each have areas they can't open, and neither can download or
 export anything. Staff with no level only get a read-only Ah Liki Atlas (sign-in lands them there).
 Finance only get their dashboard, a read-only Ah Liki Atlas and Car Allocations (the Finance cars).
-HR only get the Career Connect vacancies pages (and the public portal).
+HR only get the Career Connect HR dashboard and vacancies pages (and the public portal).
 Social only get their dashboard, the Social analytics, a read-only Ah Liki Atlas, Social #s and Car Allocations.
 Product QTY Sales only get their dashboard, the analytics and Product QTY, and can download those pages' CSV reports.
 """
@@ -216,8 +216,8 @@ class RoleAccessMiddleware:
         return response
 
     def hr(self, request):
-        """HR: the vacancies pages and the public portal only. The dashboard (where sign-in lands) sends them to
-        the vacancies list."""
+        """HR: the HR dashboard, the vacancies pages and the public portal only. The dashboard (where sign-in lands) sends them to
+        the HR dashboard."""
         from django.conf import settings
         request.is_hr, request.can_export, request.blocked_areas = True, False, set(AREAS)
         name = ''
@@ -228,7 +228,7 @@ class RoleAccessMiddleware:
                 match = None
             name = (match.url_name or '') if match else ''
             if match and match.app_name != 'admin' and name == 'dashboard':
-                return redirect('hr_vacancies')
+                return redirect('hr_dashboard')
             if match and (match.app_name == 'admin' or name not in HR_ALLOWED):
                 return deny(request, 'the admin site' if match.app_name == 'admin' else 'this page')
         response = self.get_response(request)

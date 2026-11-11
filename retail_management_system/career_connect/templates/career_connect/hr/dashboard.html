@@ -1,0 +1,329 @@
+{% extends 'shops/base.html' %}
+{% block content %}
+{% include 'career_connect/hr/_styles.html' %}
+<style>
+  /* HR dashboard. Series colours: applications, interviews, hires (fixed order, never repainted) */
+  .hrd { --s-apps: #2a78d6; --s-int: #eb6834; --s-hire: #1baf7a; }
+  .hrd-period { display: flex; gap: 4px; background: rgba(255,255,255,.12); border-radius: 10px; padding: 4px; position: relative; z-index: 1; }
+  .hrd-period a { color: rgba(255,255,255,.8); text-decoration: none; font-size: 12.5px; font-weight: 600; padding: 6px 12px; border-radius: 7px; }
+  .hrd-period a.on { background: #fff; color: var(--primary); }
+  .hrd-tabs { display: flex; gap: 8px; overflow-x: auto; padding: 2px 2px 6px; margin: -6px 0 18px; scrollbar-width: thin; }
+  .hrd-tab { display: inline-flex; align-items: center; gap: 8px; white-space: nowrap; padding: 8px 14px; border-radius: 999px;
+             border: 1px solid var(--border); background: var(--card); color: var(--text-secondary); font-size: 13px; font-weight: 600; text-decoration: none; }
+  .hrd-tab:hover { border-color: var(--accent); color: var(--primary); }
+  .hrd-tab.on { background: var(--primary); border-color: var(--primary); color: #fff; }
+  .hrd-tab .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--c); }
+  .hrd-tab .count { font-size: 11px; font-weight: 700; padding: 1px 7px; border-radius: 999px; background: var(--surface); color: var(--muted); }
+  .hrd-tab.on .count { background: rgba(255,255,255,.2); color: #fff; }
+  .hrd-hero-actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; position: relative; z-index: 1; }
+
+  .hrd-kpis { display: grid; gap: 14px; grid-template-columns: repeat(4, minmax(0, 1fr)); margin-bottom: 14px; }
+  .hrd-kpis.small { margin-bottom: 20px; }
+  .hrd-kpi { padding: 16px 18px; display: flex; flex-direction: column; gap: 2px; text-decoration: none; color: inherit; }
+  a.hrd-kpi:hover { border-color: var(--accent); }
+  .hrd-kpi .k-label { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+  .hrd-kpi .k-icon { width: 28px; height: 28px; border-radius: 8px; display: grid; place-items: center; font-size: 14px; }
+  .hrd-kpi .k-value { font-size: 30px; font-weight: 800; color: var(--primary); line-height: 1.15; margin-top: 6px; font-variant-numeric: tabular-nums; }
+  .hrd-kpi .k-sub { color: var(--muted); font-size: 12.5px; }
+  .hrd-kpis.small { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  .hrd-kpis.small .k-value { font-size: 22px; }
+  .hrd-latest { display: grid; gap: 6px 16px; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); margin: 0 0 12px; font-size: 12.5px; }
+  .hrd-latest span { display: flex; align-items: center; gap: 7px; color: var(--text-secondary); min-width: 0; }
+  .hrd-latest i { width: 14px; height: 3px; border-radius: 2px; flex-shrink: 0; }
+  .hrd-latest b { color: var(--primary); margin-left: auto; font-variant-numeric: tabular-nums; }
+
+  .hrd-grid { display: grid; gap: 18px; margin-bottom: 18px; }
+  .hrd-grid.wide { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); }
+  .hrd-grid.half { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .hrd-card { padding: 20px 22px; }
+  .hrd-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; margin-bottom: 4px; }
+  .hrd-head h3 { margin: 0; font-size: 15px; font-weight: 700; color: var(--primary); }
+  .hrd-head a { font-size: 12.5px; font-weight: 600; color: var(--accent); text-decoration: none; white-space: nowrap; }
+  .hrd-note { color: var(--muted); font-size: 12.5px; margin: 0 0 12px; }
+  .hrd-chart { position: relative; height: 280px; }
+  .hrd-legend { display: flex; gap: 16px; flex-wrap: wrap; margin: 0 0 10px; font-size: 12.5px; color: var(--text-secondary); }
+  .hrd-legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .hrd-legend i { width: 14px; height: 3px; border-radius: 2px; display: inline-block; }
+  .hrd-table-toggle { margin-top: 10px; font-size: 12.5px; }
+  .hrd-table-toggle summary { cursor: pointer; color: var(--muted); font-weight: 600; }
+  .hrd-table-toggle table { margin-top: 8px; font-size: 12.5px; }
+
+  .hrd-bars { display: flex; flex-direction: column; gap: 12px; margin-top: 8px; }
+  .hrd-bar-row { display: grid; grid-template-columns: 110px minmax(0, 1fr) 40px; gap: 10px; align-items: center; font-size: 13px; }
+  .hrd-bar-row .name { color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .hrd-bar-row .track { height: 10px; background: var(--surface); border-radius: 5px; overflow: hidden; }
+  .hrd-bar-row .fill { height: 100%; border-radius: 5px; background: var(--s-apps); min-width: 2px; }
+  .hrd-bar-row .num { text-align: right; font-weight: 700; color: var(--primary); font-variant-numeric: tabular-nums; }
+
+  .hrd-list a { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 11px 0; border-bottom: 1px solid var(--border); text-decoration: none; color: inherit; }
+  .hrd-list a:last-child { border-bottom: none; }
+  .hrd-list a:hover b { color: var(--accent); }
+  .hrd-list b { font-size: 14px; color: var(--primary); font-weight: 600; }
+  .hrd-list small { display: block; color: var(--muted); font-size: 12px; margin-top: 2px; }
+  .hrd-when { text-align: right; font-size: 12.5px; font-weight: 600; color: var(--primary); white-space: nowrap; }
+  .hrd-when small { font-weight: 400; }
+  .hrd-empty { color: var(--muted); font-size: 13px; text-align: center; padding: 26px 0; }
+  .hrd-num { font-variant-numeric: tabular-nums; text-align: center; }
+
+  @media (max-width: 1100px) {
+    .hrd-kpis, .hrd-kpis.small { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .hrd-grid.wide, .hrd-grid.half { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 480px) {
+    .hrd-kpi .k-value { font-size: 24px; }
+    .hrd-chart { height: 240px; }
+    .hrd-bar-row { grid-template-columns: 84px minmax(0, 1fr) 34px; }
+  }
+</style>
+
+<div class="hrd">
+<div class="hr-hero">
+  <div>
+    <div class="eyebrow">Ah Liki Career Connect · HR</div>
+    <h2>Recruitment dashboard{% if company %} · {{ company.name }}{% endif %}</h2>
+    <p>Roles we're recruiting for, applicants, interviews and hires {% if company %}at {{ company.name }}{% else %}across every company in the group{% endif %}, over the last {{ months }} months.</p>
+  </div>
+  <div class="hrd-hero-actions">
+    <nav class="hrd-period" aria-label="Period">
+      {% for p in periods %}<a href="?months={{ p }}{% if company %}&amp;company={{ company.slug }}{% endif %}" class="{% if p == months %}on{% endif %}"{% if p == months %} aria-current="true"{% endif %}>{{ p }} months</a>{% endfor %}
+    </nav>
+    <a href="{% url 'hr_vacancy_add' %}" class="btn-sms btn-accent-custom">＋ Post a vacancy</a>
+  </div>
+</div>
+
+{% include 'career_connect/hr/_messages.html' %}
+
+<nav class="hrd-tabs" aria-label="Company">
+  <a href="?months={{ months }}" class="hrd-tab{% if not company %} on{% endif %}"{% if not company %} aria-current="page"{% endif %}>All companies <span class="count" title="Roles vacant">{{ all_vacant }}</span></a>
+  {% for t in tabs %}
+  <a href="?months={{ months }}&amp;company={{ t.company.slug }}" class="hrd-tab{% if company == t.company %} on{% endif %}"{% if company == t.company %} aria-current="page"{% endif %}>
+    <span class="dot" style="--c:{{ t.colour }}"></span>{{ t.company.name }} <span class="count" title="Roles vacant">{{ t.vacant }}</span></a>
+  {% endfor %}
+</nav>
+
+<!-- Headline numbers -->
+<div class="hrd-kpis">
+  <a href="{% url 'hr_vacancies' %}?status=open{% if company %}&amp;company={{ company.slug }}{% endif %}" class="sms-card hrd-kpi">
+    <div class="k-label"><span class="k-icon" style="background:#DCFCE7">🟢</span>Roles vacant</div>
+    <div class="k-value">{{ vacant|length }}</div>
+    <div class="k-sub">recruiting now · {{ live_count }} live on Career Connect</div>
+  </a>
+  <div class="sms-card hrd-kpi">
+    <div class="k-label"><span class="k-icon" style="background:#DBEAFE">👥</span>Total applicants</div>
+    <div class="k-value">{{ stats.applicants }}</div>
+    <div class="k-sub">{{ stats.this_month }} this month</div>
+  </div>
+  <div class="sms-card hrd-kpi">
+    <div class="k-label"><span class="k-icon" style="background:#FFEDD5">🗓</span>Interviews</div>
+    <div class="k-value">{{ stats.interviews }}</div>
+    <div class="k-sub">held · {{ stats.upcoming }} coming up</div>
+  </div>
+  <a href="{% url 'hr_turnover' %}" class="sms-card hrd-kpi">
+    <div class="k-label"><span class="k-icon" style="background:#FCE7F3">🔁</span>Staff turnover</div>
+    <div class="k-value">{% if stats.staff_turnover is not None %}{{ stats.staff_turnover }}%{% else %}—{% endif %}</div>
+    <div class="k-sub">{% if stats.turnover_companies %}{{ stats.turnover_left }} of {{ stats.turnover_staff }} employees left{% if not company %} · latest month, {{ stats.turnover_companies }} compan{{ stats.turnover_companies|pluralize:"y,ies" }}{% else %} · latest month{% endif %}{% else %}not entered yet · add it →{% endif %}</div>
+  </a>
+</div>
+<div class="hrd-kpis small">
+  <div class="sms-card hrd-kpi">
+    <div class="k-label">Hired</div>
+    <div class="k-value">{{ stats.hired }}</div>
+    <div class="k-sub">in the last {{ months }} months</div>
+  </div>
+  <div class="sms-card hrd-kpi">
+    <div class="k-label">Hire rate</div>
+    <div class="k-value">{{ stats.hire_rate }}%</div>
+    <div class="k-sub">of applicants hired</div>
+  </div>
+  <div class="sms-card hrd-kpi">
+    <div class="k-label">Awaiting review</div>
+    <div class="k-value">{{ stats.to_review }}</div>
+    <div class="k-sub">new applications</div>
+  </div>
+  <div class="sms-card hrd-kpi">
+    <div class="k-label">Interview rate</div>
+    <div class="k-value">{{ stats.interview_rate }}%</div>
+    <div class="k-sub">of applicants interviewed</div>
+  </div>
+  <div class="sms-card hrd-kpi">
+    <div class="k-label">Time to hire</div>
+    <div class="k-value">{% if stats.days_to_hire is not None %}{{ stats.days_to_hire }} day{{ stats.days_to_hire|pluralize }}{% else %}—{% endif %}</div>
+    <div class="k-sub">application to hire, on average</div>
+  </div>
+</div>
+
+<!-- Activity over time, and where applicants are now -->
+<div class="hrd-grid wide">
+  <section class="sms-card hrd-card" aria-labelledby="t-activity">
+    <div class="hrd-head"><h3 id="t-activity">Recruitment activity</h3></div>
+    <p class="hrd-note">Applications received, interviews held and people hired, by month.</p>
+    <div class="hrd-legend" aria-hidden="true">
+      <span><i style="background:var(--s-apps)"></i>Applications</span>
+      <span><i style="background:var(--s-int)"></i>Interviews</span>
+      <span><i style="background:var(--s-hire)"></i>Hires</span>
+    </div>
+    <div class="hrd-chart"><canvas id="hrd-activity" role="img" aria-label="Line chart of applications, interviews and hires by month"></canvas></div>
+    <details class="hrd-table-toggle"><summary>Show as a table</summary>
+      <div style="overflow-x:auto"><table class="sms-table">
+        <thead><tr><th>Month</th><th class="hrd-num">Applications</th><th class="hrd-num">Interviews</th><th class="hrd-num">Hires</th><th class="hrd-num">Hire rate</th></tr></thead>
+        <tbody id="hrd-rows"></tbody>
+      </table></div>
+    </details>
+  </section>
+
+  <section class="sms-card hrd-card" aria-labelledby="t-pipeline">
+    <div class="hrd-head"><h3 id="t-pipeline">Applicant pipeline</h3></div>
+    <p class="hrd-note">Where this period's {{ stats.applicants }} applicant{{ stats.applicants|pluralize }} are now.</p>
+    <div class="hrd-bars">
+      {% for s in pipeline %}
+      <div class="hrd-bar-row">
+        <span class="name">{{ s.label }}</span>
+        <span class="track"><span class="fill" style="width:{{ s.pct }}%;display:block;{% if s.key == 'hired' %}background:var(--s-hire){% elif s.key == 'interview' %}background:var(--s-int){% elif s.key == 'unsuccessful' %}background:#94A3B8{% endif %}"></span></span>
+        <span class="num">{{ s.count }}</span>
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+</div>
+
+<div class="hrd-grid half">
+  <section class="sms-card hrd-card" aria-labelledby="t-turnover">
+    <div class="hrd-head"><h3 id="t-turnover">Staff turnover %{% if not company %} by company{% endif %}</h3><a href="{% url 'hr_turnover' %}">Add or edit →</a></div>
+    <p class="hrd-note">Employees who left ÷ number of employees × 100, entered by HR each month. {% if company %}Latest figure:{% else %}Latest figure for each company:{% endif %}</p>
+    <div class="hrd-latest">
+      {% for c in chart.companies %}<span title="{{ c.name }}"><i style="background:{{ c.colour }}"></i>{{ c.name }}<b>{% if c.latest is not None %}{{ c.latest }}%{% else %}—{% endif %}</b></span>{% endfor %}
+    </div>
+    <div class="hrd-chart" style="height:240px"><canvas id="hrd-turnover" role="img" aria-label="Line chart of staff turnover percentage by company and month"></canvas></div>
+  </section>
+
+  <section class="sms-card hrd-card" aria-labelledby="t-company">
+    <div class="hrd-head"><h3 id="t-company">Applicants by {% if company %}department{% else %}company{% endif %}</h3></div>
+    <p class="hrd-note">Last {{ months }} months.</p>
+    {% if by_group %}
+    <div class="hrd-bars">
+      {% for c in by_group %}
+      <div class="hrd-bar-row"><span class="name" title="{{ c.name }}">{{ c.name }}</span>
+        <span class="track"><span class="fill" style="width:{{ c.pct }}%;display:block"></span></span><span class="num">{{ c.n }}</span></div>
+      {% endfor %}
+    </div>
+    {% else %}<div class="hrd-empty">No applications in this period yet.</div>{% endif %}
+  </section>
+</div>
+
+<!-- The roles we're recruiting for -->
+<section class="sms-card" style="margin-bottom:18px" aria-labelledby="t-vacant">
+  <div class="hrd-card" style="padding-bottom:6px">
+    <div class="hrd-head"><h3 id="t-vacant">Roles we have vacant</h3><a href="{% url 'hr_vacancies' %}">All vacancies →</a></div>
+    <p class="hrd-note" style="margin:0">Live on Career Connect and currently recruiting.</p>
+  </div>
+  {% if vacant %}
+  <div style="overflow-x:auto">
+  <table class="sms-table">
+    <thead><tr><th>Position</th>{% if not company %}<th>Company</th>{% endif %}<th class="hrd-num">Applicants</th><th class="hrd-num">New</th><th class="hrd-num">Interviewed</th><th class="hrd-num">Hired</th><th>Closes</th></tr></thead>
+    <tbody>
+      {% for r in vacant %}
+      <tr>
+        <td><a class="hr-title" href="{% url 'hr_applications' r.pk %}">{{ r.title }}</a><div class="hr-summary">{% if r.department %}{{ r.department.name }} · {% endif %}{{ r.get_position_type_display }}</div></td>
+        {% if not company %}<td>{{ r.company.name }}</td>{% endif %}
+        <td class="hrd-num"><b>{{ r.applicants }}</b></td>
+        <td class="hrd-num">{% if r.new %}<span class="badge-custom badge-purple">{{ r.new }}</span>{% else %}<span style="color:var(--muted)">0</span>{% endif %}</td>
+        <td class="hrd-num">{{ r.interviewing }}</td>
+        <td class="hrd-num">{{ r.hires }}</td>
+        <td style="white-space:nowrap">{% if r.expires_on %}{{ r.expires_on|date:"j M Y" }}{% else %}<span style="color:var(--muted)">No closing date</span>{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}
+  <div class="hrd-empty">No roles are recruiting right now. <a href="{% url 'hr_vacancy_add' %}">Post a vacancy</a></div>
+  {% endif %}
+</section>
+
+<div class="hrd-grid half">
+  <section class="sms-card hrd-card" aria-labelledby="t-upcoming">
+    <div class="hrd-head"><h3 id="t-upcoming">Upcoming interviews</h3></div>
+    <div class="hrd-list">
+      {% for a in upcoming %}
+      <a href="{% if a.role_id %}{% url 'hr_applications' a.role_id %}{% else %}{% url 'hr_vacancies' %}{% endif %}">
+        <div><b>{{ a.full_name }}</b><small>{{ a.role_title }}{% if a.role %} · {{ a.role.company.name }}{% endif %}</small></div>
+        <div class="hrd-when">{{ a.interview_at|date:"D j M" }}<small>{{ a.interview_at|date:"g:i A" }}</small></div>
+      </a>
+      {% empty %}
+      <div class="hrd-empty">No interviews booked. Set an applicant's stage to Interview on a vacancy's applications page.</div>
+      {% endfor %}
+    </div>
+  </section>
+
+  <section class="sms-card hrd-card" aria-labelledby="t-recent">
+    <div class="hrd-head"><h3 id="t-recent">Latest applications</h3></div>
+    <div class="hrd-list">
+      {% for a in recent %}
+      <a href="{% if a.role_id %}{% url 'hr_applications' a.role_id %}{% else %}{% url 'hr_vacancies' %}{% endif %}">
+        <div><b>{{ a.full_name }}</b><small>{{ a.role_title }}{% if a.role %} · {{ a.role.company.name }}{% endif %} · {{ a.created_at|timesince }} ago</small></div>
+        <span class="badge-custom {{ a.stage_badge }}">{{ a.get_stage_display }}</span>
+      </a>
+      {% empty %}
+      <div class="hrd-empty">No applications yet.</div>
+      {% endfor %}
+    </div>
+  </section>
+</div>
+</div>
+
+{{ chart|json_script:"hrd-data" }}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+(function () {
+  var D = JSON.parse(document.getElementById('hrd-data').textContent);
+  var css = getComputedStyle(document.querySelector('.hrd'));
+  var col = function (v) { return css.getPropertyValue(v).trim(); };
+  var ink = '#64748B', grid = 'rgba(148,163,184,.18)';
+
+  // The table view of both charts
+  var rows = document.getElementById('hrd-rows');
+  D.labels.forEach(function (label, i) {
+    var tr = document.createElement('tr');
+    [label, D.applications[i], D.interviews[i], D.hires[i], D.hire_rate[i] == null ? '—' : D.hire_rate[i] + '%']
+      .forEach(function (v, j) { var td = document.createElement('td'); td.textContent = v; if (j) td.className = 'hrd-num'; tr.appendChild(td); });
+    rows.appendChild(tr);
+  });
+
+  if (!window.Chart) return;
+  Chart.defaults.font.family = getComputedStyle(document.body).fontFamily;
+  Chart.defaults.font.size = 12;
+  Chart.defaults.color = ink;
+
+  function line(label, data, colour) {
+    return { label: label, data: data, borderColor: colour, backgroundColor: colour, borderWidth: 2, tension: 0.3,
+             pointRadius: 4, pointHoverRadius: 6, pointBorderColor: '#fff', pointBorderWidth: 2, spanGaps: true };
+  }
+  var base = {
+    responsive: true, maintainAspectRatio: false,
+    interaction: { mode: 'index', intersect: false },
+    plugins: { legend: { display: false },
+               tooltip: { backgroundColor: '#0F172A', padding: 10, boxPadding: 4, usePointStyle: true } },
+    scales: { x: { grid: { display: false }, ticks: { maxRotation: 0, autoSkipPadding: 12 } },
+              y: { beginAtZero: true, grid: { color: grid }, border: { display: false }, ticks: { precision: 0 } } }
+  };
+
+  new Chart(document.getElementById('hrd-activity'), {
+    type: 'line',
+    data: { labels: D.labels, datasets: [line('Applications', D.applications, col('--s-apps')),
+                                         line('Interviews', D.interviews, col('--s-int')),
+                                         line('Hires', D.hires, col('--s-hire'))] },
+    options: base
+  });
+
+  var t = JSON.parse(JSON.stringify(base));
+  t.scales.y.ticks = { callback: function (v) { return v + '%'; } };
+  t.plugins.tooltip.callbacks = { label: function (c) { return ' ' + c.dataset.label + ': ' + (c.parsed.y == null ? '—' : c.parsed.y + '%'); } };
+  t.plugins.tooltip.filter = function (item) { return item.parsed.y != null; };
+  new Chart(document.getElementById('hrd-turnover'), {
+    type: 'line',
+    data: { labels: D.labels, datasets: D.companies.map(function (c) { return line(c.name, c.data, c.colour); }) },
+    options: t
+  });
+})();
+</script>
+{% endblock %}

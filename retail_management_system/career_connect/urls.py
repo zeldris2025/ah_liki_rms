@@ -30,6 +30,8 @@ urlpatterns = [
     # Staff only (signed in + permission)
     path('manage/career-connect/qr/',                          views.manage_qr,   name='career_connect_manage_qr'),
     # HR (signed in + manage_vacancies) — every name here is listed in access.HR_URL_NAMES
+    path('manage/career-connect/',                             hr_views.dashboard,      name='hr_dashboard'),
+    path('manage/career-connect/turnover/',                    hr_views.turnover,       name='hr_turnover'),
     path('manage/career-connect/vacancies/',                   hr_views.vacancies,      name='hr_vacancies'),
     path('manage/career-connect/vacancies/new/',               hr_views.vacancy_add,    name='hr_vacancy_add'),
     path('manage/career-connect/vacancies/<int:role_id>/',     hr_views.vacancy_edit,   name='hr_vacancy_edit'),
@@ -38,6 +40,8 @@ urlpatterns = [
     path('manage/career-connect/vacancies/<int:role_id>/applications/', hr_views.applications, name='hr_applications'),
     path('manage/career-connect/applications/<int:app_id>/reviewed/', hr_views.application_reviewed,
          name='hr_application_reviewed'),
+    path('manage/career-connect/applications/<int:app_id>/stage/', hr_views.application_stage,
+         name='hr_application_stage'),
     path('manage/career-connect/applications/<int:app_id>/<str:kind>/', hr_views.application_file,
          name='hr_application_file'),
 ]

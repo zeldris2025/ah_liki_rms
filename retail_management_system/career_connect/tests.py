@@ -668,9 +668,9 @@ class HRVacancyTests(TestCase):
         self.assertEqual(list(group.permissions.values_list('codename', flat=True)), ['manage_vacancies'])
         self.assertTrue(Group.objects.get(name='Career Connect Admin').permissions.filter(codename='manage_vacancies').exists())
 
-    def test_sign_in_lands_on_vacancies_and_the_rest_of_the_sms_is_closed(self):
+    def test_sign_in_lands_on_the_hr_dashboard_and_the_rest_of_the_sms_is_closed(self):
         r = self.client.get(reverse('dashboard'))
-        self.assertRedirects(r, reverse('hr_vacancies'))
+        self.assertRedirects(r, reverse('hr_dashboard'))
         r = self.client.get(reverse('hr_vacancies'))
         self.assertContains(r, 'Human Resources')
         self.assertNotContains(r, 'All Clients')
@@ -1198,3 +1198,170 @@ class LanguageTests(TestCase):
         self.assertRedirects(r, reverse('career_connect'), fetch_redirect_response=False)
         r = self._switch('xx', reverse('career_connect'))
         self.assertNotIn('cc_lang', r.cookies)
+
+
+class HRDashboardTests(TestCase):
+    """The HR dashboard: vacant roles, applicants, interviews, hires and the turnover %, plus applicant stages."""
+
+    def setUp(self):
+        self.client.force_login(_user('hr', 'HR'))
+        self.role = Role.objects.get(slug='accountant')
+        self.role.vacancy_status, self.role.expires_on, self.role.is_published = Role.OPEN, None, True
+        self.role.save()
+
+    def _app(self, name, **extra):
+        return ExpressionOfInterest.objects.create(role=self.role, role_title=self.role.title, full_name=name, **extra)
+
+    def test_hr_land_on_the_dashboard(self):
+        self.assertRedirects(self.client.get(reverse('dashboard')), reverse('hr_dashboard'), fetch_redirect_response=False)
+        r = self.client.get(reverse('hr_dashboard'))
+        self.assertContains(r, 'Recruitment dashboard')
+        self.assertContains(r, 'href="' + reverse('hr_dashboard') + '"')
+
+    def test_numbers_and_chart(self):
+        from django.utils import timezone
+        self._app('Ana')
+        self._app('Ben', stage=ExpressionOfInterest.INTERVIEW, interview_at=timezone.now() - timezone.timedelta(hours=1))
+        self._app('Cy', stage=ExpressionOfInterest.HIRED)
+        self._app('Di', interview_at=timezone.now() + timezone.timedelta(days=2), stage=ExpressionOfInterest.INTERVIEW)
+        r = self.client.get(reverse('hr_dashboard'), {'months': 6})
+        stats, chart = r.context['stats'], r.context['chart']
+        self.assertEqual((stats['applicants'], stats['hired'], stats['interviews'], stats['upcoming'], stats['to_review']),
+                         (4, 1, 1, 1, 1))
+        self.assertEqual(stats['hire_rate'], 25.0)
+        self.assertEqual(len(chart['labels']), 6)
+        self.assertEqual((chart['applications'][-1], chart['hires'][-1], chart['hire_rate'][-1]), (4, 1, 25.0))
+        self.assertIn(self.role, list(r.context['vacant']))
+        self.assertContains(r, 'Di')   # upcoming interview
+        self.assertEqual(len(self.client.get(reverse('hr_dashboard'), {'months': 'x'}).context['chart']['labels']), 12)
+
+    def test_stage_change(self):
+        app = self._app('Ana')
+        url = reverse('hr_application_stage', args=[app.pk])
+        self.client.post(url, {'stage': 'interview'})        # an interview needs a date
+        app.refresh_from_db()
+        self.assertEqual(app.stage, 'new')
+        self.client.post(url, {'stage': 'interview', 'interview_at': '2026-12-01T10:30'})
+        app.refresh_from_db()
+        self.assertEqual((app.stage, app.reviewed), ('interview', True))
+        self.assertEqual(app.interview_at.isoformat(), '2026-11-30T21:30:00+00:00')   # 10:30 AM in Apia
+        self.client.post(url, {'stage': 'hired'})
+        app.refresh_from_db()
+        self.assertEqual(app.stage, 'hired')
+        self.assertIsNotNone(app.stage_changed_at)
+        self.assertContains(self.client.get(reverse('hr_applications', args=[self.role.pk])), 'Hired')
+
+    def test_others_cannot_open_it(self):
+        self.client.force_login(_user('sales', 'Sales'))
+        self.assertEqual(self.client.get(reverse('hr_dashboard')).status_code, 403)
+        self.assertEqual(self.client.post(reverse('hr_application_stage', args=[self._app('X').pk]), {'stage': 'hired'}).status_code, 403)
+
+
+class StaffTurnoverTests(TestCase):
+    """HR enter each company's turnover week by week; months and the dashboard are worked out from the weeks."""
+
+    def setUp(self):
+        import datetime
+        from .hr_views import _weeks_of
+        from .models import office_today
+        self.client.force_login(_user('hr', 'HR'))
+        self.fj = Company.objects.get(slug='farmer-joe')
+        self.taula = Company.objects.get(slug='taula')
+        self.last_month = (office_today().replace(day=1) - datetime.timedelta(days=1)).replace(day=1)
+        self.weeks = _weeks_of(self.last_month)   # every week of last month is in the past
+        self.url = reverse('hr_turnover')
+
+    def _save(self, leavers, employees, week=None, company=None, **extra):
+        week = week or self.weeks[0]
+        return self.client.post(f'{self.url}?month={week:%Y-%m}', {
+            'company': (company or self.fj).pk, 'week': week.isoformat(), 'leavers': leavers, 'employees': employees,
+            'note': '', **extra})
+
+    def test_opens_on_this_month(self):
+        from .hr_views import _monday, _weeks_of
+        from .models import office_today
+        r = self.client.get(self.url)
+        today = office_today()
+        self.assertEqual(r.context['month'], today.replace(day=1))
+        self.assertEqual([w['monday'] for w in r.context['weeks']], _weeks_of(today))
+        self.assertIsNone(r.context['next_month'])
+        if _monday(today) in _weeks_of(today):
+            self.assertEqual(r.context['form']['week'].value(), _monday(today).isoformat())   # this week by default
+        # Another month, and never the future
+        r = self.client.get(self.url, {'month': f'{self.last_month:%Y-%m}'})
+        self.assertEqual(r.context['month'], self.last_month)
+        self.assertEqual(self.client.get(self.url, {'month': '2999-01'}).context['month'], today.replace(day=1))
+
+    def test_add_edit_and_remove_a_week(self):
+        from .models import StaffTurnover
+        self.assertEqual(self._save(2, 50).status_code, 302)
+        self._save(3, 66)   # same company and week: replaced, not added
+        t = StaffTurnover.objects.get()
+        self.assertEqual((t.company, t.week, t.leavers, t.employees, float(t.rate), t.updated_by),
+                         (self.fj, self.weeks[0], 3, 66, 4.55, 'hr'))   # 3 ÷ 66 × 100
+        r = self.client.get(self.url, {'month': f'{self.last_month:%Y-%m}', 'company': self.fj.pk,
+                                       'week': self.weeks[0].isoformat()})
+        self.assertContains(r, 'Update a week')
+        self.assertContains(r, '3 of 66 employees left')
+        self._save(3, 66, remove='1')
+        self.assertFalse(StaffTurnover.objects.exists())
+
+    def test_month_and_dashboard_come_from_the_weeks(self):
+        self._save(1, 60, week=self.weeks[0])
+        self._save(2, 40, week=self.weeks[1])
+        self._save(1, 50, week=self.weeks[0], company=self.taula)
+        r = self.client.get(self.url, {'month': f'{self.last_month:%Y-%m}'})
+        fj = next(row for row in r.context['rows'] if row['company'] == self.fj)
+        # The month: 3 left ÷ 50 average employees × 100
+        self.assertEqual((fj['month']['leavers'], fj['month']['staff'], fj['month']['rate']), (3, 50, 6.0))
+        dash = self.client.get(reverse('hr_dashboard'), {'months': 6})
+        series = {c['name']: c for c in dash.context['chart']['companies']}
+        self.assertEqual((series['Farmer Joe']['data'][-2], series['Farmer Joe']['latest']), (6.0, 6.0))
+        self.assertIsNone(series['Farmer Joe']['data'][-1])   # nothing entered this month
+        # All companies: (3 + 1) ÷ (50 + 50) × 100, the formula over the totals
+        self.assertEqual(dash.context['stats']['staff_turnover'], 4.0)
+        # A new week starts from the company's last headcount
+        r = self.client.get(self.url, {'month': f'{self.last_month:%Y-%m}', 'company': self.fj.pk,
+                                       'week': self.weeks[2].isoformat()})
+        self.assertEqual(r.context['form']['employees'].value(), 40)
+
+    def test_checks_the_numbers(self):
+        from .models import StaffTurnover
+        for leavers, employees in (('-1', '10'), ('1', '0'), ('abc', '10'), ('11', '10')):
+            self.assertEqual(self._save(leavers, employees).status_code, 200, (leavers, employees))
+        self.assertContains(self._save(11, 10), 'More employees left than the company has')
+        r = self.client.post(self.url, {'company': self.fj.pk, 'week': '2999-01-04', 'leavers': 1, 'employees': 10})
+        self.assertEqual(r.status_code, 200)   # not a week on offer
+        self.assertFalse(StaffTurnover.objects.exists())
+
+    def test_others_cannot_open_it(self):
+        self.client.force_login(_user('sales', 'Sales'))
+        self.assertEqual(self.client.get(self.url).status_code, 403)
+
+
+class HRDashboardCompanyTests(TestCase):
+    """The company tabs: All by default; picking one narrows every number, chart and list to it."""
+
+    def setUp(self):
+        self.client.force_login(_user('hr', 'HR'))
+        self.acc = Role.objects.get(slug='accountant')            # Ah Liki Wholesale
+        self.fj = Company.objects.get(slug='farmer-joe')
+        self.fj_role = Role.objects.create(company=self.fj, title='Packer', slug='packer', vacancy_status=Role.OPEN)
+        for role, name in ((self.acc, 'Ana'), (self.acc, 'Ben'), (self.fj_role, 'Cy')):
+            ExpressionOfInterest.objects.create(role=role, role_title=role.title, full_name=name)
+
+    def test_all_by_default_then_one_company(self):
+        r = self.client.get(reverse('hr_dashboard'))
+        self.assertIsNone(r.context['company'])
+        self.assertEqual(r.context['stats']['applicants'], 3)
+        self.assertContains(r, 'class="hrd-tab on" aria-current="page">All companies')
+        r = self.client.get(reverse('hr_dashboard'), {'company': 'farmer-joe', 'months': 6})
+        self.assertEqual(r.context['company'], self.fj)
+        self.assertEqual(r.context['stats']['applicants'], 1)
+        self.assertEqual([a.full_name for a in r.context['recent']], ['Cy'])
+        self.assertEqual([c['name'] for c in r.context['chart']['companies']], ['Farmer Joe'])
+        self.assertTrue(all(role.company == self.fj for role in r.context['vacant']))
+        self.assertEqual(r.context['by_group'][0]['name'], 'No department')
+        self.assertContains(r, 'href="?months=12&amp;company=farmer-joe"')   # the period keeps the company
+        # An unknown company shows them all
+        self.assertIsNone(self.client.get(reverse('hr_dashboard'), {'company': 'nope'}).context['company'])

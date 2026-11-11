@@ -4,6 +4,8 @@ Companies (Ah Liki Investment group) → departments → roles. Everything shown
 made-up text. Only published departments, roles and images ever reach the public pages.
 """
 import os
+from datetime import timedelta
+from decimal import Decimal
 import re
 from urllib.parse import parse_qs, quote, urlparse
 from zoneinfo import ZoneInfo
@@ -583,6 +585,11 @@ class ExpressionOfInterest(models.Model):
     """An application for a role, sent from the public form: the short form for general positions, plus the CV,
     cover letter and qualifications for corporate ones. HR read them on the vacancy's applications page."""
     ATTACHMENTS = (('cv', 'CV'), ('cover_letter', 'Cover letter'), ('qualifications_file', 'Qualifications'))
+    # Where HR are with the applicant. Anything past New counts as reviewed.
+    NEW, REVIEWED, INTERVIEW, OFFERED, HIRED, UNSUCCESSFUL = 'new', 'reviewed', 'interview', 'offered', 'hired', 'unsuccessful'
+    STAGES = [(NEW, 'New'), (REVIEWED, 'Reviewed'), (INTERVIEW, 'Interview'), (OFFERED, 'Offered'),
+              (HIRED, 'Hired'), (UNSUCCESSFUL, 'Unsuccessful')]
+    INTERVIEWED = (INTERVIEW, OFFERED, HIRED)   # reached an interview (unsuccessful ones with a date did too)
 
     role = models.ForeignKey(Role, on_delete=models.SET_NULL, null=True, related_name='interests')
     role_title = models.CharField(max_length=150, help_text='Kept in case the role is later deleted.')
@@ -599,6 +606,9 @@ class ExpressionOfInterest(models.Model):
     message = models.TextField(max_length=1500, blank=True)                         # earlier form
     created_at = models.DateTimeField(auto_now_add=True)
     reviewed = models.BooleanField(default=False)
+    stage = models.CharField(max_length=20, choices=STAGES, default=NEW, db_index=True)
+    interview_at = models.DateTimeField('interview', null=True, blank=True)
+    stage_changed_at = models.DateTimeField(null=True, blank=True, help_text='When the stage last changed, e.g. the hire date.')
     email_status = models.CharField(max_length=120, blank=True,
                                     help_text='Whether the application email reached the people in the portal settings.')
 
@@ -606,6 +616,20 @@ class ExpressionOfInterest(models.Model):
         ordering = ('-created_at',)
         verbose_name = 'application'
         verbose_name_plural = 'applications'
+
+    def save(self, *args, **kwargs):
+        """Keeps `reviewed` in step with the stage, and dates each stage change (the hire date, for a hire)."""
+        self.reviewed = self.stage != self.NEW
+        if self.pk and type(self).objects.filter(pk=self.pk).exclude(stage=self.stage).exists():
+            self.stage_changed_at = timezone.now()
+        if kwargs.get('update_fields') is not None and 'stage' in kwargs['update_fields']:
+            kwargs['update_fields'] = set(kwargs['update_fields']) | {'reviewed', 'stage_changed_at'}
+        super().save(*args, **kwargs)
+
+    @property
+    def stage_badge(self):
+        return {self.NEW: 'badge-purple', self.REVIEWED: 'badge-gray', self.INTERVIEW: 'badge-blue',
+                self.OFFERED: 'badge-amber', self.HIRED: 'badge-green', self.UNSUCCESSFUL: 'badge-red'}[self.stage]
 
     def attachments(self):
         """(field name, label, file) for each file this applicant uploaded."""
@@ -620,3 +644,49 @@ def _delete_attachments(sender, instance, **kwargs):
     """Removing an application removes its files too."""
     for _, _, f in instance.attachments():
         f.delete(save=False)
+
+
+def week_label(monday):
+    """'3–9 Nov', or '27 Oct – 2 Nov' for a week that crosses into the next month."""
+    sunday = monday + timedelta(days=6)
+    if monday.month == sunday.month:
+        return f'{monday.day}–{sunday.day} {sunday:%b}'
+    return f'{monday.day} {monday:%b} – {sunday.day} {sunday:%b}'
+
+
+def turnover_rate(leavers, employees):
+    """Turnover %: the employees who have left ÷ the number of employees × 100, to 2 decimal places."""
+    return (Decimal(leavers) * 100 / Decimal(employees)).quantize(Decimal('0.01')) if employees else Decimal('0')
+
+
+class StaffTurnover(models.Model):
+    """One company's staff turnover for one week (Monday to Sunday). HR enter how many employees left that week and
+    how many employees the company has; the turnover % is worked out from them (see turnover_rate). A month's
+    turnover is everyone who left in its weeks ÷ the average number of employees over those weeks × 100."""
+    company = models.ForeignKey(Company, on_delete=models.CASCADE, related_name='turnover')
+    week = models.DateField(help_text='The Monday the week starts on. A week belongs to the month its Monday is in.')
+    leavers = models.PositiveIntegerField('employees who left')
+    employees = models.PositiveIntegerField('number of employees', validators=[MinValueValidator(1)])
+    rate = models.DecimalField('turnover %', max_digits=6, decimal_places=2, editable=False,
+                               help_text='Employees who left ÷ number of employees × 100.')
+    note = models.CharField(max_length=200, blank=True)
+    updated_by = models.CharField(max_length=150, blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ('-week', 'company__order')
+        constraints = [models.UniqueConstraint(fields=('company', 'week'), name='one_turnover_per_company_week')]
+        verbose_name = verbose_name_plural = 'staff turnover'
+
+    def save(self, *args, **kwargs):
+        self.rate = turnover_rate(self.leavers, self.employees)
+        if kwargs.get('update_fields') is not None:   # e.g. update_or_create: the % changes with the numbers
+            kwargs['update_fields'] = set(kwargs['update_fields']) | {'rate'}
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f'{self.company}: week of {self.week:%d %b %Y} {self.rate}%'
+
+    @property
+    def week_label(self):
+        return week_label(self.week)

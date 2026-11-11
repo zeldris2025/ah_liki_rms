@@ -1,8 +1,11 @@
+from datetime import date
+
 from django import forms
 from django.utils.text import slugify
 
 from . import i18n
-from .models import ATTACHMENT_TYPES, MAX_ATTACHMENT_MB, Company, Department, ExpressionOfInterest, Role, office_today
+from .models import (ATTACHMENT_TYPES, MAX_ATTACHMENT_MB, Company, Department, ExpressionOfInterest, Role, office_today,
+                     week_label)
 
 ACCEPT = ','.join('.' + t for t in ATTACHMENT_TYPES)
 FILE_HELP = f'PDF, Word or a photo, under {MAX_ATTACHMENT_MB} MB.'
@@ -201,3 +204,32 @@ class VacancyFilterForm(forms.Form):
         super().__init__(*args, **kwargs)
         for field in self.fields.values():
             field.widget.attrs['class'] = 'sms-input'
+
+
+class TurnoverForm(forms.Form):
+    """One company's week: how many employees left and how many employees it has (the % is worked out from them).
+    The weeks offered are those of the month on screen. Saving a week that already has figures replaces them."""
+    company = forms.ModelChoiceField(Company.objects.all(), empty_label='Choose a company')
+    week = forms.TypedChoiceField(coerce=date.fromisoformat, error_messages={'invalid_choice': 'Pick a week.'})
+    leavers = forms.IntegerField(label='Employees who left', min_value=0,
+                                 widget=forms.NumberInput(attrs={'placeholder': 'e.g. 1', 'inputmode': 'numeric'}),
+                                 help_text='How many employees left the company that week.')
+    employees = forms.IntegerField(label='Number of employees', min_value=1,
+                                   widget=forms.NumberInput(attrs={'placeholder': 'e.g. 66', 'inputmode': 'numeric'}),
+                                   help_text='How many employees the company has.')
+    note = forms.CharField(label='Note (optional)', required=False, max_length=200,
+                           widget=forms.TextInput(attrs={'placeholder': 'e.g. 1 resigned'}))
+
+    def __init__(self, *args, weeks=(), **kwargs):
+        """weeks: the Mondays HR can pick (the month on screen, up to this week)."""
+        super().__init__(*args, **kwargs)
+        self.fields['week'].choices = [(w.isoformat(), f'Week of {week_label(w)}') for w in weeks]
+        for field in self.fields.values():
+            field.widget.attrs['class'] = 'sms-input'
+
+    def clean(self):
+        data = super().clean()
+        leavers, employees = data.get('leavers'), data.get('employees')
+        if leavers is not None and employees and leavers > employees:
+            self.add_error('leavers', 'More employees left than the company has. Check both numbers.')
+        return data
