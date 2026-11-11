@@ -1,0 +1,12 @@
+<div class="to-name-row">
+  <input type="hidden" name="leaver_id" value="{{ row.id|default_if_none:'' }}">
+  <div class="to-name-line">
+    <input type="text" name="leaver_name" class="sms-input" list="to-people" autocomplete="off" placeholder="Employee’s name"
+           value="{{ row.name|default:'' }}" aria-label="Name of an employee who left">
+    <button type="button" class="to-name-x" aria-label="Remove this name" title="Remove">×</button>
+  </div>
+  <div class="to-name-line">
+    <input type="date" name="leaver_date" class="sms-input" value="{{ row.date|default:'' }}" aria-label="Date they left" title="Date they left (optional)">
+    <input type="text" name="leaver_reason" class="sms-input" maxlength="200" value="{{ row.reason|default:'' }}" placeholder="Reason (optional)" aria-label="Reason for leaving">
+  </div>
+</div>

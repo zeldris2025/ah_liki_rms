@@ -1,4 +1,5 @@
 import os
+from decimal import Decimal
 import re
 import shutil
 import tempfile
@@ -1336,10 +1337,38 @@ class StaffTurnoverTests(TestCase):
         self.assertIsNone(series['Farmer Joe']['data'][-1])   # nothing entered this month
         # All companies: (3 + 1) ÷ (50 + 50) × 100, the formula over the totals
         self.assertEqual(dash.context['stats']['staff_turnover'], 4.0)
-        # A new week starts from the company's last headcount
+        # A new week starts from the company's kept number of employees (the last one typed in)
         r = self.client.get(self.url, {'month': f'{self.last_month:%Y-%m}', 'company': self.fj.pk,
                                        'week': self.weeks[2].isoformat()})
         self.assertEqual(r.context['form']['employees'].value(), 40)
+
+    def test_number_of_employees_is_kept(self):
+        from .models import StaffTurnover
+        # Not set yet: the first week needs it
+        self.assertContains(self._save(1, ''), 'Enter the number of employees at Farmer Joe once')
+        # Set it on the card; weeks then only need the leavers
+        r = self.client.post(f'{self.url}?month={self.last_month:%Y-%m}', {'company': self.fj.pk, 'headcount': 80})
+        self.fj.refresh_from_db()
+        self.assertEqual(self.fj.employee_count, 80)
+        self._save(2, '', week=self.weeks[0])
+        self._save(4, '', week=self.weeks[1])
+        self.assertEqual(list(StaffTurnover.objects.order_by('week').values_list('employees', 'rate')),
+                         [(80, Decimal('2.50')), (80, Decimal('5.00'))])
+        # A new number typed into a week is kept from then on; earlier weeks keep theirs
+        self._save(1, 100, week=self.weeks[2])
+        self.fj.refresh_from_db()
+        self.assertEqual(self.fj.employee_count, 100)
+        self.assertEqual(StaffTurnover.objects.get(week=self.weeks[0]).employees, 80)
+        r = self.client.get(self.url, {'month': f'{self.last_month:%Y-%m}', 'company': self.fj.pk,
+                                       'week': self.weeks[3].isoformat()})
+        self.assertEqual(r.context['form']['employees'].value(), 100)
+        # Correcting an older week with its old number doesn't change the kept number
+        self._save(3, 80, week=self.weeks[0])
+        self.fj.refresh_from_db()
+        self.assertEqual(self.fj.employee_count, 100)
+        self.assertEqual(self.client.post(self.url, {'company': self.fj.pk, 'headcount': 0}).status_code, 302)
+        self.fj.refresh_from_db()
+        self.assertEqual(self.fj.employee_count, 100)   # 0 isn't accepted
 
     def test_checks_the_numbers(self):
         from .models import StaffTurnover
@@ -1381,3 +1410,162 @@ class HRDashboardCompanyTests(TestCase):
         self.assertContains(r, 'href="?months=12&amp;company=farmer-joe"')   # the period keeps the company
         # An unknown company shows them all
         self.assertIsNone(self.client.get(reverse('hr_dashboard'), {'company': 'nope'}).context['company'])
+
+
+class EmployeeTests(TestCase):
+    """HR keep each company's employees; naming one on the turnover page marks them as left."""
+
+    def setUp(self):
+        import datetime
+        from .hr_views import _weeks_of
+        from .models import Employee, office_today
+        self.client.force_login(_user('hr', 'HR'))
+        self.fj = Company.objects.get(slug='farmer-joe')
+        self.taula = Company.objects.get(slug='taula')
+        self.fj.employee_count = 50
+        self.fj.save()
+        self.last_month = (office_today().replace(day=1) - datetime.timedelta(days=1)).replace(day=1)
+        self.week = _weeks_of(self.last_month)[0]
+        self.jane = Employee.objects.create(company=self.fj, first_name='Jane', last_name='Doe', position='Cashier',
+                                            employee_id='E1')
+        self.sam = Employee.objects.create(company=self.fj, first_name='Sam', last_name='Lee')
+        self.tina = Employee.objects.create(company=self.taula, first_name='Tina', last_name='Fa')
+
+    def _turnover(self, names, leavers='', week=None, **extra):
+        from .forms import leaver_label
+        week = week or self.week
+        ids = [str(e.pk) if hasattr(e, 'pk') else '' for e in names]
+        labels = [leaver_label(e) if hasattr(e, 'pk') else e for e in names]
+        return self.client.post(f"{reverse('hr_turnover')}?month={week:%Y-%m}", {
+            'company': self.fj.pk, 'week': week.isoformat(), 'leavers': leavers, 'employees': '', 'note': '',
+            'leaver_id': ids, 'leaver_name': labels, 'leaver_date': [''] * len(names),
+            'leaver_reason': (['Resigned'] + [''] * (len(names) - 1)) if names else [], **extra})
+
+    def test_list_cards_and_filters(self):
+        from .models import Employee
+        Employee.objects.filter(pk=self.sam.pk).update(status=Employee.LEFT, left_on=self.week)
+        r = self.client.get(reverse('hr_employees'))
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual((r.context['stats']['active'], r.context['stats']['left']), (2, 1))
+        cards = {c['company'].slug: (c['active'], c['left']) for c in r.context['cards']}
+        self.assertEqual(cards['farmer-joe'], (1, 1))
+        self.assertEqual(cards['taula'], (1, 0))
+        r = self.client.get(reverse('hr_employees'), {'company': 'farmer-joe', 'status': 'active'})
+        self.assertEqual([e.full_name for e in r.context['page']], ['Jane Doe'])
+        self.assertEqual(r.context['stats']['active'], 1)
+        r = self.client.get(reverse('hr_employees'), {'q': 'cashier'})
+        self.assertEqual([e.full_name for e in r.context['page']], ['Jane Doe'])
+        r = self.client.get(reverse('hr_employees'), {'left_from': self.week.isoformat()})
+        self.assertEqual([e.full_name for e in r.context['page']], ['Sam Lee'])
+
+    def test_add_edit_and_remove(self):
+        from .models import Employee
+        r = self.client.post(reverse('hr_employee_add'), {'company': self.taula.pk, 'first_name': 'Ana',
+                                                           'last_name': 'Su', 'status': 'active'})
+        self.assertRedirects(r, reverse('hr_employees'), fetch_redirect_response=False)
+        ana = Employee.objects.get(first_name='Ana')
+        r = self.client.post(reverse('hr_employee_edit', args=[ana.pk]), {
+            'company': self.taula.pk, 'first_name': 'Ana', 'status': 'left'})
+        self.assertContains(r, 'Enter the date they left')
+        self.client.post(reverse('hr_employee_edit', args=[ana.pk]), {
+            'company': self.taula.pk, 'first_name': 'Ana', 'status': 'left', 'left_on': self.week.isoformat()})
+        ana.refresh_from_db()
+        self.assertEqual((ana.status, ana.left_on), ('left', self.week))
+        # The same employee ID twice in a company is refused
+        r = self.client.post(reverse('hr_employee_add'), {'company': self.fj.pk, 'first_name': 'X',
+                                                           'employee_id': 'E1', 'status': 'active'})
+        self.assertEqual(r.status_code, 200)
+        self.client.post(reverse('hr_employee_delete', args=[ana.pk]))
+        self.assertFalse(Employee.objects.filter(pk=ana.pk).exists())
+
+    def test_naming_leavers_marks_them_left_and_counts_them(self):
+        import datetime
+        from .models import StaffTurnover
+        r = self._turnover([self.jane, self.sam])
+        self.assertEqual(r.status_code, 302)
+        t = StaffTurnover.objects.get()
+        self.assertEqual((t.leavers, t.employees, t.rate), (2, 50, Decimal('4.00')))
+        self.jane.refresh_from_db()
+        self.assertEqual((self.jane.status, self.jane.turnover, self.jane.leaving_reason), ('left', t, 'Resigned'))
+        self.assertTrue(self.week <= self.jane.left_on <= self.week + datetime.timedelta(days=6))
+        # Opening the week again fills in their names
+        r = self.client.get(reverse('hr_turnover'), {'month': f'{self.week:%Y-%m}', 'company': self.fj.pk,
+                                                     'week': self.week.isoformat()})
+        self.assertEqual(sorted(row['id'] for row in r.context['form'].leaver_rows), sorted([self.jane.pk, self.sam.pk]))
+        # Taking Sam off the list: active again, and the count follows
+        self._turnover([self.jane])
+        self.sam.refresh_from_db()
+        self.assertEqual((self.sam.status, self.sam.left_on, self.sam.turnover), ('active', None, None))
+        self.assertEqual(StaffTurnover.objects.get().leavers, 1)
+        # A bigger count than names is kept (not every name known); a smaller one isn't allowed
+        self._turnover([self.jane], leavers=3)
+        self.assertEqual(StaffTurnover.objects.get().leavers, 3)
+        self.assertContains(self._turnover([self.jane, self.sam], leavers=1), 'be less than 2')
+        # Removing the week: everyone in it is active again
+        self._turnover([self.jane], remove='1')
+        self.jane.refresh_from_db()
+        self.assertEqual(self.jane.status, 'active')
+        self.assertFalse(StaffTurnover.objects.exists())
+
+    def test_names_must_be_on_the_companys_list(self):
+        from .models import StaffTurnover
+        self.assertContains(self._turnover(['Nobody Here']), 'on the Employees list for Farmer Joe')
+        self.assertContains(self._turnover([self.tina]), 'on the Employees list for Farmer Joe')
+        self.assertContains(self._turnover([self.jane, self.jane]), 'is listed twice')
+        self.assertFalse(StaffTurnover.objects.exists())
+        # A typed name that matches exactly is fine
+        self.assertEqual(self._turnover(['sam lee']).status_code, 302)
+        self.sam.refresh_from_db()
+        self.assertEqual(self.sam.status, 'left')
+
+    def test_someone_counted_in_one_week_cant_be_in_another(self):
+        import datetime
+        self._turnover([self.jane])
+        r = self._turnover([self.jane], week=self.week + datetime.timedelta(days=7))
+        self.assertContains(r, 'already counted as leaving in the week of')
+
+    def test_export_and_import_csv(self):
+        from .models import Employee
+        r = self.client.get(reverse('hr_employees_export'), {'company': 'farmer-joe'})
+        self.assertEqual(r.status_code, 200)
+        body = r.content.decode('utf-8-sig')
+        self.assertIn('Employee ID,First name,Last name,Company', body)
+        self.assertIn('Jane,Doe,Farmer Joe', body)
+        self.assertNotIn('Tina', body)
+        self.assertEqual(self.client.get(reverse('hr_employees_template')).status_code, 200)
+        csv_file = SimpleUploadedFile('staff.csv', (
+            'Employee ID,First name,Last name,Company,Position,Status,Left on\n'
+            'E1,Jane,Doe,Farmer Joe,Supervisor,Active,\n'          # updates Jane (matched by ID)
+            ',Mele,Tui,taula,Driver,,\n'                             # added (company by slug)
+            ',Old,Timer,Farmer Joe,,,3/02/2025\n').encode())        # a date with no status: left
+        r = self.client.post(reverse('hr_employees_import'), {'file': csv_file})
+        self.assertRedirects(r, reverse('hr_employees'), fetch_redirect_response=False)
+        self.jane.refresh_from_db()
+        self.assertEqual(self.jane.position, 'Supervisor')
+        self.assertEqual(Employee.objects.get(first_name='Mele').company, self.taula)
+        old = Employee.objects.get(first_name='Old')
+        self.assertEqual((old.status, str(old.left_on)), ('left', '2025-02-03'))
+        self.assertEqual(Employee.objects.count(), 5)
+
+    def test_import_saves_nothing_when_a_row_is_wrong(self):
+        from .models import Employee
+        csv_file = SimpleUploadedFile('staff.csv', (
+            'First name,Company,Status\nGood,Farmer Joe,Active\nBad,No Such Co,Active\nWorse,Taula,Maybe\n').encode())
+        r = self.client.post(reverse('hr_employees_import'), {'file': csv_file})
+        self.assertContains(r, 'Nothing was imported')
+        self.assertContains(r, 'Row 3: Company')
+        self.assertContains(r, 'Row 4: Status')
+        self.assertFalse(Employee.objects.filter(first_name='Good').exists())
+        r = self.client.post(reverse('hr_employees_import'), {'file': SimpleUploadedFile('x.csv', b'Name\nA\n')})
+        self.assertContains(r, 'The file needs these columns')
+
+    def test_export_cells_cant_run_as_formulas(self):
+        from .models import Employee
+        Employee.objects.create(company=self.fj, first_name='=HYPERLINK("x")')
+        body = self.client.get(reverse('hr_employees_export')).content.decode('utf-8-sig')
+        self.assertIn("'=HYPERLINK", body)
+
+    def test_other_levels_cant_open_it(self):
+        self.client.force_login(_user('sione', 'Sales'))
+        self.assertEqual(self.client.get(reverse('hr_employees')).status_code, 403)
+        self.assertEqual(self.client.get(reverse('hr_employees_export')).status_code, 403)

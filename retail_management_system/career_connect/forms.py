@@ -1,11 +1,11 @@
-from datetime import date
+from datetime import date, timedelta
 
 from django import forms
 from django.utils.text import slugify
 
 from . import i18n
-from .models import (ATTACHMENT_TYPES, MAX_ATTACHMENT_MB, Company, Department, ExpressionOfInterest, Role, office_today,
-                     week_label)
+from .models import (ATTACHMENT_TYPES, MAX_ATTACHMENT_MB, Company, Department, Employee, ExpressionOfInterest, Role,
+                     office_today, week_label)
 
 ACCEPT = ','.join('.' + t for t in ATTACHMENT_TYPES)
 FILE_HELP = f'PDF, Word or a photo, under {MAX_ATTACHMENT_MB} MB.'
@@ -211,25 +211,178 @@ class TurnoverForm(forms.Form):
     The weeks offered are those of the month on screen. Saving a week that already has figures replaces them."""
     company = forms.ModelChoiceField(Company.objects.all(), empty_label='Choose a company')
     week = forms.TypedChoiceField(coerce=date.fromisoformat, error_messages={'invalid_choice': 'Pick a week.'})
-    leavers = forms.IntegerField(label='Employees who left', min_value=0,
+    leavers = forms.IntegerField(label='Number who left', min_value=0, required=False,
                                  widget=forms.NumberInput(attrs={'placeholder': 'e.g. 1', 'inputmode': 'numeric'}),
-                                 help_text='How many employees left the company that week.')
-    employees = forms.IntegerField(label='Number of employees', min_value=1,
+                                 help_text='Counted from the names above. Type it yourself only if you don’t have '
+                                           'every name.')
+    employees = forms.IntegerField(label='Number of employees', min_value=1, required=False,
                                    widget=forms.NumberInput(attrs={'placeholder': 'e.g. 66', 'inputmode': 'numeric'}),
-                                   help_text='How many employees the company has.')
+                                   help_text='Filled in from the company. Change it only when it changes: '
+                                             'the new number is kept for next time.')
     note = forms.CharField(label='Note (optional)', required=False, max_length=200,
                            widget=forms.TextInput(attrs={'placeholder': 'e.g. 1 resigned'}))
 
-    def __init__(self, *args, weeks=(), **kwargs):
-        """weeks: the Mondays HR can pick (the month on screen, up to this week)."""
+    def __init__(self, *args, weeks=(), named=(), **kwargs):
+        """weeks: the Mondays HR can pick (the month on screen, up to this week). named: the employees already
+        recorded as leaving in the week being edited (to fill in their names)."""
         super().__init__(*args, **kwargs)
+        self.named = []   # (employee, left on, reason) once valid
+        self.leaver_errors = []
+        if self.is_bound:
+            d = self.data
+            self.leaver_rows = [{'id': i, 'name': n.strip(), 'date': dt, 'reason': r.strip()} for i, n, dt, r in zip(
+                d.getlist('leaver_id'), d.getlist('leaver_name'), d.getlist('leaver_date'),
+                d.getlist('leaver_reason')) if n.strip()]
+        else:
+            self.leaver_rows = [{'id': e.pk, 'name': leaver_label(e), 'date': e.left_on.isoformat() if e.left_on else '',
+                                 'reason': e.leaving_reason} for e in named]
         self.fields['week'].choices = [(w.isoformat(), f'Week of {week_label(w)}') for w in weeks]
         for field in self.fields.values():
             field.widget.attrs['class'] = 'sms-input'
 
     def clean(self):
         data = super().clean()
+        company = data.get('company')
+        if data.get('employees') is None and company:
+            data['employees'] = company.employee_count   # the company's kept number
+            if data['employees'] is None:
+                self.add_error('employees', f'Enter the number of employees at {company.name} once; '
+                                            'it is kept for next time.')
+        week = data.get('week')
+        if company and week:
+            self._clean_named(company, week)
+        listed = len(self.leaver_rows)
+        if data.get('leavers') is None:
+            data['leavers'] = listed   # the names listed
+        elif data['leavers'] < listed:
+            self.add_error('leavers', f'You named {listed} employee{"s" if listed != 1 else ""} who left, so this '
+                                      f'can’t be less than {listed}.')
         leavers, employees = data.get('leavers'), data.get('employees')
         if leavers is not None and employees and leavers > employees:
             self.add_error('leavers', 'More employees left than the company has. Check both numbers.')
         return data
+
+    def _clean_named(self, company, week):
+        """Matches each name typed in to one of the company's employees, with the date they left (in the week)."""
+        today = office_today()
+        sunday = week + timedelta(days=6)
+        seen = set()
+        for row in self.leaver_rows:
+            found = find_employee(company, row)
+            if isinstance(found, list):
+                self.leaver_errors.append(f'There are {len(found)} employees called {row["name"]} at {company.name}: '
+                                          f'pick the right one from the suggestions.')
+                continue
+            if found is None:
+                self.leaver_errors.append(f'{row["name"]} isn’t on the Employees list for {company.name}. Pick a name '
+                                          f'from the suggestions, or add them on the Employees page first.')
+                continue
+            row['id'], row['name'] = found.pk, leaver_label(found)
+            if found.pk in seen:
+                self.leaver_errors.append(f'{found.full_name} is listed twice.')
+                continue
+            seen.add(found.pk)
+            t = found.turnover
+            if t is not None and (t.company_id, t.week) != (company.pk, week):
+                self.leaver_errors.append(f'{found.full_name} is already counted as leaving in the week of '
+                                          f'{t.week_label}. Remove them from that week first.')
+                continue
+            if row['date']:
+                left_on = parse_day(row['date'])
+                if left_on is None or not week <= left_on <= sunday:
+                    self.leaver_errors.append(f'{found.full_name}: the date they left must be in the week of '
+                                              f'{week_label(week)}.')
+                    continue
+                if left_on > today:
+                    self.leaver_errors.append(f'{found.full_name}: the date they left can’t be after today.')
+                    continue
+            else:   # no date given: the end of the week (or today, for this week)
+                left_on = min(sunday, today)
+            row['date'] = left_on.isoformat()
+            self.named.append((found, left_on, row['reason'][:200]))
+        for message in self.leaver_errors:
+            self.add_error(None, message)
+
+
+def leaver_label(e):
+    """How an employee shows in the name suggestions: 'Jane Doe · Cashier · #E12'."""
+    return ' · '.join(p for p in (e.full_name, e.position, f'#{e.employee_id}' if e.employee_id else '') if p)
+
+
+def parse_day(text):
+    """A date typed as 2026-11-03 or 3/11/2026 (day first), else None."""
+    text = (text or '').strip()
+    try:
+        return date.fromisoformat(text)
+    except ValueError:
+        pass
+    try:
+        d, m, y = (int(x) for x in text.replace('-', '/').replace('.', '/').split('/'))
+        return date(y + 2000 if y < 100 else y, m, d)
+    except (ValueError, TypeError):
+        return None
+
+
+def find_employee(company, row):
+    """The company's employee a typed-in row names: by the suggestion picked, else by their exact name. A list when
+    several share the name, None when nobody has it."""
+    people = Employee.objects.filter(company=company).select_related('turnover')
+    if str(row['id']).isdigit():
+        found = people.filter(pk=int(row['id'])).first()
+        if found and row['name'] in (leaver_label(found), found.full_name):
+            return found
+    name = ' '.join(row['name'].split(' · ')[0].split()).lower()
+    matches = [e for e in people if ' '.join(e.full_name.split()).lower() == name]
+    if len(matches) == 1:
+        return matches[0]
+    return matches or None
+
+
+def _date_input():
+    return forms.DateInput(attrs={'type': 'date'}, format='%Y-%m-%d')
+
+
+class EmployeeForm(forms.ModelForm):
+    class Meta:
+        model = Employee
+        fields = ('company', 'employee_id', 'first_name', 'last_name', 'department', 'position', 'email', 'phone',
+                  'start_date', 'status', 'left_on', 'leaving_reason', 'notes')
+        widgets = {'start_date': _date_input(), 'left_on': _date_input(),
+                   'notes': forms.Textarea(attrs={'rows': 3}),
+                   'department': forms.TextInput(attrs={'list': 'em-departments', 'autocomplete': 'off'}),
+                   'position': forms.TextInput(attrs={'list': 'em-positions', 'autocomplete': 'off'})}
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['company'].empty_label = 'Choose a company'
+        for field in self.fields.values():
+            field.widget.attrs['class'] = 'sms-input'
+
+    def clean(self):
+        data = super().clean()
+        if data.get('status') == Employee.LEFT:
+            if not data.get('left_on'):
+                self.add_error('left_on', 'Enter the date they left.')
+            elif data['left_on'] > office_today():
+                self.add_error('left_on', 'This date can’t be after today.')
+        return data
+
+
+class EmployeeFilterForm(forms.Form):
+    q = forms.CharField(required=False, widget=forms.TextInput(attrs={
+        'placeholder': 'Search name, ID, position…', 'type': 'search'}))
+    company = forms.ModelChoiceField(Company.objects.all(), required=False, empty_label='All companies',
+                                     to_field_name='slug')
+    department = forms.ChoiceField(required=False)
+    status = forms.ChoiceField(required=False, choices=[('', 'Active and left')] + Employee.STATUSES)
+    left_from = forms.DateField(required=False, label='Left from', widget=_date_input())
+    left_to = forms.DateField(required=False, label='Left to', widget=_date_input())
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        departments = (Employee.objects.exclude(department='').order_by('department')
+                       .values_list('department', flat=True).distinct())
+        self.fields['department'].choices = [('', 'All departments')] + [(d, d) for d in departments]
+        for name, field in self.fields.items():
+            field.widget.attrs['class'] = 'sms-input'
+            field.widget.attrs.setdefault('aria-label', field.label or name.title())

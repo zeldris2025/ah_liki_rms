@@ -1,0 +1,160 @@
+{% extends 'shops/base.html' %}
+{% block content %}
+{% include 'career_connect/hr/_styles.html' %}
+<style>
+  .em-companies { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); margin-bottom: 20px; }
+  .em-company { display: block; padding: 14px 16px; text-decoration: none; color: inherit; border: 1.5px solid transparent; transition: border-color .15s; }
+  .em-company:hover { border-color: var(--accent); }
+  .em-company.on { border-color: var(--accent); background: #EFF6FF; }
+  .em-company .name { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700; color: var(--primary); margin-bottom: 8px; }
+  .em-company .dot { width: 10px; height: 10px; border-radius: 3px; background: var(--c); flex-shrink: 0; }
+  .em-company .nums { display: flex; gap: 16px; }
+  .em-company .nums b { display: block; font-size: 22px; line-height: 1.1; color: var(--primary); font-variant-numeric: tabular-nums; }
+  .em-company .nums small { color: var(--muted); font-size: 11.5px; }
+  .em-company .nums .left b { color: var(--text-secondary); }
+  .em-filters { display: grid; gap: 10px; grid-template-columns: minmax(0, 2fr) repeat(3, minmax(0, 1fr)); padding: 14px; margin-bottom: 20px; }
+  .em-filters .dates { display: flex; gap: 8px; align-items: center; grid-column: 1 / span 2; }
+  .em-filters .dates label { font-size: 12.5px; color: var(--muted); white-space: nowrap; }
+  .em-filters .actions { display: flex; gap: 8px; grid-column: 3 / span 2; justify-content: flex-end; }
+  .em-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; padding: 14px 18px; border-bottom: 1px solid var(--border); }
+  .em-head h3 { margin: 0; font-size: 15px; font-weight: 700; color: var(--primary); }
+  .em-head small { color: var(--muted); font-size: 12.5px; }
+  .em-table td { vertical-align: middle; font-size: 13px; }
+  .em-name { font-weight: 600; color: var(--primary); text-decoration: none; }
+  .em-name:hover { text-decoration: underline; }
+  .em-sub { color: var(--muted); font-size: 12px; }
+  .em-pager { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 12px 18px; border-top: 1px solid var(--border); font-size: 13px; color: var(--muted); }
+  .em-pager .links { display: flex; gap: 6px; }
+  .em-hero-actions { display: flex; gap: 8px; flex-wrap: wrap; position: relative; z-index: 1; }
+  .em-hero-actions .btn-outline-custom { color: #fff; border-color: rgba(255,255,255,.35); }
+  @media (max-width: 900px) {
+    .em-filters { grid-template-columns: 1fr 1fr; }
+    .em-filters .dates, .em-filters .actions { grid-column: 1 / -1; }
+  }
+  @media (max-width: 560px) {
+    .em-filters { grid-template-columns: 1fr; }
+    .em-filters .dates { flex-wrap: wrap; }
+    .em-hide-sm { display: none; }
+  }
+</style>
+
+<div class="hr-hero">
+  <div>
+    <div class="hr-crumbs"><a href="{% url 'hr_dashboard' %}">Dashboard</a> › Employees</div>
+    <h2>Employees</h2>
+    <p>Everyone at each company in the group. Naming someone on the Staff turnover page marks them as left here.</p>
+  </div>
+  <div class="em-hero-actions">
+    <a href="{% url 'hr_employees_import' %}" class="btn-sms btn-outline-custom">⤒ Import CSV</a>
+    <a href="{% url 'hr_employees_export' %}{% if query %}?{{ query }}{% endif %}" class="btn-sms btn-outline-custom">⤓ Export CSV</a>
+    <a href="{% url 'hr_employee_add' %}{% if company %}?company={{ company.slug }}{% endif %}" class="btn-sms btn-accent-custom">＋ Add an employee</a>
+  </div>
+</div>
+
+{% include 'career_connect/hr/_messages.html' %}
+
+<div class="hr-stats">
+  <div class="stat-card">
+    <span class="hr-stat-icon" style="background:#DBEAFE">👥</span>
+    <div><div class="stat-label">Total employees</div><div class="stat-value">{{ stats.active }}</div><div class="stat-sub">active{% if company %} at {{ company.name }}{% else %}, all companies{% endif %}</div></div>
+  </div>
+  <div class="stat-card">
+    <span class="hr-stat-icon" style="background:#FEE2E2">🚪</span>
+    <div><div class="stat-label">Employees who left</div><div class="stat-value">{{ stats.left }}</div><div class="stat-sub">{% if dated %}in the dates picked{% else %}on record{% endif %}</div></div>
+  </div>
+  <div class="stat-card">
+    <span class="hr-stat-icon" style="background:#FEF3C7">📅</span>
+    <div><div class="stat-label">Left this month</div><div class="stat-value">{{ stats.left_this_month }}</div><div class="stat-sub">since {{ month_start|date:"j M" }}</div></div>
+  </div>
+  <div class="stat-card">
+    <span class="hr-stat-icon" style="background:#EDE9FE">🏢</span>
+    <div><div class="stat-label">On record</div><div class="stat-value">{{ stats.active|add:stats.left }}</div><div class="stat-sub">active and left{% if company %} at {{ company.name }}{% endif %}</div></div>
+  </div>
+</div>
+
+<nav class="em-companies" aria-label="Employees by company">
+  {% for card in cards %}
+  <a class="sms-card em-company{% if card.on %} on{% endif %}" style="--c:{{ card.colour }}"
+     href="?{% if not card.on %}company={{ card.company.slug }}{% endif %}{% for k, v in request.GET.items %}{% if k != 'company' and k != 'page' and v %}&{{ k }}={{ v|urlencode }}{% endif %}{% endfor %}"
+     {% if card.on %}aria-current="true" title="Show all companies"{% else %}title="Show {{ card.company.name }} only"{% endif %}>
+    <span class="name"><span class="dot"></span>{{ card.company.name }}</span>
+    <span class="nums">
+      <span><b>{{ card.active }}</b><small>employees</small></span>
+      <span class="left"><b>{{ card.left }}</b><small>left{% if dated %} (dates picked){% endif %}</small></span>
+    </span>
+  </a>
+  {% endfor %}
+</nav>
+
+<form method="get" class="sms-card em-filters" role="search" aria-label="Filter employees">
+  {{ filters.q }}
+  {{ filters.company }}
+  {{ filters.department }}
+  {{ filters.status }}
+  <div class="dates">
+    <label for="{{ filters.left_from.id_for_label }}">Left between</label>{{ filters.left_from }}
+    <label for="{{ filters.left_to.id_for_label }}">and</label>{{ filters.left_to }}
+  </div>
+  <div class="actions">
+    <button type="submit" class="btn-sms btn-primary-custom">Filter</button>
+    {% if filtered %}<a href="{% url 'hr_employees' %}" class="btn-sms btn-outline-custom">Clear</a>{% endif %}
+  </div>
+</form>
+
+<section class="sms-card" aria-labelledby="em-list">
+  <div class="em-head">
+    <div><h3 id="em-list">{% if company %}{{ company.name }}{% else %}All companies{% endif %}</h3>
+      <small>{{ count }} employee{{ count|pluralize }}{% if filtered %} match the filters{% endif %}</small></div>
+  </div>
+  {% if page.object_list %}
+  <div style="overflow-x:auto">
+    <table class="sms-table em-table">
+      <thead><tr><th>Name</th><th>Company</th><th class="em-hide-sm">Department · position</th><th class="em-hide-sm">Started</th><th>Status</th><th style="text-align:right">Actions</th></tr></thead>
+      <tbody>
+        {% for e in page.object_list %}
+        <tr>
+          <td><a class="em-name" href="{% url 'hr_employee_edit' e.pk %}?next={{ request.get_full_path|urlencode }}">{{ e.full_name }}</a>
+            {% if e.employee_id %}<div class="em-sub">#{{ e.employee_id }}</div>{% endif %}</td>
+          <td>{{ e.company.name }}</td>
+          <td class="em-hide-sm">{{ e.department|default:"—" }}{% if e.position %}<div class="em-sub">{{ e.position }}</div>{% endif %}</td>
+          <td class="em-hide-sm">{{ e.start_date|date:"j M Y"|default:"—" }}</td>
+          <td>{% if e.is_active %}<span class="badge-custom badge-green">Active</span>
+            {% else %}<span class="badge-custom badge-gray">Left</span>
+            <div class="em-sub">{{ e.left_on|date:"j M Y" }}{% if e.turnover %} · <a href="{% url 'hr_turnover' %}?month={{ e.turnover.week|date:'Y-m' }}&company={{ e.company_id }}&week={{ e.turnover.week|date:'Y-m-d' }}" title="Counted in the staff turnover for the week of {{ e.turnover.week_label }}">in turnover</a>{% endif %}</div>
+            {% if e.leaving_reason %}<div class="em-sub">{{ e.leaving_reason }}</div>{% endif %}{% endif %}</td>
+          <td>
+            <div class="hr-actions">
+              <a href="{% url 'hr_employee_edit' e.pk %}?next={{ request.get_full_path|urlencode }}" class="btn-sms sm btn-outline-custom">Edit</a>
+              <form method="post" action="{% url 'hr_employee_delete' e.pk %}" onsubmit="return confirm('Remove {{ e.full_name|escapejs }} from the Employees list? This can’t be undone.')">
+                {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
+                <button class="btn-sms sm btn-outline-custom" style="color:var(--danger)" aria-label="Remove {{ e.full_name }}">Remove</button>
+              </form>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% if page.paginator.num_pages > 1 %}
+  <nav class="em-pager" aria-label="Pages">
+    <span>{{ page.start_index }}–{{ page.end_index }} of {{ count }}</span>
+    <span class="links">
+      {% if page.has_previous %}<a class="btn-sms sm btn-outline-custom" href="?{% if query %}{{ query }}&{% endif %}page={{ page.previous_page_number }}">‹ Previous</a>{% endif %}
+      <span style="align-self:center">Page {{ page.number }} of {{ page.paginator.num_pages }}</span>
+      {% if page.has_next %}<a class="btn-sms sm btn-outline-custom" href="?{% if query %}{{ query }}&{% endif %}page={{ page.next_page_number }}">Next ›</a>{% endif %}
+    </span>
+  </nav>
+  {% endif %}
+  {% else %}
+  <div class="hr-empty">
+    <div class="icon">👥</div>
+    {% if filtered %}<h3>No employees match</h3><p>Try other filters, or clear them.</p>
+    <a href="{% url 'hr_employees' %}" class="btn-sms btn-outline-custom">Clear the filters</a>
+    {% else %}<h3>No employees yet</h3><p>Add them one by one, or import them all from a CSV file.</p>
+    <a href="{% url 'hr_employees_import' %}" class="btn-sms btn-outline-custom">Import CSV</a>
+    <a href="{% url 'hr_employee_add' %}" class="btn-sms btn-primary-custom">＋ Add an employee</a>{% endif %}
+  </div>
+  {% endif %}
+</section>
+{% endblock %}

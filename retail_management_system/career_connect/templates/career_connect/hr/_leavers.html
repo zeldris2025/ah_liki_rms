@@ -1,0 +1,10 @@
+<fieldset class="to-names" aria-describedby="to-names-help">
+  <legend class="sms-label">Employees who left</legend>
+  <div class="help" id="to-names-help">Start typing a name and pick it from the Employees list. They’re marked as left once you save.</div>
+  <div id="to-rows">
+    {% for row in form.leaver_rows %}{% include 'career_connect/hr/_leaver_row.html' %}{% empty %}{% include 'career_connect/hr/_leaver_row.html' with row=None %}{% endfor %}
+  </div>
+  <button type="button" class="btn-sms sm btn-outline-custom" id="to-add">＋ Add more</button>
+</fieldset>
+<template id="to-row-tpl">{% include 'career_connect/hr/_leaver_row.html' with row=None %}</template>
+<datalist id="to-people"></datalist>

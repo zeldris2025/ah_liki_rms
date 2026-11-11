@@ -260,6 +260,9 @@ class Company(models.Model):
     description = models.TextField(blank=True)
     order = models.PositiveIntegerField(default=0)
     is_published = models.BooleanField(default=True)
+    employee_count = models.PositiveIntegerField(
+        'number of employees', null=True, blank=True, validators=[MinValueValidator(1)],
+        help_text='Used for the staff turnover %. It stays the same until HR change it.')
 
     class Meta:
         ordering = ('order', 'name')
@@ -690,3 +693,55 @@ class StaffTurnover(models.Model):
     @property
     def week_label(self):
         return week_label(self.week)
+
+
+class Employee(models.Model):
+    """Someone who works (or worked) at a company in the group. HR keep the list on the Employees page (or import it
+    from a CSV). Naming an employee in a week of staff turnover marks them as left, linked to that week."""
+    ACTIVE, LEFT = 'active', 'left'
+    STATUSES = [(ACTIVE, 'Active'), (LEFT, 'Left')]
+
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name='employees')
+    employee_id = models.CharField('employee ID', max_length=40, blank=True,
+                                   help_text='Optional. The payroll or staff number.')
+    first_name = models.CharField(max_length=80)
+    last_name = models.CharField(max_length=80, blank=True)
+    department = models.CharField(max_length=120, blank=True)
+    position = models.CharField(max_length=120, blank=True)
+    email = models.EmailField(blank=True)
+    phone = models.CharField(max_length=40, blank=True)
+    start_date = models.DateField('started on', null=True, blank=True)
+    status = models.CharField(max_length=10, choices=STATUSES, default=ACTIVE)
+    left_on = models.DateField('left on', null=True, blank=True)
+    leaving_reason = models.CharField('reason for leaving', max_length=200, blank=True)
+    turnover = models.ForeignKey(StaffTurnover, on_delete=models.SET_NULL, null=True, blank=True,
+                                 related_name='leavers_named', editable=False,
+                                 help_text='The week of staff turnover they were counted in.')
+    notes = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ('company__order', 'company__name', 'first_name', 'last_name')
+        constraints = [models.UniqueConstraint(fields=('company', 'employee_id'), condition=~Q(employee_id=''),
+                                               name='one_employee_id_per_company')]
+
+    def __str__(self):
+        return self.full_name
+
+    @property
+    def full_name(self):
+        return f'{self.first_name} {self.last_name}'.strip()
+
+    @property
+    def is_active(self):
+        return self.status == self.ACTIVE
+
+    def clean(self):
+        if self.status == self.LEFT and not self.left_on:
+            raise ValidationError({'left_on': 'Enter the date they left.'})
+
+    def save(self, *args, **kwargs):
+        if self.status == self.ACTIVE:   # back at work: no leaving date
+            self.left_on, self.leaving_reason, self.turnover = None, '', None
+        super().save(*args, **kwargs)

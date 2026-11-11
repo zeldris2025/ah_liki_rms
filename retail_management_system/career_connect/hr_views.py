@@ -11,6 +11,7 @@ from zoneinfo import ZoneInfo
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required, permission_required
+from django.db import transaction
 from django.db.models import Count, Q
 from django.http import FileResponse, Http404
 from django.shortcuts import get_object_or_404, redirect, render
@@ -20,8 +21,8 @@ from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
 
 from .access import VACANCY_PERMISSION
-from .forms import TurnoverForm, VacancyFilterForm, VacancyForm
-from .models import (Company, ExpressionOfInterest, Role, StaffTurnover, live_roles_q, office_today, recruiting_q,
+from .forms import TurnoverForm, VacancyFilterForm, VacancyForm, leaver_label
+from .models import (Company, Employee, ExpressionOfInterest, Role, StaffTurnover, live_roles_q, office_today, recruiting_q,
                      turnover_rate, week_label)
 
 
@@ -67,6 +68,46 @@ def _month_keys(months):
         keys.append((y, m))
         y, m = (y, m - 1) if m > 1 else (y - 1, 12)
     return keys[::-1]
+
+
+def _save_headcount(request, month):
+    """Change one company's kept number of employees (from the Number of employees card)."""
+    company = get_object_or_404(Company, pk=request.POST.get('company') or 0)
+    try:
+        count = int(request.POST.get('headcount', ''))
+    except ValueError:
+        count = 0
+    if count < 1:
+        messages.error(request, f'Enter how many employees {company.name} has (1 or more).')
+    else:
+        company.employee_count = count
+        company.save(update_fields=['employee_count'])
+        messages.success(request, f'{company.name} now has {count} employees. Weeks already saved keep their own number.')
+    return redirect(f'{request.path}?month={month:%Y-%m}')
+
+
+def _names(people):
+    names = [p.full_name for p in people]
+    return names[0] if len(names) == 1 else ', '.join(names[:-1]) + ' and ' + names[-1]
+
+
+def _back_to_work(employees):
+    """Employees taken off a week's list of leavers (or whose week is removed) are active again."""
+    back = list(employees)
+    for e in back:
+        e.status = Employee.ACTIVE   # save() clears the leaving date, reason and week
+        e.save()
+    return back
+
+
+def _suggestions(editing=None):
+    """The names the turnover form suggests, by company: active employees, plus those named in the week being edited."""
+    people = Employee.objects.filter(Q(status=Employee.ACTIVE) | Q(turnover=editing) if editing else
+                                     Q(status=Employee.ACTIVE))
+    out = {}
+    for e in people.only('pk', 'company_id', 'first_name', 'last_name', 'position', 'employee_id'):
+        out.setdefault(e.company_id, []).append({'id': e.pk, 'label': leaver_label(e)})
+    return out
 
 
 def _monday(day):
@@ -225,20 +266,47 @@ def turnover(request):
     weeks = _weeks_of(month)
     open_weeks = [w for w in weeks if w <= today]   # this week and earlier can be filled in
 
+    if request.method == 'POST' and 'headcount' in request.POST:
+        return _save_headcount(request, month)
     if request.method == 'POST':
         form = TurnoverForm(request.POST, weeks=open_weeks)
         if form.is_valid():
             company, week = form.cleaned_data['company'], form.cleaned_data['week']
             if request.POST.get('remove'):
-                StaffTurnover.objects.filter(company=company, week=week).delete()
-                messages.success(request, f'Removed {company.name}’s turnover for the week of {week_label(week)}.')
+                record = StaffTurnover.objects.filter(company=company, week=week).first()
+                said = f'Removed {company.name}’s turnover for the week of {week_label(week)}.'
+                if record:
+                    back = _back_to_work(record.leavers_named.all())
+                    record.delete()
+                    if back:
+                        said += f' {_names(back)} {"is" if len(back) == 1 else "are"} active again.'
+                messages.success(request, said)
             else:
-                saved, _ = StaffTurnover.objects.update_or_create(company=company, week=week, defaults={
-                    'leavers': form.cleaned_data['leavers'], 'employees': form.cleaned_data['employees'],
-                    'note': form.cleaned_data['note'],
-                    'updated_by': request.user.get_full_name() or request.user.get_username()})
-                messages.success(request, f'{company.name}, week of {week_label(week)}: {saved.leavers} of '
-                                          f'{saved.employees} employees left, {saved.rate}% turnover.')
+                with transaction.atomic():
+                    saved, _ = StaffTurnover.objects.update_or_create(company=company, week=week, defaults={
+                        'leavers': form.cleaned_data['leavers'], 'employees': form.cleaned_data['employees'],
+                        'note': form.cleaned_data['note'],
+                        'updated_by': request.user.get_full_name() or request.user.get_username()})
+                    # The employees named are marked as left, in this week; anyone taken off the list is active again
+                    named = {e.pk for e, _, _ in form.named}
+                    back = _back_to_work(saved.leavers_named.exclude(pk__in=named))
+                    for employee, left_on, reason in form.named:
+                        employee.status, employee.left_on, employee.turnover = Employee.LEFT, left_on, saved
+                        employee.leaving_reason = reason or employee.leaving_reason
+                        employee.save()
+                said = (f'{company.name}, week of {week_label(week)}: {saved.leavers} of {saved.employees} '
+                        f'employees left, {saved.rate}% turnover.')
+                if form.named:
+                    said += f' Marked as left: {_names([e for e, _, _ in form.named])}.'
+                if back:
+                    said += f' {_names(back)} {"is" if len(back) == 1 else "are"} active again.'
+                latest = not StaffTurnover.objects.filter(company=company, week__gt=week).exists()
+                # A new number of employees is kept from now on, unless HR are correcting an older week
+                if latest and saved.employees != company.employee_count:
+                    company.employee_count = saved.employees
+                    company.save(update_fields=['employee_count'])
+                    said += f' {company.name} now has {saved.employees} employees.'
+                messages.success(request, said)
             return redirect(f'{request.path}?month={week:%Y-%m}&company={company.pk}&week={week}')
     else:
         this_week = _monday(today)
@@ -250,18 +318,18 @@ def turnover(request):
             picked = None
         if picked in open_weeks:
             initial['week'] = picked
+        existing = None
         if company:
             initial['company'] = company
             existing = StaffTurnover.objects.filter(company=company, week=initial['week']).first()
             if existing:
                 initial.update(leavers=existing.leavers, employees=existing.employees, note=existing.note)
-            else:   # carry the headcount over from the company's last week
-                last = StaffTurnover.objects.filter(company=company, week__lt=initial['week'] or today).order_by('-week').first()
-                if last:
-                    initial['employees'] = last.employees
+            else:   # the company's kept number of employees
+                initial['employees'] = company.employee_count
+        named = list(existing.leavers_named.all()) if company and existing else []
         if initial['week']:
             initial['week'] = initial['week'].isoformat()
-        form = TurnoverForm(initial=initial, weeks=open_weeks)
+        form = TurnoverForm(initial=initial, weeks=open_weeks, named=named)
 
     try:
         editing = StaffTurnover.objects.filter(company_id=int(form['company'].value() or 0),
@@ -269,16 +337,20 @@ def turnover(request):
     except ValueError:
         editing = None
     records = {(t.company_id, t.week): t for t in StaffTurnover.objects.filter(week__in=weeks)}
+    on_list = dict(Employee.objects.filter(status=Employee.ACTIVE).values('company')
+                   .annotate(n=Count('pk')).values_list('company', 'n'))
     rows = []
     for i, c in enumerate(Company.objects.all()):
         cells = [{'week': w, 'record': records.get((c.pk, w)), 'future': w > today} for w in weeks]
-        rows.append({'company': c, 'colour': SERIES[i % len(SERIES)], 'cells': cells,
+        rows.append({'company': c, 'colour': SERIES[i % len(SERIES)], 'cells': cells, 'on_list': on_list.get(c.pk, 0),
                      'month': _combine([cell['record'] for cell in cells if cell['record']])})
     group = [_combine([records[k] for k in records if k[1] == w]) for w in weeks]
     prev_month = (month - timedelta(days=1)).replace(day=1)
     next_month = (month + timedelta(days=32)).replace(day=1)
     return render(request, 'career_connect/hr/turnover.html', {
         'form': form, 'rows': rows, 'this_month': this_month,
+        'headcounts': {c.pk: c.employee_count for c in Company.objects.all()},
+        'people': _suggestions(editing),
         'weeks': [{'monday': w, 'label': week_label(w), 'future': w > today, 'current': w == _monday(today)} for w in weeks],
         'group': group, 'group_month': _combine(list(records.values())), 'editing': editing,
         'month': month, 'is_this_month': month == this_month, 'prev_month': prev_month,

@@ -109,6 +109,7 @@ INSTALLED_APPS = [
     'social',
     'aj_sales',
     'import_export',
+    'audit',
 ]
 
 MIDDLEWARE = [
@@ -118,6 +119,7 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'audit.signals.AuditMiddleware',   # remembers who is signed in, for the audit log
     'fe_orders.access.FEAccessMiddleware',
     'shops.access.RoleAccessMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',

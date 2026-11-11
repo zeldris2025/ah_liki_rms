@@ -8,7 +8,8 @@ from django.contrib import admin
 from django.urls import reverse
 from django.utils.html import format_html
 
-from .models import Company, CompanyImage, Department, ExpressionOfInterest, PortalSettings, Role, StaffTurnover
+from .models import (Company, CompanyImage, Department, Employee, ExpressionOfInterest, PortalSettings, Role,
+                     StaffTurnover)
 from .templatetags.career_icons import BUSINESS_ICONS, icon
 
 
@@ -99,7 +100,7 @@ class CompanyAdmin(admin.ModelAdmin):
     list_editable = ('order', 'is_published')
     prepopulated_fields = {'slug': ('name',)}
     fieldsets = (
-        (None, {'fields': ('name', 'slug', 'colour', 'description', 'order', 'is_published')}),
+        (None, {'fields': ('name', 'slug', 'colour', 'description', 'order', 'is_published', 'employee_count')}),
         ('Icon', {
             'fields': ('symbol', 'icon_image', 'icon_preview'),
             'description': 'Pick one of the icons, or upload your own (e.g. the company logo) to use instead. '
@@ -210,6 +211,15 @@ class StaffTurnoverAdmin(admin.ModelAdmin):
     readonly_fields = ('rate',)
     list_filter = ('company',)
     date_hierarchy = 'week'
+
+
+@admin.register(Employee)
+class EmployeeAdmin(admin.ModelAdmin):
+    list_display = ('full_name', 'employee_id', 'company', 'department', 'position', 'status', 'left_on')
+    list_filter = ('status', 'company', 'department')
+    search_fields = ('first_name', 'last_name', 'employee_id', 'position', 'email')
+    readonly_fields = ('turnover', 'created_at', 'updated_at')
+    list_select_related = ('company',)
 
 
 @admin.register(ExpressionOfInterest)

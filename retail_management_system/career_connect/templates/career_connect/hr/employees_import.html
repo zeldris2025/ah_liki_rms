@@ -1,0 +1,53 @@
+{% extends 'shops/base.html' %}
+{% block content %}
+{% include 'career_connect/hr/_styles.html' %}
+
+<div class="hr-hero">
+  <div>
+    <div class="hr-crumbs"><a href="{% url 'hr_dashboard' %}">Dashboard</a> › <a href="{% url 'hr_employees' %}">Employees</a> › Import</div>
+    <h2>Import employees</h2>
+    <p>Add or update many employees at once from a CSV file (in Excel: File › Save As › CSV UTF-8).</p>
+  </div>
+  <a href="{% url 'hr_employees' %}" class="btn-sms btn-outline-custom" style="color:#fff;border-color:rgba(255,255,255,.35)">← Employees</a>
+</div>
+
+{% include 'career_connect/hr/_messages.html' %}
+{% if errors %}
+<div class="hr-flash" role="alert">
+  <div class="hr-flash-item error">⚠ Nothing was imported. Fix {% if errors|length == 1 and not more_errors %}this{% else %}these{% endif %} in the file and try again:
+    <ul style="margin:8px 0 0;padding-left:20px;font-weight:500">{% for e in errors %}<li>{{ e }}</li>{% endfor %}
+    {% if more_errors %}<li>…and {{ more_errors }} more.</li>{% endif %}</ul></div>
+</div>
+{% endif %}
+
+<div class="hr-form-grid">
+  <form method="post" enctype="multipart/form-data" class="sms-card">
+    {% csrf_token %}
+    <section class="hr-section">
+      <div class="hr-section-head"><span class="hr-step">1</span><div><h3>Get the file ready</h3>
+        <p>Start from the <a href="{% url 'hr_employees_template' %}">template</a>, or <a href="{% url 'hr_employees_export' %}">export the current list</a>, change it and import it back.</p></div></div>
+    </section>
+    <section class="hr-section">
+      <div class="hr-section-head"><span class="hr-step">2</span><div><h3>Upload it</h3><p>A .csv file under {{ max_mb }} MB. Nothing is saved unless every row is right.</p></div></div>
+      <div class="form-group">
+        <label class="sms-label" for="em-file">CSV file <span style="color:var(--danger)">*</span></label>
+        <input type="file" name="file" id="em-file" accept=".csv,text/csv" class="sms-input" required>
+      </div>
+      <button type="submit" class="btn-sms btn-primary-custom" style="margin-top:6px">Import</button>
+    </section>
+  </form>
+  <aside class="hr-side">
+    <div class="sms-card">
+      <h3 style="font-size:15px;font-weight:700;color:var(--primary);margin:0 0 8px">How the file is read</h3>
+      <ul class="hr-tips">
+        <li><b>First name</b> and <b>Company</b> are needed on every row. The other columns can be left out or empty.</li>
+        <li>Someone already on the list is updated, not added twice: matched by company and <b>Employee ID</b>, or by name when there’s no ID.</li>
+        <li><b>Company</b> is one of: {% for c in companies %}{{ c.name }}{% if not forloop.last %}, {% endif %}{% endfor %}.</li>
+        <li><b>Status</b> is Active or Left (a <b>Left on</b> date with no status counts as Left).</li>
+        <li>Dates like 2026-11-03 or 3/11/2026 (day first).</li>
+        <li>Columns: {% for key, label in columns %}{{ label }}{% if not forloop.last %}, {% endif %}{% endfor %}.</li>
+      </ul>
+    </div>
+  </aside>
+</div>
+{% endblock %}

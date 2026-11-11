@@ -1,0 +1,77 @@
+{% extends 'shops/base.html' %}
+{% block content %}
+{% include 'career_connect/hr/_styles.html' %}
+
+<div class="hr-hero">
+  <div>
+    <div class="hr-crumbs"><a href="{% url 'hr_dashboard' %}">Dashboard</a> › <a href="{% url 'hr_employees' %}">Employees</a> › {% if employee %}{{ employee.full_name }}{% else %}Add{% endif %}</div>
+    <h2>{% if employee %}{{ employee.full_name }}{% else %}Add an employee{% endif %}</h2>
+    <p>{% if employee %}{{ employee.company.name }}{% if employee.position %} · {{ employee.position }}{% endif %}{% else %}Only the company and first name are needed; add the rest when you have it.{% endif %}</p>
+  </div>
+  <a href="{% if next %}{{ next }}{% else %}{% url 'hr_employees' %}{% endif %}" class="btn-sms btn-outline-custom" style="color:#fff;border-color:rgba(255,255,255,.35)">← Employees</a>
+</div>
+
+{% include 'career_connect/hr/_messages.html' %}
+
+<form method="post" class="hr-form-grid" novalidate>
+  {% csrf_token %}
+  <input type="hidden" name="next" value="{{ next }}">
+  <div class="sms-card">
+    {% if form.non_field_errors %}<div class="hr-flash-item error" style="margin:18px 24px 0">⚠ {{ form.non_field_errors|join:" " }}</div>{% endif %}
+    <section class="hr-section">
+      <div class="hr-section-head"><span class="hr-step">1</span><div><h3>Who</h3><p>Their name, company and staff number.</p></div></div>
+      {% with field=form.company %}{% include 'career_connect/hr/_field.html' %}{% endwith %}
+      <div class="hr-two">
+        {% with field=form.first_name %}{% include 'career_connect/hr/_field.html' %}{% endwith %}
+        {% with field=form.last_name %}{% include 'career_connect/hr/_field.html' %}{% endwith %}
+      </div>
+      {% with field=form.employee_id %}{% include 'career_connect/hr/_field.html' %}{% endwith %}
+    </section>
+    <section class="hr-section">
+      <div class="hr-section-head"><span class="hr-step">2</span><div><h3>Job and contact</h3></div></div>
+      <div class="hr-two">
+        {% with field=form.department %}{% include 'career_connect/hr/_field.html' %}{% endwith %}
+        {% with field=form.position %}{% include 'career_connect/hr/_field.html' %}{% endwith %}
+        {% with field=form.email %}{% include 'career_connect/hr/_field.html' %}{% endwith %}
+        {% with field=form.phone %}{% include 'career_connect/hr/_field.html' %}{% endwith %}
+        {% with field=form.start_date %}{% include 'career_connect/hr/_field.html' %}{% endwith %}
+      </div>
+    </section>
+    <section class="hr-section">
+      <div class="hr-section-head"><span class="hr-step">3</span><div><h3>Status</h3><p>Usually set for you: naming someone on the Staff turnover page marks them as left.</p></div></div>
+      {% with field=form.status %}{% include 'career_connect/hr/_field.html' %}{% endwith %}
+      <div class="hr-two" id="em-left">
+        {% with field=form.left_on %}{% include 'career_connect/hr/_field.html' %}{% endwith %}
+        {% with field=form.leaving_reason %}{% include 'career_connect/hr/_field.html' %}{% endwith %}
+      </div>
+      {% if employee.turnover %}<p class="help" style="color:var(--muted);font-size:12.5px;margin:0 0 12px">Counted in {{ employee.company.name }}’s staff turnover for the week of {{ employee.turnover.week_label }}. Setting them back to Active takes them off that week’s list of names (the week’s count stays as it is; change it on the <a href="{% url 'hr_turnover' %}?month={{ employee.turnover.week|date:'Y-m' }}&company={{ employee.company_id }}&week={{ employee.turnover.week|date:'Y-m-d' }}">Staff turnover</a> page).</p>{% endif %}
+      {% with field=form.notes %}{% include 'career_connect/hr/_field.html' %}{% endwith %}
+    </section>
+    <div class="hr-section" style="display:flex;gap:8px;flex-wrap:wrap">
+      <button type="submit" class="btn-sms btn-primary-custom">{% if employee %}Save changes{% else %}Add employee{% endif %}</button>
+      {% if not employee %}<button type="submit" name="another" value="1" class="btn-sms btn-outline-custom">Add and add another</button>{% endif %}
+      <a href="{% if next %}{{ next }}{% else %}{% url 'hr_employees' %}{% endif %}" class="btn-sms btn-outline-custom">Cancel</a>
+    </div>
+  </div>
+  <aside class="hr-side">
+    <div class="sms-card">
+      <h3 style="font-size:15px;font-weight:700;color:var(--primary);margin:0 0 8px">Tips</h3>
+      <ul class="hr-tips">
+        <li>Department and position suggest the ones already used, so they stay consistent.</li>
+        <li>To add many people at once, use <a href="{% url 'hr_employees_import' %}">Import CSV</a>.</li>
+        <li>The number of employees used for the turnover % is kept on the Staff turnover page.</li>
+      </ul>
+    </div>
+  </aside>
+</form>
+<datalist id="em-departments">{% for d in departments %}<option value="{{ d }}">{% endfor %}</datalist>
+<datalist id="em-positions">{% for p in positions %}<option value="{{ p }}">{% endfor %}</datalist>
+<script>
+  // The leaving date and reason only matter for someone who has left
+  (function () {
+    var status = document.getElementById('id_status'), box = document.getElementById('em-left');
+    function show() { box.style.display = status.value === 'left' ? '' : 'none'; }
+    status.addEventListener('change', show); show();
+  })();
+</script>
+{% endblock %}

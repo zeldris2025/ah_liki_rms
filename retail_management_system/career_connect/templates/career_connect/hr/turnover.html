@@ -35,6 +35,24 @@
   .to-cell.future { color: #E2E8F0; }
   .to-cell.on { border-color: var(--accent); background: #EFF6FF; }
   .to-dot { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 8px; background: var(--c); }
+  .to-heads { list-style: none; padding: 0; margin: 0 0 12px; }
+  .to-heads li { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+  .to-heads li:last-child { border-bottom: none; }
+  .to-heads form { display: flex; gap: 6px; align-items: center; }
+  .to-heads input { width: 90px; padding: 6px 8px; font-size: 13px; text-align: right; }
+  .to-heads .none { color: var(--danger); font-size: 12px; }
+  .to-names { border: 0; padding: 0; margin: 0 0 14px; min-width: 0; }
+  .to-names legend { float: none; width: auto; margin-bottom: 2px; }
+  .to-names .help { color: var(--muted); font-size: 12px; margin-bottom: 8px; }
+  .to-name-row { border: 1px solid var(--border); border-radius: 10px; padding: 8px; margin-bottom: 8px; background: var(--surface); }
+  .to-name-line { display: flex; gap: 6px; }
+  .to-name-line + .to-name-line { margin-top: 6px; }
+  .to-name-line .sms-input { padding: 7px 9px; font-size: 13px; min-width: 0; }
+  .to-name-line input[type=date] { flex: 0 0 140px; }
+  .to-name-x { flex: 0 0 34px; border: 1px solid var(--border); background: #fff; border-radius: 8px; color: var(--danger); font-size: 18px; line-height: 1; }
+  .to-name-x:hover { border-color: var(--danger); }
+  .to-name-row.unknown input[name=leaver_name] { border-color: #F59E0B; }
+  .to-heads .list { color: var(--muted); font-size: 11.5px; display: block; margin-left: 18px; }
   .to-recent li { display: flex; justify-content: space-between; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
   .to-recent li:last-child { border-bottom: none; }
   .to-recent small { color: var(--muted); }
@@ -57,7 +75,8 @@
     {% csrf_token %}
     <h3>{% if editing %}Update a week{% else %}Add a week{% endif %}</h3>
     <p>{% if editing %}{{ editing.company.name }} already has {{ editing.leavers }} of {{ editing.employees }} employees left ({{ editing.rate }}%) for the week of {{ editing.week_label }}{% if editing.updated_by %}, entered by {{ editing.updated_by }}{% endif %}. Saving replaces it.{% else %}Weeks run Monday to Sunday. Saving a week that already has figures replaces them.{% endif %}</p>
-    {% for field in form %}{% include 'career_connect/hr/_field.html' %}{% if field.name == 'employees' %}
+    {% if form.non_field_errors %}<div class="hr-flash-item error" style="margin-bottom:12px" role="alert">{% for e in form.non_field_errors %}<div>⚠ {{ e }}</div>{% endfor %}</div>{% endif %}
+    {% for field in form %}{% if field.name == 'leavers' %}{% include 'career_connect/hr/_leavers.html' %}{% endif %}{% include 'career_connect/hr/_field.html' %}{% if field.name == 'employees' %}
     <div class="to-result" aria-live="polite">Turnover <b id="to-rate">—</b><small id="to-sum"></small></div>{% endif %}{% endfor %}
     <div class="actions">
       <button type="submit" class="btn-sms btn-primary-custom">Save</button>
@@ -85,7 +104,7 @@
           <tbody>
             {% for row in rows %}
             <tr>
-              <td><span class="to-dot" style="--c:{{ row.colour }}"></span>{{ row.company.name }}</td>
+              <td><span class="to-dot" style="--c:{{ row.colour }}"></span>{{ row.company.name }}<span style="display:block;margin-left:18px;color:var(--muted);font-size:11.5px">{% if row.company.employee_count %}{{ row.company.employee_count }} employees{% else %}employees not set{% endif %}</span></td>
               {% for cell in row.cells %}
               <td>{% if cell.future %}<span class="to-cell future" title="Not yet">·</span>{% else %}<a href="?month={{ month|date:'Y-m' }}&company={{ row.company.pk }}&week={{ cell.week|date:'Y-m-d' }}"
                      class="to-cell{% if not cell.record %} empty{% endif %}{% if editing and cell.record.pk == editing.pk %} on{% endif %}"
@@ -106,6 +125,23 @@
       <p style="color:var(--muted);font-size:12px;margin:10px 22px 16px">The month: everyone who left in its weeks ÷ the average number of employees over those weeks × 100. A week belongs to the month its Monday is in.</p>
     </section>
 
+    <section class="sms-card to-card" style="margin-bottom:18px" aria-labelledby="t-heads">
+      <h3 id="t-heads">Number of employees</h3>
+      <p>Each company's number stays the same until you change it here (or type a new one in the weekly form). Weeks already saved keep the number they had.</p>
+      <ul class="to-heads">
+        {% for row in rows %}
+        <li><span><span class="to-dot" style="--c:{{ row.colour }}"></span>{{ row.company.name }}{% if not row.company.employee_count %} <span class="none">· not set yet</span>{% endif %}
+          {% with n=row.on_list %}{% if n %}<span class="list">{{ n }} active on the <a href="{% url 'hr_employees' %}?company={{ row.company.slug }}">Employees list</a></span>{% endif %}{% endwith %}</span>
+          <form method="post" action="?month={{ month|date:'Y-m' }}">
+            {% csrf_token %}<input type="hidden" name="company" value="{{ row.company.pk }}">
+            <input type="number" name="headcount" min="1" class="sms-input" value="{{ row.company.employee_count|default_if_none:'' }}" required
+                   aria-label="Number of employees at {{ row.company.name }}">
+            <button class="btn-sms sm btn-outline-custom">Save</button>
+          </form></li>
+        {% endfor %}
+      </ul>
+    </section>
+
     <section class="sms-card to-card" aria-labelledby="t-recent">
       <h3 id="t-recent">Recently entered</h3>
       {% if recent %}
@@ -119,10 +155,72 @@
     </section>
   </div>
 </div>
+{{ headcounts|json_script:"to-heads-data" }}
+{{ people|json_script:"to-people-data" }}
 <script>
   // Shows the turnover % as HR type: employees who left ÷ number of employees × 100
   (function () {
     var left = document.getElementById('id_leavers'), staff = document.getElementById('id_employees');
+    // Picking a company fills in its kept number of employees
+    var heads = JSON.parse(document.getElementById('to-heads-data').textContent);
+    var company = document.getElementById('id_company'), week = document.getElementById('id_week');
+    company.addEventListener('change', function () {
+      var n = heads[company.value];
+      staff.value = n == null ? '' : n;
+      suggest(); matchAll(); show();
+    });
+
+    // Employees who left: names suggested from the company's Employees list, as many as needed (Add more),
+    // and the number who left counted from them
+    var people = JSON.parse(document.getElementById('to-people-data').textContent);
+    var rows = document.getElementById('to-rows'), list = document.getElementById('to-people');
+    var tpl = document.getElementById('to-row-tpl'), typedCount = false;
+    function suggest() {
+      list.innerHTML = '';
+      (people[company.value] || []).forEach(function (p) {
+        var o = document.createElement('option'); o.value = p.label; list.appendChild(o);
+      });
+    }
+    function match(row) {
+      var name = row.querySelector('[name=leaver_name]'), id = row.querySelector('[name=leaver_id]');
+      var found = (people[company.value] || []).filter(function (p) { return p.label === name.value.trim(); })[0];
+      id.value = found ? found.id : '';
+      row.classList.toggle('unknown', !!name.value.trim() && !found);
+    }
+    function matchAll() { rows.querySelectorAll('.to-name-row').forEach(match); count(); }
+    function count() {
+      var n = 0;
+      rows.querySelectorAll('[name=leaver_name]').forEach(function (i) { if (i.value.trim()) n++; });
+      // The count follows the names, unless HR typed a bigger number themselves (not every name known)
+      if (!typedCount || (parseInt(left.value, 10) || 0) < n) { left.value = n || ''; typedCount = false; }
+      left.min = n;
+      show();
+    }
+    function dates() {   // the date they left is in the week picked, and not after today
+      if (!week.value) return;
+      var mon = new Date(week.value + 'T00:00:00'), sun = new Date(mon); sun.setDate(mon.getDate() + 6);
+      var iso = function (d) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
+      var today = iso(new Date()), max = iso(sun) < today ? iso(sun) : today;
+      rows.querySelectorAll('[name=leaver_date]').forEach(function (d) { d.min = week.value; d.max = max; });
+    }
+    function wire(row) {
+      var name = row.querySelector('[name=leaver_name]');
+      name.addEventListener('input', function () { match(row); count(); });
+      name.addEventListener('change', function () { match(row); count(); });
+      row.querySelector('.to-name-x').addEventListener('click', function () {
+        if (rows.querySelectorAll('.to-name-row').length > 1) { row.remove(); }
+        else { row.querySelectorAll('input').forEach(function (i) { i.value = ''; }); row.classList.remove('unknown'); }
+        count();
+      });
+    }
+    document.getElementById('to-add').addEventListener('click', function () {
+      var row = tpl.content.firstElementChild.cloneNode(true);
+      rows.appendChild(row); wire(row); dates();
+      row.querySelector('[name=leaver_name]').focus();
+    });
+    left.addEventListener('input', function () { typedCount = left.value !== ''; });
+    week.addEventListener('change', dates);
+    rows.querySelectorAll('.to-name-row').forEach(wire);
     var out = document.getElementById('to-rate'), sum = document.getElementById('to-sum');
     function show() {
       var l = parseInt(left.value, 10), e = parseInt(staff.value, 10);
@@ -130,7 +228,12 @@
       out.textContent = Math.round(l / e * 10000) / 100 + '%';
       sum.textContent = l + ' ÷ ' + e + ' × 100';
     }
-    left.addEventListener('input', show); staff.addEventListener('input', show); show();
+    left.addEventListener('input', show); staff.addEventListener('input', show);
+    suggest(); dates();
+    rows.querySelectorAll('.to-name-row').forEach(match);
+    var named = Array.prototype.filter.call(rows.querySelectorAll('[name=leaver_name]'), function (i) { return i.value.trim(); }).length;
+    typedCount = (parseInt(left.value, 10) || 0) > named;   // a saved week with more leavers than names
+    count();
   })();
 </script>
 {% endblock %}

@@ -223,6 +223,7 @@
       <!-- HR: Career Connect vacancies only -->
       <div class="nav-section">Career Connect</div>
       <a href="{% url 'hr_dashboard' %}"     class="nav-item-custom {% if n == 'hr_dashboard' %}active{% endif %}"><span class="nav-icon">📊</span>Dashboard</a>
+      <a href="{% url 'hr_employees' %}"     class="nav-item-custom {% if n == 'hr_employees' or n == 'hr_employee_add' or n == 'hr_employee_edit' or n == 'hr_employees_import' %}active{% endif %}"><span class="nav-icon">👥</span>Employees</a>
       <a href="{% url 'hr_turnover' %}"      class="nav-item-custom {% if n == 'hr_turnover' %}active{% endif %}"><span class="nav-icon">🔁</span>Staff Turnover</a>
       <a href="{% url 'hr_vacancies' %}"     class="nav-item-custom {% if n == 'hr_vacancies' or n == 'hr_vacancy_edit' or n == 'hr_applications' %}active{% endif %}"><span class="nav-icon">💼</span>Vacancies</a>
       <a href="{% url 'hr_vacancy_add' %}"   class="nav-item-custom {% if n == 'hr_vacancy_add' %}active{% endif %}"><span class="nav-icon">➕</span>Post a Vacancy</a>
@@ -287,6 +288,7 @@
       {% endif %}
       {% if perms.career_connect.manage_vacancies and not is_finance %}
       <a href="{% url 'hr_dashboard' %}" class="nav-item-custom {% if n == 'hr_dashboard' %}active{% endif %}"><span class="nav-icon">📊</span>HR Dashboard</a>
+      <a href="{% url 'hr_employees' %}" class="nav-item-custom {% if n == 'hr_employees' or n == 'hr_employee_add' or n == 'hr_employee_edit' or n == 'hr_employees_import' %}active{% endif %}"><span class="nav-icon">👥</span>Employees</a>
       <a href="{% url 'hr_vacancies' %}" class="nav-item-custom {% if n == 'hr_vacancies' or n == 'hr_vacancy_add' or n == 'hr_vacancy_edit' %}active{% endif %}"><span class="nav-icon">💼</span>Vacancies</a>
       {% endif %}
 

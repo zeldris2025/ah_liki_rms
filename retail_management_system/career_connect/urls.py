@@ -1,6 +1,6 @@
 from django.urls import path
 
-from . import hr_views, views
+from . import employee_views, hr_views, views
 
 urlpatterns = [
     # Public (no sign-in) — every name here is listed in access.PUBLIC_URL_NAMES
@@ -32,6 +32,15 @@ urlpatterns = [
     # HR (signed in + manage_vacancies) — every name here is listed in access.HR_URL_NAMES
     path('manage/career-connect/',                             hr_views.dashboard,      name='hr_dashboard'),
     path('manage/career-connect/turnover/',                    hr_views.turnover,       name='hr_turnover'),
+    path('manage/career-connect/employees/',                   employee_views.employees, name='hr_employees'),
+    path('manage/career-connect/employees/new/',               employee_views.employee_add, name='hr_employee_add'),
+    path('manage/career-connect/employees/<int:employee_id>/', employee_views.employee_edit, name='hr_employee_edit'),
+    path('manage/career-connect/employees/<int:employee_id>/delete/', employee_views.employee_delete,
+         name='hr_employee_delete'),
+    path('manage/career-connect/employees/export/',            employee_views.employees_export, name='hr_employees_export'),
+    path('manage/career-connect/employees/import/',            employee_views.employees_import, name='hr_employees_import'),
+    path('manage/career-connect/employees/template/',          employee_views.employees_template,
+         name='hr_employees_template'),
     path('manage/career-connect/vacancies/',                   hr_views.vacancies,      name='hr_vacancies'),
     path('manage/career-connect/vacancies/new/',               hr_views.vacancy_add,    name='hr_vacancy_add'),
     path('manage/career-connect/vacancies/<int:role_id>/',     hr_views.vacancy_edit,   name='hr_vacancy_edit'),
