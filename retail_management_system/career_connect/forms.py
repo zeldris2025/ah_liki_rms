@@ -114,19 +114,22 @@ class VacancyForm(forms.ModelForm):
         self.fields['expires_on'].required = True
         self.fields['expires_on'].help_text = ('Shown as currently recruiting until this date; on the date it comes off '
                                                'Career Connect automatically.')
+        self.fields['employment_type'].required = True
+        self.fields['employment_type'].choices = Role.HOURS_CHOICES   # no empty choice: HR pick one
+        self.fields['employment_type'].error_messages['required'] = 'Choose full time or part time.'
         for name, field in self.fields.items():
-            if name not in ('is_published', 'position_type'):
+            if name not in ('is_published', 'position_type', 'employment_type'):
                 field.widget.attrs['class'] = 'sms-input'
 
     class Meta:
         model = Role
         # No 'vacancy_status': the required expiry date sets it (currently recruiting until the date is due).
         # No apply button choice either: applicants always apply on the position page, with the form for its type.
-        fields = ('position_type', 'title', 'summary', 'expires_on', 'description', 'jd_file', 'responsibilities',
+        fields = ('position_type', 'employment_type', 'title', 'summary', 'expires_on', 'description', 'jd_file', 'responsibilities',
                   'qualifications', 'skills', 'how_to_apply', 'is_published')
         labels = {'title': 'Position title', 'summary': 'Short summary', 'expires_on': 'Expiry date',
                   'description': 'Job description', 'jd_file': 'Or upload the job description (JD)',
-                  'is_published': 'Show on Career Connect'}
+                  'is_published': 'Show on Career Connect', 'employment_type': 'Full time or part time'}
         help_texts = {'summary': 'One line shown under the title on the department or company page.',
                       'is_published': "Untick to keep it as a draft that students can't see."}
         widgets = {
@@ -142,6 +145,7 @@ class VacancyForm(forms.ModelForm):
             'description': forms.Textarea(attrs={'rows': 5}),
             'jd_file': forms.ClearableFileInput(attrs={'accept': '.pdf,.doc,.docx'}),
             'position_type': forms.RadioSelect,
+            'employment_type': forms.RadioSelect,
         }
 
     def clean_expires_on(self):

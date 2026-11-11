@@ -674,11 +674,30 @@ class HRVacancyTests(TestCase):
         return (office_today() + datetime.timedelta(days=1)).isoformat()
 
     def _post(self, **extra):
-        data = {'position_type': Role.CORPORATE, 'place': f'd{self.fj_finance.pk}', 'title': 'Accounts Assistant', 'summary': 'Daily bookkeeping',
+        data = {'position_type': Role.CORPORATE, 'employment_type': Role.FULL_TIME, 'place': f'd{self.fj_finance.pk}', 'title': 'Accounts Assistant', 'summary': 'Daily bookkeeping',
                 'expires_on': self._tomorrow(), 'responsibilities': 'Invoices\nReconciliations', 'qualifications': '',
                 'skills': '', 'apply_method': Role.APPLY_NONE, 'apply_email': '', 'apply_url': '',
                 'how_to_apply': '', 'is_published': 'on', **extra}
         return self.client.post(reverse('hr_vacancy_add'), data)
+
+    def test_full_or_part_time_is_chosen_and_shown_on_the_cards(self):
+        from . import i18n
+        r = self._post(employment_type='')
+        self.assertContains(r, 'Choose full time or part time.')
+        self.assertFalse(Role.objects.filter(title='Accounts Assistant').exists())
+        self.assertRedirects(self._post(employment_type=Role.PART_TIME), reverse('hr_vacancies'),
+                             fetch_redirect_response=False)
+        role = Role.objects.get(title='Accounts Assistant')
+        self.assertEqual(role.employment_type, Role.PART_TIME)
+        self.assertContains(self.client.get(reverse('hr_vacancies')), 'Part time')
+        # On the site: the open positions list, the hiring pop-up, the department and position pages
+        self.client.logout()
+        home = self.client.get(reverse('career_connect')).content.decode()
+        self.assertIn('Part time', home.split('Accounts Assistant', 1)[1].split('Apply now', 1)[0])
+        for url in (self.fj_finance.get_absolute_url(), role.get_absolute_url()):
+            self.assertContains(self.client.get(url), 'Part time')
+        self.client.cookies[i18n.COOKIE] = 'sm'
+        self.assertContains(self.client.get(role.get_absolute_url()), 'Taimi vaega')
 
     def test_group_has_only_the_vacancy_permission(self):
         group = Group.objects.get(name='HR')
@@ -725,7 +744,7 @@ class HRVacancyTests(TestCase):
         # Moving it into a department gives it the department address
         dept = Department.objects.create(company=taula, name='Retail', slug='retail')
         r = self.client.post(reverse('hr_vacancy_edit', args=[role.pk]), {
-            'position_type': Role.GENERAL, 'place': f'd{dept.pk}', 'title': 'Store Supervisor', 'expires_on': self._tomorrow(),
+            'position_type': Role.GENERAL, 'employment_type': Role.FULL_TIME, 'place': f'd{dept.pk}', 'title': 'Store Supervisor', 'expires_on': self._tomorrow(),
             'apply_method': Role.APPLY_NONE, 'is_published': 'on'})
         self.assertRedirects(r, reverse('hr_vacancies'))
         role.refresh_from_db()
@@ -773,7 +792,7 @@ class HRVacancyTests(TestCase):
         self._post()
         role = Role.objects.get(department=self.fj_finance)
         r = self.client.post(reverse('hr_vacancy_edit', args=[role.pk]), {
-            'position_type': Role.CORPORATE, 'place': f'd{self.fj_finance.pk}', 'title': 'Senior Accounts Assistant', 'expires_on': self._tomorrow(),
+            'position_type': Role.CORPORATE, 'employment_type': Role.FULL_TIME, 'place': f'd{self.fj_finance.pk}', 'title': 'Senior Accounts Assistant', 'expires_on': self._tomorrow(),
             'apply_method': Role.APPLY_NONE, 'is_published': 'on'})
         self.assertRedirects(r, reverse('hr_vacancies'))
         role.refresh_from_db()
@@ -975,7 +994,7 @@ class ApplicationTests(TestCase):
         import datetime
         from .models import office_today
         self.client.post(reverse('hr_vacancy_add'), {
-            'position_type': Role.GENERAL, 'place': f'd{dept.pk}', 'title': 'Cashier', 'summary': '',
+            'position_type': Role.GENERAL, 'employment_type': Role.FULL_TIME, 'place': f'd{dept.pk}', 'title': 'Cashier', 'summary': '',
             'expires_on': (office_today() + datetime.timedelta(days=3)).isoformat(), 'responsibilities': 'Till',
             'qualifications': 'Year 12', 'skills': 'Smiling', 'how_to_apply': '', 'is_published': 'on'})
         role = Role.objects.get(title='Cashier')

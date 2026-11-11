@@ -35,6 +35,7 @@
         {% if r.summary %}<span class="s" style="display:block">{{ r.summary }}</span>{% endif %}
         {% if r.recruiting_status != 'not_stated' %}<span class="pill {% if r.recruiting_status == 'open' %}open{% else %}closed{% endif %}">
           {% t r.recruiting_status_label %}</span>{% endif %}
+        {% if r.employment_type %}<span class="pill light">{% icon 'briefcase' 12 %} {% t r.get_employment_type_display %}</span>{% endif %}
       </span>
       <span class="apply-btn">{% t "Apply now" %}</span>
     </a>

@@ -27,6 +27,7 @@
     <div class="pills">
       {% if role.recruiting_status != 'not_stated' %}<span class="pill {% if role.recruiting_status == 'open' %}open{% else %}closed{% endif %}">
         {% t role.recruiting_status_label %}</span>{% endif %}
+      {% if role.employment_type %}<span class="pill">{% icon 'briefcase' 14 %} {% t role.get_employment_type_display %}</span>{% endif %}
       {% if role.expires_on %}<span class="pill">{% icon 'clock' 14 %} {% cc_date role.expires_on 'j F Y' as d %}{% t 'Closes {date}' date=d %}</span>{% endif %}
     </div>
     <div class="actions" style="margin-top:18px"><a class="btn btn-primary" href="#apply">{% t "Apply now" %} {% icon 'arrow' 16 %}</a></div>

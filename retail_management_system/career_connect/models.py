@@ -410,6 +410,8 @@ class Role(models.Model):
         (GENERAL, 'General position'),
         (CORPORATE, 'Corporate position'),
     ]
+    FULL_TIME, PART_TIME = 'full_time', 'part_time'
+    HOURS_CHOICES = [(FULL_TIME, 'Full time'), (PART_TIME, 'Part time')]
     APPLY_NONE, APPLY_FORM, APPLY_LINK, APPLY_EMAIL = 'none', 'interest_form', 'external_link', 'email'
     APPLY_CHOICES = [
         (APPLY_NONE, 'No apply button'),
@@ -426,6 +428,9 @@ class Role(models.Model):
         'position type', max_length=20, choices=TYPE_CHOICES, default=GENERAL,
         help_text='General: applicants fill in a short form. Corporate: the full role details, and applicants also '
                   'upload their CV, cover letter and qualifications.')
+    employment_type = models.CharField(
+        'full or part time', max_length=10, choices=HOURS_CHOICES, blank=True,
+        help_text='Shown on the position cards on Career Connect. Left empty, nothing is shown.')
     title = models.CharField(max_length=150)
     slug = models.SlugField(max_length=80, help_text='Used in the web address; unique within the department '
                                                      '(or within the company, for roles without a department).')

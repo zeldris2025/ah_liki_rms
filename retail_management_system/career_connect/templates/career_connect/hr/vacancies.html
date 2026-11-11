@@ -75,7 +75,7 @@
           {% if r.expires_on %}<div class="hr-summary">{% if r.is_expired %}Since{% else %}Expires{% endif %} {{ r.expires_on|date:"j M Y" }}</div>{% endif %}
         </td>
         <td>{% if r.application_count %}<a href="{% url 'hr_applications' r.pk %}" style="font-weight:600">{{ r.application_count }}</a>{% if r.interest_count %} <span class="badge-custom badge-purple">{{ r.interest_count }} new</span>{% endif %}{% else %}<span style="color:var(--muted)">—</span>{% endif %}
-          <div class="hr-summary">{{ r.get_position_type_display }}</div></td>
+          <div class="hr-summary">{{ r.get_position_type_display }}{% if r.employment_type %} · {{ r.get_employment_type_display }}{% endif %}</div></td>
         <td>
           <div class="hr-actions">
             <a href="{% url 'hr_vacancy_edit' r.pk %}" class="btn-sms sm btn-outline-custom">Edit</a>

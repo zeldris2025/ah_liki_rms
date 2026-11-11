@@ -37,6 +37,21 @@
           </div>
           {{ form.position_type.errors }}
         </div>
+        <div class="form-group{% if form.employment_type.errors %} has-error{% endif %}" id="group-employment_type">
+          <span class="sms-label">{{ form.employment_type.label }} <span style="color:var(--danger)">*</span></span>
+          <div class="hr-types" role="radiogroup" aria-label="{{ form.employment_type.label }}">
+            {% for radio in form.employment_type %}
+            <label class="hr-type">
+              {{ radio.tag }}
+              <span>
+                <b>{{ radio.choice_label }}</b>
+                <small>{% if radio.data.value == 'part_time' %}Fewer hours than a full working week.{% else %}A full working week.{% endif %} Shown on the position card.</small>
+              </span>
+            </label>
+            {% endfor %}
+          </div>
+          {{ form.employment_type.errors }}
+        </div>
         {% include 'career_connect/hr/_field.html' with field=form.place %}
         {% include 'career_connect/hr/_field.html' with field=form.title %}
         {% include 'career_connect/hr/_field.html' with field=form.summary %}

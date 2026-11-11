@@ -183,12 +183,12 @@ class DepartmentAdmin(admin.ModelAdmin):
 
 @admin.register(Role)
 class RoleAdmin(admin.ModelAdmin):
-    list_display = ('title', 'company', 'department', 'position_type', 'vacancy_status', 'expires_on', 'is_published')
-    list_filter = ('position_type', 'company', 'department', 'vacancy_status', 'apply_method', 'is_published')
+    list_display = ('title', 'company', 'department', 'position_type', 'employment_type', 'vacancy_status', 'expires_on', 'is_published')
+    list_filter = ('position_type', 'employment_type', 'company', 'department', 'vacancy_status', 'apply_method', 'is_published')
     search_fields = ('title', 'summary')
     prepopulated_fields = {'slug': ('title',)}
     fieldsets = (
-        (None, {'fields': ('position_type', 'company', 'department', 'title', 'slug', 'summary', 'order', 'is_published')}),
+        (None, {'fields': ('position_type', 'employment_type', 'company', 'department', 'title', 'slug', 'summary', 'order', 'is_published')}),
         ('Job description', {'fields': ('description', 'jd_file'),
                              'description': 'Type it or upload the JD file (applicants get a "View job description" '
                                             'button). With neither, the role page asks applicants to email hr@ahliki.com.'}),
