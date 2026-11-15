@@ -47,6 +47,25 @@
       </tr>
       {% endfor %}
     </tbody>
+    {% if site_rows %}
+    <tbody>
+      <tr><th colspan="14" style="padding-top:22px">Sites <span style="color:var(--muted);font-weight:500;font-size:12px;text-transform:none;letter-spacing:0">· shown under All streams, against the totals from Import Sites Sales</span></th></tr>
+      {% for r in site_rows %}
+      <tr>
+        <td><b style="color:{{ r.color }}">{{ r.name }}</b></td>
+        {% for c in r.cells %}
+        <td style="padding:6px 4px"><input class="sms-input" name="{{ c.name }}" value="{{ c.value }}" inputmode="decimal"
+               aria-label="{{ r.name }} target, {{ c.label }}" style="padding:7px 6px;text-align:right;font-size:13px;min-width:0"
+               {% if c.previous is not None %}data-previous="{{ c.previous|stringformat:'s' }}"{% endif %}>
+          <div style="color:var(--muted);font-size:10px;text-align:right;margin-top:2px;white-space:nowrap"
+               title="{{ c.label }} {{ year|add:'-1' }} sales">{% if c.previous is not None %}{{ year|add:"-1" }}: {{ c.previous|floatformat:"0g" }}{% else %}&nbsp;{% endif %}</div></td>
+        {% endfor %}
+        <td style="padding:6px 4px;white-space:nowrap"><button type="button" class="btn-sms btn-outline-custom sm fill-row" title="Copy January’s target to every month">Fill</button>
+          <button type="button" class="btn-sms btn-outline-custom sm calc-row" title="Calculate this row from last year’s sales">Calc</button></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+    {% endif %}
   </table>
   <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:16px;flex-wrap:wrap">
     <span style="color:var(--muted);font-size:12px">“Fill” copies January’s figure across the year, for a flat monthly target. “Calc” works out that row from last year’s sales + the calculator %.</span>

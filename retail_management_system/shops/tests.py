@@ -377,7 +377,7 @@ class CorporateSalesTests(TestCase):
         html = self.client.get(reverse('corporate_sales'), {'year': 2026}).content.decode()
         self.assertIn('id="slide-all"', html)
         self.assertIn('Variance %', html)
-        self.assertIn('id="sum-png"', html)
+        self.assertIn('sum-png"', html)
 
     def test_graph_compares_with_last_year(self):
         import json as _json
@@ -620,8 +620,9 @@ class CorporateSliderTests(TestCase):
         _manager('office')
         self.client.login(username='office', password='pw')
         html = self.client.get(reverse('corporate_sales')).content.decode()
-        self.assertEqual(html.count('class="cs-slide"'), 5)   # All streams, then one per person
-        self.assertEqual(html.count('role="tab"'), 5)
+        self.assertEqual(html.count('class="cs-slide"'), 6)   # All streams, one per person, then Sites Sales
+        self.assertEqual(html.count('role="tab"'), 6)
+        self.assertLess(html.index('id="slide-ivan"'), html.index('id="slide-sites"'))
         self.assertLess(html.index('id="slide-all"'), html.index('id="slide-grace"'))
         for text in ('cs-prev', 'cs-next', 'id="slide-grace"', 'id="slide-ivan"', '"currentMonth"', '"name": "Ruth"'):
             self.assertIn(text, html)
@@ -1606,3 +1607,116 @@ class AnalyticsTests(TestCase):
             self.client.login(username=role, password='pw')
             self.assertEqual(self.client.get(reverse('analytics')).status_code, 403, role)
             self.assertNotIn(reverse('analytics'), self.client.get(reverse('dashboard')).content.decode())
+
+
+class SiteSalesTests(TestCase):
+    """Sites sales: the Import Sites Sales upload, site targets, and the table and graph under All streams."""
+    HEADER = 'Site Name,Month,Total Sales\n'
+
+    def setUp(self):
+        _manager('office')
+        self.client.login(username='office', password='pw')
+
+    def upload(self, text):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        f = SimpleUploadedFile('s.csv', text.encode('utf-8-sig'), content_type='text/csv')
+        response = self.client.post(reverse('import_site_sales'), {'csv_file': f})
+        return response.context.get('result') or response.context.get('error')
+
+    def test_four_sites_are_seeded(self):
+        from .models import Site
+        self.assertEqual(list(Site.objects.values_list('name', flat=True)),
+                         ['ALW HQ', 'ALW SAVAII', 'ALW VAITELE', 'ALW TAUFUSI'])
+
+    def test_upload_matches_site_names_and_is_safe_to_repeat(self):
+        from .models import SiteSales
+        text = (self.HEADER +
+                'ALW HQ,2025-03,"100,000.00"\n'
+                "Savai'i,Mar-25,40000\n"           # without ALW and with the apostrophe
+                'alw vaitele,2025-03,10000\n'
+                'ALW VAITELE,2025-03,5000\n'       # same site and month again: added up
+                'ALW APIA,2025-03,1\n'             # not one of our sites
+                'ALW TAUFUSI,soon,1\n')
+        first = self.upload(text)
+        self.assertEqual((first['created'], first['updated'], first['combined'], len(first['skipped'])), (3, 0, 1, 2))
+        self.assertEqual({s.site.name: s.sales for s in SiteSales.objects.all()},
+                         {'ALW HQ': Decimal('100000'), 'ALW SAVAII': Decimal('40000'), 'ALW VAITELE': Decimal('15000')})
+        again = self.upload(text)
+        self.assertEqual((again['created'], again['updated'], again['unchanged']), (0, 0, 3))
+        changed = self.upload(self.HEADER + 'ALW HQ,2025-03,90000\n')
+        self.assertEqual(changed['updated'], 1)
+        self.assertEqual(SiteSales.objects.get(site__name='ALW HQ').sales, Decimal('90000'))
+        self.assertIn('Site Name', self.upload('Name,Month,Sales\nALW HQ,2025-03,1\n'))
+
+    def test_targets_page_saves_site_targets(self):
+        from .models import Site, SiteTarget
+        hq = Site.objects.get(name='ALW HQ')
+        self.assertContains(self.client.get(reverse('corporate_targets') + '?year=2025'), f'name="site{hq.id}_3"')
+        self.client.post(reverse('corporate_targets') + '?year=2025', {f'site{hq.id}_3': '120,000', f'site{hq.id}_4': ''})
+        self.assertEqual(SiteTarget.objects.get(site=hq, month=date(2025, 3, 1)).amount, Decimal('120000'))
+        self.assertFalse(SiteTarget.objects.filter(site=hq, month=date(2025, 4, 1)).exists())
+
+    def test_all_slide_shows_target_actual_and_variance_per_site(self):
+        from .models import Site, SiteSales, SiteTarget
+        from . import sites
+        hq, savaii = Site.objects.get(name='ALW HQ'), Site.objects.get(name='ALW SAVAII')
+        SiteSales.objects.create(site=hq, month=date(2025, 3, 1), sales=110000)
+        SiteSales.objects.create(site=savaii, month=date(2025, 3, 1), sales=30000)
+        SiteSales.objects.create(site=hq, month=date(2025, 4, 1), sales=5000)   # April has no target for HQ
+        SiteTarget.objects.create(site=hq, month=date(2025, 3, 1), amount=100000)
+        SiteTarget.objects.create(site=savaii, month=date(2025, 3, 1), amount=40000)
+
+        data = sites.year_summary(2025, today=date(2026, 1, 15))
+        tables = {t['key']: t for t in data['tables']}
+        march = {r['name']: r for r in tables['m3']['rows']}
+        self.assertEqual((march['ALW HQ']['variance'], march['ALW HQ']['variance_pct']), (10000, 10.0))
+        self.assertEqual((march['ALW SAVAII']['variance'], march['ALW SAVAII']['variance_pct']), (-10000, -25.0))
+        self.assertEqual((tables['m3']['total']['target'], tables['m3']['total']['actual'], tables['m3']['total']['variance']),
+                         (140000, 140000, 0))
+        ytd = {r['name']: r for r in tables['ytd']['rows']}
+        self.assertEqual(ytd['ALW HQ']['actual'], 110000)   # only the months with a target count
+        self.assertIn('ALW HQ (Jan–Feb, Apr–Dec)', data['missing'])
+
+        html = self.client.get(reverse('corporate_sales') + '?year=2025').content.decode()
+        self.assertIn('id="site-sum"', html)
+        self.assertIn('id="chart-sites"', html)
+        self.assertLess(html.index('id="stream-sum"'), html.index('id="site-sum"'))
+        for text in ('<th>Site Name</th><th>Target</th><th>Actuals</th><th>Variance</th><th>Variance %</th>',
+                     '+10,000.00', '-25.0%', 'ALW TAUFUSI', '"sites": {"sites"'):
+            self.assertIn(text, html)
+
+    def test_reps_do_not_see_the_sites(self):
+        from django.contrib.auth.models import Group
+        rep = User.objects.create_user('rep', password='pw')
+        rep.groups.add(Group.objects.get(name='Sales'))
+        from .models import SalesRep
+        SalesRep.objects.filter(key='grace').update(user=rep)
+        self.client.login(username='rep', password='pw')
+        html = self.client.get(reverse('corporate_sales')).content.decode()
+        self.assertNotIn('id="site-sum"', html)
+        self.assertNotIn('id="slide-sites"', html)
+        self.assertNotEqual(self.client.get(reverse('import_site_sales')).status_code, 200)
+        self.assertNotEqual(self.client.get(reverse('site_sales_entry')).status_code, 200)
+
+    def test_sales_typed_in_by_hand(self):
+        from .models import Site, SiteSales
+        hq = Site.objects.get(name='ALW HQ')
+        url = reverse('site_sales_entry') + '?year=2025'
+        SiteSales.objects.create(site=hq, month=date(2025, 2, 1), sales=1)
+        self.assertContains(self.client.get(url), f'name="site{hq.id}_3"')
+        bad = self.client.post(url, {f'site{hq.id}_3': 'lots'})
+        self.assertContains(bad, 'is not a number')
+        self.client.post(url, {f'site{hq.id}_3': '$125,000.50', f'site{hq.id}_2': ''})
+        self.assertEqual(SiteSales.objects.get(site=hq, month=date(2025, 3, 1)).sales, Decimal('125000.50'))
+        self.assertFalse(SiteSales.objects.filter(site=hq, month=date(2025, 2, 1)).exists())   # blank removes it
+        self.assertIn('Enter sales', self.client.get(reverse('corporate_sales') + '?year=2025').content.decode())
+
+    def test_sites_sales_tab(self):
+        from .models import Site, SiteSales
+        hq = Site.objects.get(name='ALW HQ')
+        SiteSales.objects.create(site=hq, month=date(2024, 3, 1), sales=900)   # last year, for the comparison bars
+        html = self.client.get(reverse('corporate_sales') + '?year=2025').content.decode()
+        for text in ('id="tab-sites"', 'id="slide-sites"', 'id="chart-site-one"', 'data-site="all"', 'Enter sites sales',
+                     '"previous": [null, null, 900.0', '"monthIndex": 11'):
+            self.assertIn(text, html)
+        self.assertNotIn('Customer types:', html[html.index('id="slide-sites"'):])

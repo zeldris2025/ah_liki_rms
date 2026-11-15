@@ -1,0 +1,19 @@
+{% extends 'shops/_upload_page.html' %}
+{% block upload_title %}⬆ Import Sites Sales{% endblock %}
+{% block upload_sub %}Upload each site’s total sales per month. Shown under All streams on Corporate Sales. Safe to upload the same file every day.{% endblock %}
+{% block back_url %}{% url 'corporate_sales' %}{% endblock %}
+{% block back_label %}← Corporate Sales{% endblock %}
+{% block upload_rules %}
+  <b>How rows are matched</b><br>
+  • Each row is linked to a site by its <b>Site Name</b>: {{ site_names|join:", " }}. Capitals don’t matter, and “Savaii” works as well as “ALW SAVAII”.<br>
+  • One total per site per month: uploading a month again <b>replaces</b> its total, so it’s never counted twice. A site listed twice for the same month is added up.<br>
+  • Rows with a site name we don’t know, a month that isn’t a month, or a total that isn’t a number are skipped and listed.<br>
+  • Rather type them in? Use <a href="{% url 'site_sales_entry' %}">Corporate Sales → Sites Sales</a>; it edits the same figures.<br>
+  • Targets are entered by hand on <a href="{% url 'corporate_targets' %}">Corporate Sales → Set Targets</a>.
+{% endblock %}
+{% block column_rows %}
+  <tr><td><code>Site Name</code></td><td>Required. One of {{ site_names|join:", " }}</td></tr>
+  <tr><td><code>Month</code></td><td>Required. e.g. 2026-09, Sep-26 or September 2026</td></tr>
+  <tr><td><code>Total Sales</code></td><td>Required. Month total in WST, e.g. 125000.00 (commas and $ are fine)</td></tr>
+{% endblock %}
+{% block template_url %}{% url 'download_site_sales_template' %}{% endblock %}

@@ -1,0 +1,68 @@
+{% extends 'shops/base.html' %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <h2 class="page-title">✎ Sites Sales — {{ year }}</h2>
+    <p class="page-sub">Each site’s total sales per month in WST. Leave a box blank for no sales that month.</p>
+  </div>
+  <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+    <form method="get"><select name="year" class="sms-input" style="width:auto" onchange="this.form.submit()" aria-label="Year">
+      {% for y in years %}<option value="{{ y }}" {% if y == year %}selected{% endif %}>{{ y }}</option>{% endfor %}
+    </select></form>
+    <a href="{% url 'corporate_targets' %}?year={{ year }}" class="btn-sms btn-outline-custom">🎯 Site Targets</a>
+    {% if access.bulk_import %}<a href="{% url 'import_site_sales' %}" class="btn-sms btn-outline-custom">⬆ Upload CSV instead</a>{% endif %}
+    <a href="{% url 'corporate_sales' %}?year={{ year }}#all" class="btn-sms btn-outline-custom">← Corporate Sales</a>
+  </div>
+</div>
+
+{% if errors %}<div class="alert alert-danger">Nothing was saved. Please fix:{% for e in errors %}<div>• {{ e }}</div>{% endfor %}</div>{% endif %}
+
+<form method="post" class="sms-card" style="padding:18px;overflow-x:auto">
+  {% csrf_token %}
+  <table class="sms-table" style="min-width:980px">
+    <thead>
+      <tr><th style="width:130px">Site</th>{% for label in months %}<th style="text-align:center">{{ label }}</th>{% endfor %}<th style="text-align:right;width:120px">Total</th></tr>
+    </thead>
+    <tbody>
+      {% for r in rows %}
+      <tr>
+        <td><b style="color:{{ r.color }}">{{ r.name }}</b></td>
+        {% for c in r.cells %}
+        <td style="padding:6px 4px"><input class="sms-input site-sale" name="{{ c.name }}" value="{{ c.value }}" inputmode="decimal"
+               aria-label="{{ r.name }} total sales, {{ c.label }}" style="padding:7px 6px;text-align:right;font-size:13px;min-width:0">
+          <div style="color:var(--muted);font-size:10px;text-align:right;margin-top:2px;white-space:nowrap"
+               title="{{ c.label }} target">{% if c.target is not None %}Target: {{ c.target|floatformat:"0g" }}{% else %}&nbsp;{% endif %}</div></td>
+        {% endfor %}
+        <td class="row-total" style="text-align:right;font-weight:700;font-variant-numeric:tabular-nums;color:var(--primary)">—</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="14" style="color:var(--muted)">No active sites. Add them in the admin panel under Sites.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:16px;flex-wrap:wrap">
+    <span style="color:var(--muted);font-size:12px">Commas and $ are fine, e.g. 125,000.00. These are the same figures Import Sites Sales fills, so a later upload of a month replaces what’s typed here.</span>
+    <button class="btn-sms btn-primary-custom">Save Sites Sales</button>
+  </div>
+</form>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// running total per site as figures are typed
+function siteTotals() {
+  document.querySelectorAll('tbody tr').forEach(function (tr) {
+    var cell = tr.querySelector('.row-total');
+    if (!cell) return;
+    var sum = 0, any = false;
+    tr.querySelectorAll('.site-sale').forEach(function (i) {
+      var v = parseFloat(i.value.replace(/[^0-9.\-]/g, ''));
+      if (!isNaN(v)) { sum += v; any = true; }
+    });
+    cell.textContent = any ? sum.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—';
+  });
+}
+document.querySelectorAll('.site-sale').forEach(function (i) { i.addEventListener('input', siteTotals); });
+siteTotals();
+</script>
+{% endblock %}

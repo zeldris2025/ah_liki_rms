@@ -26,7 +26,8 @@ from tablib import Dataset
 
 from .models import Business, BusinessPhoto, Shop, ShopPhoto, Sponsorship, SponsorshipPhoto, Survey, SurveyResponse, MonthlySales, Promotion, SalesTarget, PinnedProduct, ProductGroup, ProductSales, QuickLinkTarget
 from .forms import BusinessCSVImportForm, SurveyForm, SurveyResponseForm, BulkSurveyResponseForm
-from . import access, analytics, client_import, corporate, product_sales, sponsorship_import
+from . import access, analytics, client_import, corporate, product_sales, sites, sponsorship_import
+from .models import Site, SiteSales, SiteTarget
 from .admin import BusinessResource
 
 
@@ -580,16 +581,21 @@ def corporate_sales(request):
              for m in managers]
     # The All slide puts every stream together; a rep only sees their own stream, so they don't get it
     overall = None if own else corporate.combined_summary(everyone)
+    site_data = None if own else sites.year_summary(year)
     return render(request, 'shops/corporate_sales.html', {
         'managers': managers, 'year': year, 'years': range(date.today().year + 1, date.today().year - 4, -1),
         'overall': overall, 'slide_offset': 1 if overall else 0,
+        # All, one per person, then Sites Sales (not for reps)
+        'slide_total': len(managers) + (1 if overall else 0) + (1 if site_data else 0),
         'chart_data': json.dumps({'labels': corporate.MONTH_LABELS, 'managers': chart, 'year': year,
                                   'all': {'actual': [float(v) if v is not None else None for v in overall['actual']],
                                           'previous': [float(v) if v is not None else None for v in overall['previous']],
                                           'target': [float(v) if v is not None else None for v in overall['target']]}
                                          if overall else None,
                                   # the month still in progress gets a lighter bar
+                                  'sites': site_data['chart'] if site_data else None,
                                   'currentMonth': date.today().month - 1 if year == date.today().year else -1}),
+        'site_data': site_data,
         'unmatched_types': [] if own else unmatched,
         'has_targets': any(v is not None for m in managers for v in m['target']),
         'month_cards': month_cards, 'own_rep': own,
@@ -711,8 +717,22 @@ def corporate_targets(request):
     year = _year_param(request)
     errors = []
     reps = corporate.managers()
+    site_list = list(Site.objects.filter(active=True))
     if request.method == 'POST':
         with transaction.atomic():
+            for s in site_list:
+                for i in range(12):
+                    raw = request.POST.get(f'site{s.id}_{i + 1}', '').strip()
+                    month = date(year, i + 1, 1)
+                    if not raw:
+                        SiteTarget.objects.filter(site=s, month=month).delete()
+                        continue
+                    try:
+                        amount = client_import.parse_money(raw)
+                    except (InvalidOperation, ValueError):
+                        errors.append(f"{s.name}, {corporate.MONTH_LABELS[i]}: “{raw}” is not a number")
+                        continue
+                    SiteTarget.objects.update_or_create(site=s, month=month, defaults={'amount': amount})
             for m in reps:
                 for i in range(12):
                     raw = request.POST.get(f"{m['key']}_{i + 1}", '').strip()
@@ -743,9 +763,65 @@ def corporate_targets(request):
                              'previous': previous.get((m['key'], i + 1))}
                             for i in range(12)]}
             for m in reps]
+    site_saved = {(t.site_id, t.month.month): t.amount for t in SiteTarget.objects.filter(month__year=year)}
+    site_previous = sites.monthly(SiteSales, 'sales', year - 1, site_list)
+    site_rows = [{'name': s.name, 'color': s.color,
+                  'cells': [{'name': f'site{s.id}_{i + 1}', 'label': corporate.MONTH_LABELS[i],
+                             'value': request.POST.get(f'site{s.id}_{i + 1}') if errors else site_saved.get((s.id, i + 1), ''),
+                             'previous': site_previous[s.id][i]}
+                            for i in range(12)]}
+                 for s in site_list]
     return render(request, 'shops/corporate_targets.html', {
+        'rows': rows, 'site_rows': site_rows, 'year': year, 'errors': errors, 'months': corporate.MONTH_LABELS,
+        'has_previous': bool(previous) or any(v is not None for vals in site_previous.values() for v in vals),
+    })
+
+
+@login_required(login_url='login')
+def site_sales_entry(request):
+    """Type each site's monthly Total Sales by hand. A blank box removes that month's total. Import Sites Sales
+    fills the same figures, so either way works."""
+    if corporate.own_rep_key(request.user):
+        return access.deny(request, 'entering sites sales')
+    year = _year_param(request)
+    errors = []
+    site_list = list(Site.objects.filter(active=True))
+    if request.method == 'POST':
+        with transaction.atomic():
+            for s in site_list:
+                for i in range(12):
+                    raw = request.POST.get(f'site{s.id}_{i + 1}', '').strip()
+                    month = date(year, i + 1, 1)
+                    if not raw:
+                        SiteSales.objects.filter(site=s, month=month).delete()
+                        continue
+                    try:
+                        amount = client_import.parse_money(raw)
+                    except (InvalidOperation, ValueError):
+                        errors.append(f"{s.name}, {corporate.MONTH_LABELS[i]}: “{raw}” is not a number")
+                        continue
+                    record = SiteSales.objects.filter(site=s, month=month).first()
+                    if record is None:
+                        SiteSales.objects.create(site=s, month=month, sales=amount)
+                    elif record.sales != amount:   # untouched boxes keep their "updated" date
+                        record.sales = amount
+                        record.save(update_fields=['sales', 'updated_at'])
+            if errors:
+                transaction.set_rollback(True)
+        if not errors:
+            return redirect(f"{reverse('corporate_sales')}?year={year}#all")
+    saved = sites.monthly(SiteSales, 'sales', year, site_list)
+    targets = sites.monthly(SiteTarget, 'amount', year, site_list)
+    rows = [{'name': s.name, 'color': s.color,
+             'cells': [{'name': f'site{s.id}_{i + 1}', 'label': corporate.MONTH_LABELS[i],
+                        'value': request.POST.get(f'site{s.id}_{i + 1}') if errors
+                                 else ('' if saved[s.id][i] is None else saved[s.id][i]),
+                        'target': targets[s.id][i]}
+                       for i in range(12)]}
+            for s in site_list]
+    return render(request, 'shops/site_sales_entry.html', {
         'rows': rows, 'year': year, 'errors': errors, 'months': corporate.MONTH_LABELS,
-        'has_previous': bool(previous),
+        'years': range(date.today().year + 1, date.today().year - 4, -1),
     })
 
 
@@ -1415,6 +1491,25 @@ def import_monthly_sales(request):
     """Upload monthly sales totals per client. Re-uploading a month replaces its total."""
     return _run_upload(request, client_import.import_monthly_sales, 'shops/import_monthly_sales.html',
                        {'columns': client_import.SALES_COLUMNS})
+
+
+@login_required(login_url='login')
+def import_site_sales(request):
+    """Upload each site's total sales per month. Re-uploading a month replaces its total."""
+    return _run_upload(request, sites.import_site_sales, 'shops/import_site_sales.html',
+                       {'columns': sites.SITE_COLUMNS, 'site_names': [s.name for s in Site.objects.filter(active=True)]})
+
+
+@login_required(login_url='login')
+def download_site_sales_template(request):
+    """Download CSV template for sites sales."""
+    response = HttpResponse(content_type='text/csv')
+    response['Content-Disposition'] = 'attachment; filename="sites_sales_template.csv"'
+    w = csv.writer(response)
+    w.writerow([h for _, h in sites.SITE_COLUMNS])
+    for s in Site.objects.filter(active=True):
+        w.writerow([s.name, '2026-09', '125000.00'])
+    return response
 
 
 @login_required(login_url='login')

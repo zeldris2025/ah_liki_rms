@@ -7,7 +7,7 @@ from import_export.widgets import DateWidget
 from django import forms
 
 from .models import (Shop, ShopPhoto, Business, BusinessPhoto, Sponsorship, SponsorshipPhoto, MonthlySales, Promotion,
-                     SalesTarget, SalesRep, ProductSales, CustomerProductSales)
+                     SalesTarget, SalesRep, ProductSales, CustomerProductSales, Site, SiteSales, SiteTarget)
 
 
 # ── Import/Export Resources ───────────────────────────────────────────────────
@@ -375,6 +375,65 @@ class SalesTargetAdmin(admin.ModelAdmin):
     def rep_name(self, obj):
         rep = SalesRep.objects.filter(key=obj.manager).first()
         return rep.name if rep else obj.manager
+
+
+class SiteForm(forms.ModelForm):
+    class Meta:
+        model = Site
+        fields = '__all__'
+        widgets = {'color': forms.TextInput(attrs={'type': 'color', 'style': 'width:70px;height:34px;padding:2px'})}
+
+
+@admin.register(Site)
+class SiteAdmin(admin.ModelAdmin):
+    """Our own sites, shown under All streams on Corporate Sales. Their sales come from Import Sites Sales."""
+    form = SiteForm
+    list_display  = ('name', 'colour', 'order', 'active')
+    list_editable = ('order', 'active')
+
+    @admin.display(description='Colour')
+    def colour(self, obj):
+        return format_html('<span style="display:inline-block;width:22px;height:22px;border-radius:50%;background:{}"></span>', obj.color)
+
+
+class MonthFirstForm(forms.ModelForm):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['month'].help_text = 'Any day in the month; it’s saved as the 1st.'
+
+    def clean_month(self):
+        return self.cleaned_data['month'].replace(day=1)
+
+
+class SiteSalesForm(MonthFirstForm):
+    class Meta:
+        model = SiteSales
+        fields = ('site', 'month', 'sales')
+
+
+class SiteTargetForm(MonthFirstForm):
+    class Meta:
+        model = SiteTarget
+        fields = ('site', 'month', 'amount')
+
+
+@admin.register(SiteSales)
+class SiteSalesAdmin(admin.ModelAdmin):
+    form = SiteSalesForm
+    list_display  = ('site', 'month', 'sales', 'updated_at')
+    list_filter   = ('site',)
+    list_select_related = ('site',)
+    date_hierarchy = 'month'
+
+
+@admin.register(SiteTarget)
+class SiteTargetAdmin(admin.ModelAdmin):
+    form = SiteTargetForm
+    list_display = ('site', 'month', 'amount')
+    list_editable = ('amount',)
+    list_filter  = ('site',)
+    list_select_related = ('site',)
+    date_hierarchy = 'month'
 
 
 @admin.register(Promotion)

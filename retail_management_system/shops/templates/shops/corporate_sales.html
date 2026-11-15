@@ -182,6 +182,11 @@
     <span class="dot">{{ m.name|slice:":1" }}</span>{{ m.name }}
   </button>
   {% endfor %}
+  {% if site_data %}
+  <button type="button" class="cs-tab" role="tab" id="tab-sites" aria-controls="slide-sites" aria-selected="false" style="--c:#0D2D5A">
+    <span class="dot">S</span>Sites Sales
+  </button>
+  {% endif %}
 </div>
 
 <!-- Slides -->
@@ -190,7 +195,7 @@
   <div class="cs-track" id="cs-track" tabindex="0" aria-roledescription="carousel" aria-label="Corporate sales by person">
     {% if overall %}
     <section class="cs-slide" id="slide-all" role="tabpanel" aria-labelledby="tab-all"
-             aria-roledescription="slide" aria-label="1 of {{ managers|length|add:1 }}" style="--c:#0F172A">
+             aria-roledescription="slide" aria-label="1 of {{ slide_total }}" style="--c:#0F172A">
       <div class="cs-card">
         <div class="cs-head">
           <div class="cs-avatar">∑</div>
@@ -210,7 +215,7 @@
                aria-label="Every stream’s sales stacked by person against the combined target for each month of {{ year }}"></canvas></div>
         </div>
 
-        <div class="cs-sum">
+        <div class="cs-sum" id="stream-sum">
           <div class="cs-chart-top">
             <div class="cs-chart-title">Actual vs target by stream</div>
             <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
@@ -225,7 +230,7 @@
                 {% for t in overall.tables %}{% if not t.past %}<button type="button" data-period="{{ t.key }}" aria-pressed="{% if forloop.first %}true{% else %}false{% endif %}">{{ t.label }}</button>{% endif %}{% endfor %}
               </div>
               {% endif %}
-              {% if overall.tables %}<button type="button" class="btn-sms btn-accent-custom sm" id="sum-png" title="Download this table as a PNG image">⬇ PNG</button>{% endif %}
+              {% if overall.tables %}<button type="button" class="btn-sms btn-accent-custom sm sum-png" title="Download this table as a PNG image">⬇ PNG</button>{% endif %}
             </div>
           </div>
           {% for t in overall.tables %}
@@ -284,6 +289,79 @@
           {% endfor %}
         </div>
 
+        {% if site_data %}
+        <!-- Sites sales: our own sites, from Import Sites Sales, against the targets set for them -->
+        <div class="cs-sum cs-sites" id="site-sum">
+          <div class="cs-chart-top">
+            <div class="cs-chart-title">Sites sales · {{ year }} · monthly sales vs target</div>
+            <div class="cs-legend" style="flex-wrap:wrap">{% for s in site_data.sites %}<span><i style="background:{{ s.color }}"></i>{{ s.name }}</span>{% endfor %}<span><i class="line"></i>Target</span></div>
+          </div>
+          {% if site_data.has_data %}
+          <div class="cs-canvas" style="height:340px"><canvas id="chart-sites" role="img"
+               aria-label="Each site’s sales stacked against the combined site target for each month of {{ year }}"></canvas></div>
+          {% else %}
+          <div class="cs-pempty">No sites sales or targets for {{ year }} yet. <a href="{% url 'site_sales_entry' %}?year={{ year }}">Enter sites sales</a>{% if access.bulk_import %} · <a href="{% url 'import_site_sales' %}">Import Sites Sales</a>{% endif %}{% if not own_rep %} · <a href="{% url 'corporate_targets' %}?year={{ year }}">Set site targets</a>{% endif %}</div>
+          {% endif %}
+
+          <div class="cs-chart-top" style="margin-top:20px">
+            <div class="cs-chart-title">Target vs actual by site</div>
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+              {% if site_data.has_past %}
+              <select class="sms-input cs-past" style="width:auto;padding:5px 10px;font-size:12px" aria-label="Past month for sites">
+                <option value="">Past month…</option>
+                {% for t in site_data.tables %}{% if t.past %}<option value="{{ t.key }}">{{ t.label }}</option>{% endif %}{% endfor %}
+              </select>
+              {% endif %}
+              {% if site_data.tables|length > 1 %}
+              <div class="cs-period" role="group" aria-label="Period for sites">
+                {% for t in site_data.tables %}{% if not t.past %}<button type="button" data-period="{{ t.key }}" aria-pressed="{% if forloop.first %}true{% else %}false{% endif %}">{{ t.label }}</button>{% endif %}{% endfor %}
+              </div>
+              {% endif %}
+              <a href="{% url 'site_sales_entry' %}?year={{ year }}" class="btn-sms btn-outline-custom sm">✎ Enter sales</a>
+              {% if site_data.tables %}<button type="button" class="btn-sms btn-accent-custom sm sum-png" title="Download this table as a PNG image">⬇ PNG</button>{% endif %}
+            </div>
+          </div>
+          {% for t in site_data.tables %}
+          <div class="cs-twrap" data-table="{{ t.key }}" data-label="{{ t.label }}"{% if not forloop.first %} hidden{% endif %}>
+            <table class="cs-table">
+              <thead><tr><th>Site Name</th><th>Target</th><th>Actuals</th><th>Variance</th><th>Variance %</th></tr></thead>
+              <tbody>
+                {% for r in t.rows %}
+                <tr>
+                  <td data-color="{{ r.color }}"><span class="sw" style="background:{{ r.color }}"></span>{{ r.name }}</td>
+                  <td>{% if r.target %}{{ r.target|floatformat:"2g" }}{% else %}—{% endif %}</td>
+                  <td>{{ r.actual|floatformat:"2g" }}</td>
+                  {% if r.target %}
+                  <td class="{% if r.variance >= 0 %}up{% else %}down{% endif %}">{% if r.variance > 0 %}+{% endif %}{{ r.variance|floatformat:"2g" }}</td>
+                  <td class="{% if r.variance >= 0 %}up{% else %}down{% endif %}">{% if r.variance > 0 %}+{% endif %}{{ r.variance_pct|floatformat:1 }}%</td>
+                  {% else %}<td>—</td><td>—</td>{% endif %}
+                </tr>
+                {% endfor %}
+              </tbody>
+              <tfoot>
+                <tr>
+                  <td>Total</td>
+                  <td>{% if t.total.target %}{{ t.total.target|floatformat:"2g" }}{% else %}—{% endif %}</td>
+                  <td>{{ t.total.actual|floatformat:"2g" }}</td>
+                  {% if t.total.target %}
+                  <td class="{% if t.total.variance >= 0 %}up{% else %}down{% endif %}">{% if t.total.variance > 0 %}+{% endif %}{{ t.total.variance|floatformat:"2g" }}</td>
+                  <td class="{% if t.total.variance >= 0 %}up{% else %}down{% endif %}">{% if t.total.variance > 0 %}+{% endif %}{{ t.total.variance_pct|floatformat:1 }}%</td>
+                  {% else %}<td>—</td><td>—</td>{% endif %}
+                </tr>
+              </tfoot>
+            </table>
+            <div class="cs-note">
+              Target = the target set for the month · Variance = Actuals − Target · Variance % = Variance ÷ Target.
+              {% if t.key == 'ytd' and site_data.missing %}Where a target is only set for some months, actuals count those months only: {{ site_data.missing|join:", " }} have no target.{% endif %}
+              {% if t.total.target and t.total.untargeted %}No target set for {{ t.total.untargeted|join:", " }}, so their sales are in the total actuals but not the variance.{% endif %}
+            </div>
+          </div>
+          {% empty %}
+          <div class="cs-sub" style="margin-top:8px">{{ year }} hasn’t started yet.</div>
+          {% endfor %}
+        </div>
+        {% endif %}
+
         <div class="cs-foot">
           <span style="color:var(--muted);font-size:12px">Every corporate stream together</span>
           <a href="{% url 'corporate_manager' 'all' %}?year={{ year }}" class="btn-sms btn-primary-custom cs-open">View all corporate clients &amp; sales →</a>
@@ -293,7 +371,7 @@
     {% endif %}
     {% for m in managers %}
     <section class="cs-slide" id="slide-{{ m.key }}" role="tabpanel" aria-labelledby="tab-{{ m.key }}"
-             aria-roledescription="slide" aria-label="{{ forloop.counter|add:slide_offset }} of {{ managers|length|add:slide_offset }}" style="--c:{{ m.color }}">
+             aria-roledescription="slide" aria-label="{{ forloop.counter|add:slide_offset }} of {{ slide_total }}" style="--c:{{ m.color }}">
       <div class="cs-card">
         <div class="cs-head">
           <div class="cs-avatar">{{ m.name|slice:":1" }}</div>
@@ -369,6 +447,50 @@
       </div>
     </section>
     {% endfor %}
+    {% if site_data %}
+    <!-- Sites Sales: our own sites, typed in on the Sites Sales form (or uploaded), against their targets -->
+    <section class="cs-slide" id="slide-sites" role="tabpanel" aria-labelledby="tab-sites"
+             aria-roledescription="slide" aria-label="{{ slide_total }} of {{ slide_total }}" style="--c:#0D2D5A">
+      <div class="cs-card">
+        <div class="cs-head">
+          <div class="cs-avatar">S</div>
+          <div style="min-width:0">
+            <div class="cs-name">Sites Sales</div>
+            <div class="cs-streams">{% for s in site_data.sites %}<span class="cs-stream">{{ s.name }}</span>{% endfor %}</div>
+          </div>
+          <div class="cs-count"><b>{{ site_data.sites|length }}</b>site{{ site_data.sites|length|pluralize }}</div>
+        </div>
+
+        <div class="cs-chart">
+          <div class="cs-chart-top">
+            <div class="cs-chart-title" id="site-one-title">All sites · {{ year }} vs {{ year|add:-1 }} · and target</div>
+            <div class="cs-period" role="group" aria-label="Site to show" style="flex-wrap:wrap;border-radius:16px">
+              <button type="button" data-site="all" aria-pressed="true">All sites</button>
+              {% for s in site_data.sites %}<button type="button" data-site="{{ forloop.counter0 }}" aria-pressed="false">{{ s.name }}</button>{% endfor %}
+            </div>
+          </div>
+          <div class="cs-legend" style="margin-bottom:8px"><span><i id="site-one-swatch" style="background:#0D2D5A"></i>{{ year }}</span><span><i style="background:#CBD5E1"></i>{{ year|add:-1 }}</span><span><i class="line"></i>Target</span></div>
+          <div class="cs-canvas"><canvas id="chart-site-one" role="img"
+               aria-label="Monthly sales for the chosen site against its target for each month of {{ year }}"></canvas></div>
+        </div>
+
+        <div class="cs-stats">
+          <div class="cs-stat" id="site-stat-month"></div>
+          <div class="cs-stat" id="site-stat-ytd"></div>
+          <div class="cs-stat">
+            <div class="cs-label">Sites · {{ year }}</div>
+            <ul class="cs-top" id="site-rank"></ul>
+            <div class="cs-note">Click a site to see its sales on the graph.</div>
+          </div>
+        </div>
+
+        <div class="cs-foot">
+          <span style="color:var(--muted);font-size:12px">Sales typed in on the Sites Sales form{% if access.bulk_import %} or uploaded in Import Sites Sales{% endif %} · targets from Set Targets</span>
+          <a href="{% url 'site_sales_entry' %}?year={{ year }}" class="btn-sms btn-primary-custom cs-open">✎ Enter sites sales →</a>
+        </div>
+      </div>
+    </section>
+    {% endif %}
   </div>
   <button type="button" class="cs-arrow cs-next" aria-label="Next person"{% if own_rep %} style="display:none"{% endif %}>→</button>
 </div>
@@ -376,8 +498,9 @@
 <div class="cs-dots" aria-hidden="true"{% if own_rep %} style="display:none"{% endif %}>
   {% if overall %}<button type="button" tabindex="-1" aria-current="true"></button>{% endif %}
   {% for m in managers %}<button type="button" tabindex="-1" {% if forloop.first and not overall %}aria-current="true"{% endif %}></button>{% endfor %}
+  {% if site_data %}<button type="button" tabindex="-1"></button>{% endif %}
 </div>
-<div class="cs-counter" id="cs-counter" aria-live="polite"{% if own_rep %} style="display:none"{% endif %}>1 of {{ managers|length|add:slide_offset }} · swipe or use ← → to see the next person</div>
+<div class="cs-counter" id="cs-counter" aria-live="polite"{% if own_rep %} style="display:none"{% endif %}>1 of {{ slide_total }} · swipe or use ← → to see the next person</div>
 
 {% if unmatched_types %}
 <p style="color:var(--muted);font-size:12px;text-align:center;margin-top:18px">Customer types not in any corporate stream: {{ unmatched_types|join:", " }}.</p>
@@ -392,6 +515,7 @@
   var keys = D.managers.map(function (m) { return m.key; });
   var names = D.managers.map(function (m) { return m.name; });
   if (D.all) { keys.unshift('all'); names.unshift('All streams'); }
+  if (D.sites && document.getElementById('slide-sites')) { keys.push('sites'); names.push('Sites Sales'); }
   var track = document.getElementById('cs-track');
   var slides = track.querySelectorAll('.cs-slide');
   var tabs = document.querySelectorAll('.cs-tab');
@@ -513,9 +637,177 @@
         }
       }
     });
-    var periodButtons = document.querySelectorAll('.cs-period button'), pastSelect = document.querySelector('.cs-past');
+  }
+
+  // ── Sites sales: each site's sales stacked, against the combined site target ──
+  var siteCanvas = document.getElementById('chart-sites');
+  if (D.sites && siteCanvas) {
+    new Chart(siteCanvas, {
+      data: {
+        labels: D.labels,
+        datasets: [
+          { type: 'line', label: 'Target', data: D.sites.target, stack: 'target', borderColor: '#0F172A', borderDash: [6, 5], borderWidth: 2,
+            pointRadius: 3, pointBackgroundColor: '#fff', pointBorderColor: '#0F172A', pointBorderWidth: 2, spanGaps: true, order: 0 }
+        ].concat(D.sites.sites.map(function (s) {
+          return { type: 'bar', label: s.name, data: s.actual, stack: 'actual', order: 1, maxBarThickness: 34,
+                   borderColor: '#fff', borderWidth: { top: 1 }, borderSkipped: 'bottom',
+                   backgroundColor: s.actual.map(function (_, i) { return i === thisMonth ? s.color + 'A6' : s.color; }) };
+        }))
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        interaction: { mode: 'index', intersect: false },
+        layout: { padding: { top: 6 } },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            padding: 12, backgroundColor: '#0F172A', titleFont: { weight: '700' },
+            filter: function (c) { return c.parsed.y != null; },
+            callbacks: {
+              title: function (items) {
+                if (!items.length) return '';
+                return items[0].label + (items[0].dataIndex === thisMonth ? ' (' + D.year + ' so far)' : '');
+              },
+              // each site's sales, with its % of its own target when one is set
+              label: function (c) {
+                var s = D.sites.sites[c.datasetIndex - 1];
+                var t = s ? s.target[c.dataIndex] : null;
+                return ' ' + c.dataset.label + ': ' + wst(c.parsed.y) + (s && t ? '  (' + Math.round(c.parsed.y / t * 100) + '% of target)' : '');
+              },
+              afterBody: function (items) {
+                if (!items.length) return [];
+                var i = items[0].dataIndex, vals = D.sites.sites.map(function (s) { return s.actual[i]; }).filter(function (v) { return v != null; });
+                var a = vals.length ? vals.reduce(function (x, y) { return x + y; }, 0) : null, t = D.sites.target[i];
+                var lines = ['', ' All sites: ' + (a == null ? '—' : wst(a))];
+                if (a != null && t) lines.push(' ' + Math.round(a / t * 100) + '% of combined target');
+                return lines;
+              }
+            }
+          }
+        },
+        scales: {
+          x: { stacked: true, grid: { display: false }, ticks: { color: '#64748B', font: { size: 12, weight: '600' } } },
+          y: { stacked: true, beginAtZero: true, border: { display: false }, grid: { color: '#EEF2F7' },
+               ticks: { color: '#94A3B8', callback: money, maxTicksLimit: 6 } }
+        }
+      }
+    });
+  }
+
+  // ── Sites Sales tab: one site (or all of them) this year vs last year against target, like a rep's slide ──
+  var siteOne = document.getElementById('chart-site-one');
+  if (D.sites && siteOne) {
+    var SS = D.sites.sites, MI = D.sites.monthIndex, ALL_COLOR = '#0D2D5A';
+    var sumMonths = function (arrs) {   // month by month; a month nobody has a figure for stays empty
+      return D.labels.map(function (_, i) {
+        var vals = arrs.map(function (a) { return a[i]; }).filter(function (v) { return v != null; });
+        return vals.length ? vals.reduce(function (x, y) { return x + y; }, 0) : null;
+      });
+    };
+    var allSites = { name: 'All sites', color: ALL_COLOR,
+                     actual: sumMonths(SS.map(function (s) { return s.actual; })),
+                     previous: sumMonths(SS.map(function (s) { return s.previous; })), target: D.sites.target };
+    // year to date like the table: a site with targets only counts the months that have one
+    function ytdOf(s) {
+      var done = [], targeted = [];
+      for (var i = 0; i <= MI; i++) { done.push(i); if (s.target[i] != null) targeted.push(i); }
+      var months = targeted.length ? targeted : done;
+      return { actual: months.reduce(function (t, i) { return t + (s.actual[i] || 0); }, 0),
+               target: targeted.reduce(function (t, i) { return t + s.target[i]; }, 0) || null,
+               partial: targeted.length > 0 && targeted.length < done.length };
+    }
+    function ytdAll() {
+      var parts = SS.map(ytdOf);
+      return { actual: parts.reduce(function (t, p) { return t + p.actual; }, 0),
+               target: parts.reduce(function (t, p) { return t + (p.target || 0); }, 0) || null,
+               partial: parts.some(function (p) { return p.partial; }) };
+    }
+    function pctHtml(a, t) {
+      var p = Math.round(a / t * 100);
+      return '<span class="cs-pct ' + (p >= 100 ? 'good' : 'low') + '">' + p + '%</span>';
+    }
+    function barHtml(a, t) {
+      return '<div class="cs-bar"><span style="width:' + Math.min(100, Math.round(a / t * 100)) + '%"></span></div>';
+    }
+    var oneChart = new Chart(siteOne, {
+      data: { labels: D.labels, datasets: [
+        { type: 'line', label: 'Target', data: [], borderColor: '#0F172A', borderDash: [6, 5], borderWidth: 2,
+          pointRadius: 3, pointBackgroundColor: '#fff', pointBorderColor: '#0F172A', pointBorderWidth: 2, spanGaps: true, order: 0 },
+        { type: 'bar', label: String(D.year), data: [], order: 1, borderRadius: 6, maxBarThickness: 34, backgroundColor: [] },
+        { type: 'bar', label: String(D.year - 1), data: [], order: 2, borderRadius: 6, maxBarThickness: 34, backgroundColor: PREV_COLOR }
+      ] },
+      options: {
+        responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false }, layout: { padding: { top: 6 } },
+        plugins: { legend: { display: false }, tooltip: { padding: 12, backgroundColor: '#0F172A', titleFont: { weight: '700' },
+          callbacks: {
+            title: function (items) { return items[0].label + (items[0].dataIndex === thisMonth ? ' (' + D.year + ' so far)' : ''); },
+            label: function (c) { return ' ' + c.dataset.label + ': ' + (c.parsed.y == null ? '—' : wst(c.parsed.y)); },
+            afterBody: function (items) {
+              var i = items[0].dataIndex, s = picked, lines = [];
+              if (s.actual[i] != null && s.target[i]) lines.push(' ' + Math.round(s.actual[i] / s.target[i] * 100) + '% of target');
+              var y = yoyLine(s.actual[i], s.previous[i]);
+              if (y) lines.push(y);
+              return lines.length ? [''].concat(lines) : [];
+            } } } },
+        scales: { x: { grid: { display: false }, ticks: { color: '#64748B', font: { size: 12, weight: '600' } } },
+                  y: { beginAtZero: true, border: { display: false }, grid: { color: '#EEF2F7' }, ticks: { color: '#94A3B8', callback: money, maxTicksLimit: 6 } } }
+      }
+    });
+    var picked = allSites, siteButtons = document.querySelectorAll('#slide-sites [data-site]');
+    function showSite(key) {
+      picked = key === 'all' ? allSites : SS[+key];
+      var color = picked.color;
+      siteButtons.forEach(function (b) { b.setAttribute('aria-pressed', b.getAttribute('data-site') === key ? 'true' : 'false'); });
+      document.querySelectorAll('#site-rank .cs-pick').forEach(function (b) { b.setAttribute('aria-pressed', b.getAttribute('data-site') === key ? 'true' : 'false'); });
+      document.getElementById('slide-sites').style.setProperty('--c', color);
+      document.getElementById('site-one-swatch').style.background = color;
+      document.getElementById('site-one-title').textContent = picked.name + ' · ' + D.year + ' vs ' + (D.year - 1) + ' · and target';
+      oneChart.data.datasets[0].data = picked.target;
+      oneChart.data.datasets[1].data = picked.actual;
+      oneChart.data.datasets[1].backgroundColor = picked.actual.map(function (_, i) { return i === thisMonth ? color + 'A6' : color; });
+      oneChart.data.datasets[2].data = picked.previous;
+      oneChart.data.datasets[2].hidden = !hasData(picked.previous);
+      oneChart.update();
+
+      var month = document.getElementById('site-stat-month'), ytd = document.getElementById('site-stat-ytd');
+      if (MI < 0) {
+        month.innerHTML = '<div class="cs-label">This month</div><div class="cs-sub" style="margin-top:8px">' + D.year + ' hasn’t started yet.</div>';
+        ytd.innerHTML = '<div class="cs-label">Year to date</div><div class="cs-sub" style="margin-top:8px">—</div>';
+        return;
+      }
+      var a = picked.actual[MI] || 0, t = picked.target[MI];
+      month.innerHTML = '<div class="cs-label">' + D.labels[MI] + ' ' + D.year + '</div><div class="cs-big">' + wst(a).replace('WST ', '') + '</div>' +
+        '<div class="cs-sub">' + (t ? 'of ' + wst(t).replace('WST ', '') + ' target · ' + pctHtml(a, t) : 'no target set') + '</div>' + (t ? barHtml(a, t) : '');
+      var y = key === 'all' ? ytdAll() : ytdOf(picked);
+      ytd.innerHTML = '<div class="cs-label">Year to date · ' + D.labels[0] + (MI ? '–' + D.labels[MI] : '') + '</div>' +
+        '<div class="cs-big">' + wst(y.actual).replace('WST ', '') + '</div>' +
+        '<div class="cs-sub">' + (y.target ? 'of ' + wst(y.target).replace('WST ', '') + ' target · ' + pctHtml(y.actual, y.target) : 'no target set') + '</div>' +
+        (y.target ? barHtml(y.actual, y.target) : '') +
+        (y.partial ? '<div class="cs-note">Targets are only set for some months, so actuals count those months only.</div>' : '');
+    }
+    // every site, best year first; clicking one shows it on the graph, clicking it again goes back to all sites
+    var rank = document.getElementById('site-rank');
+    SS.map(function (s, i) { return { i: i, s: s, total: s.actual.reduce(function (t, v) { return t + (v || 0); }, 0) }; })
+      .sort(function (x, y) { return y.total - x.total; })
+      .forEach(function (r) {
+        var li = document.createElement('li'), b = document.createElement('button'), v = document.createElement('span');
+        b.type = 'button'; b.className = 'cs-pick'; b.setAttribute('data-site', String(r.i)); b.setAttribute('aria-pressed', 'false');
+        b.textContent = r.s.name; b.title = 'Show ' + r.s.name + ' on the graph';
+        b.addEventListener('click', function () { showSite(b.getAttribute('aria-pressed') === 'true' ? 'all' : String(r.i)); });
+        v.style.cssText = 'font-variant-numeric:tabular-nums;color:var(--text-secondary)';
+        v.textContent = r.total ? wst(r.total).replace('WST ', '') : '—';
+        li.appendChild(b); li.appendChild(v); rank.appendChild(li);
+      });
+    siteButtons.forEach(function (b) { b.addEventListener('click', function () { showSite(b.getAttribute('data-site')); }); });
+    showSite('all');
+  }
+
+  // ── Period buttons, past month dropdown and PNG download, for each table section on the All slide ──
+  function wireTables(root, png) {
+    if (!root) return;
+    var periodButtons = root.querySelectorAll('.cs-period button'), pastSelect = root.querySelector('.cs-past');
     function showTable(key) {
-      document.querySelectorAll('[data-table]').forEach(function (t) { t.hidden = t.getAttribute('data-table') !== key; });
+      root.querySelectorAll('[data-table]').forEach(function (t) { t.hidden = t.getAttribute('data-table') !== key; });
     }
     periodButtons.forEach(function (b) {
       b.addEventListener('click', function () {
@@ -532,10 +824,10 @@
     });
 
     // PNG of the table on screen (whichever period is showing), drawn on a canvas with a title and white background
-    var pngButton = document.getElementById('sum-png');
+    var pngButton = root.querySelector('.sum-png');
     if (pngButton) pngButton.addEventListener('click', function () {
-      var wrap = document.querySelector('[data-table]:not([hidden])');
-      var cols = [{ w: 320, align: 'left' }, { w: 140 }, { w: 160 }, { w: 140 }, { w: 110 }, { w: 220 }, { w: 140 }, { w: 110 }];
+      var wrap = root.querySelector('[data-table]:not([hidden])');
+      var cols = png.cols;
       var pad = 28, headH = 40, rowH = 50, width = pad * 2 + cols.reduce(function (s, c) { return s + c.w; }, 0);
       var heads = [].map.call(wrap.querySelectorAll('thead th'), function (th) { return th.textContent.trim().toUpperCase(); });
       var headBg = [].map.call(wrap.querySelectorAll('thead th'), function (th) {
@@ -560,8 +852,8 @@
       x.fillStyle = '#fff'; x.fillRect(0, 0, width, height);
       var font = 'Segoe UI, Arial, sans-serif';
       x.textBaseline = 'middle';
-      x.fillStyle = '#0F172A'; x.font = '700 20px ' + font; x.fillText('Actual vs target by stream', pad, 34);
-      x.fillStyle = '#64748B'; x.font = '14px ' + font; x.fillText('All corporate streams · ' + wrap.getAttribute('data-label') + ' · WST', pad, 62);
+      x.fillStyle = '#0F172A'; x.font = '700 20px ' + font; x.fillText(png.title, pad, 34);
+      x.fillStyle = '#64748B'; x.font = '14px ' + font; x.fillText(png.subtitle + ' · ' + wrap.getAttribute('data-label') + ' · WST', pad, 62);
       function fit(text, w) {   // shorten text that doesn't fit its column
         if (x.measureText(text).width <= w) return text;
         while (text.length > 1 && x.measureText(text + '…').width > w) text = text.slice(0, -1);
@@ -602,14 +894,24 @@
       line(y - 1, 2, '#CBD5E1');
       foot.forEach(function (r) { cells(r, y, rowH, true); y += rowH; });
       x.textAlign = 'left'; x.fillStyle = '#94A3B8'; x.font = '11px ' + font;
-      x.fillText('Financial Target = same period ' + (D.year - 1) + ' · Commercial Target = target set · Variance = Actual − Target · Variance % = Variance ÷ Target, for each · Ah Liki Investment Corp', pad, height - 22);
+      x.fillText(png.note + ' · Ah Liki Investment Corp', pad, height - 22);
       var a = document.createElement('a');
       a.href = c.toDataURL('image/png');
-      a.download = 'corporate_sales_by_stream_' + wrap.getAttribute('data-label').toLowerCase()
+      a.download = png.file + '_' + wrap.getAttribute('data-label').toLowerCase()
         .replace(/year to date/, 'ytd').replace(/\d{4}/g, '').replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '') + '_' + D.year + '.png';
       document.body.appendChild(a); a.click(); a.remove();
     });
   }
+  if (D.all) wireTables(document.getElementById('stream-sum'), {
+    cols: [{ w: 320, align: 'left' }, { w: 140 }, { w: 160 }, { w: 140 }, { w: 110 }, { w: 220 }, { w: 140 }, { w: 110 }],
+    title: 'Actual vs target by stream', subtitle: 'All corporate streams', file: 'corporate_sales_by_stream',
+    note: 'Financial Target = same period ' + (D.year - 1) + ' · Commercial Target = target set · Variance = Actual − Target · Variance % = Variance ÷ Target, for each'
+  });
+  wireTables(document.getElementById('site-sum'), {
+    cols: [{ w: 280, align: 'left' }, { w: 170 }, { w: 170 }, { w: 170 }, { w: 130 }],
+    title: 'Sites sales · target vs actual', subtitle: 'ALW sites', file: 'sites_sales',
+    note: 'Target = the target set for the month · Variance = Actual − Target · Variance % = Variance ÷ Target'
+  });
 
   // ── Top 10 products: all the rep's clients, or the top client that was clicked ──
   var UPLOAD_URL = {% if access.bulk_import %}'{% url "import_customer_product_sales" %}'{% else %}''{% endif %};

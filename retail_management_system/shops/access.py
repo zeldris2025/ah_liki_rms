@@ -35,7 +35,7 @@ AJ_ALLOWED = {'login', 'logout', 'dashboard'} | AJ_URL_NAMES
 
 # URL names in each restricted area. Anything not listed (dashboard, clients, territories, atlas) is open to everyone.
 AREAS = {
-    'corporate_sales': {'corporate_sales', 'corporate_targets', 'corporate_manager',
+    'corporate_sales': {'corporate_sales', 'corporate_targets', 'corporate_manager', 'site_sales_entry',
                         'business_list', 'add_business', 'edit_business', 'delete_business'},
     'product_sales':   {'product_sales', 'product_sales_pin', 'quick_link_targets',
                         'product_group_add', 'product_group_edit', 'product_sales_export'},
@@ -53,7 +53,7 @@ AREAS = {
     'reports':         {'reports', 'download_report'},
     # Survey and sponsorship CSV imports sit under their own areas, so Marketing can use them without Bulk Import
     'bulk_import':     {'import_shops', 'import_monthly_sales', 'import_product_sales', 'import_businesses',
-                        'product_import', 'import_customer_product_sales',
+                        'product_import', 'import_customer_product_sales', 'import_site_sales', 'download_site_sales_template',
                         'download_shop_template', 'download_business_template', 'download_sponsorship_template',
                         'download_survey_template', 'download_sales_template', 'download_product_sales_template',
                         'download_customer_product_sales_template', 'product_template'},
@@ -70,7 +70,7 @@ BLOCKED = {
 EXPORT_URLS = {'download_report', 'aj_template', 'product_sales_export', 'product_export', 'sales_export', 'product_template',
                'download_shop_template', 'download_business_template', 'download_sponsorship_template',
                'download_survey_template', 'download_sales_template', 'download_product_sales_template',
-               'download_customer_product_sales_template'}
+               'download_customer_product_sales_template', 'download_site_sales_template'}
 
 
 def roles_of(user):

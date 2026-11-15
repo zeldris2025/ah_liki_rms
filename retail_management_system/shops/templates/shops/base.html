@@ -265,7 +265,7 @@
       </details>
       {% endif %}
       {% if access.corporate_sales %}
-      <a href="{% url 'corporate_sales' %}"  class="nav-item-custom {% if n == 'corporate_sales' or n == 'corporate_targets' or n == 'business_list' or n == 'add_business' or n == 'edit_business' %}active{% endif %}"><span class="nav-icon">🏢</span>Corporate Sales</a>
+      <a href="{% url 'corporate_sales' %}"  class="nav-item-custom {% if n == 'corporate_sales' or n == 'corporate_targets' or n == 'site_sales_entry' or n == 'business_list' or n == 'add_business' or n == 'edit_business' %}active{% endif %}"><span class="nav-icon">🏢</span>Corporate Sales</a>
       {% endif %}
       {% if access.social %}
       <a href="{% url 'social_numbers' %}"   class="nav-item-custom {% if n == 'social_numbers' or n == 'social_update' or n == 'social_import' or n == 'social_analytics' and not is_social %}active{% endif %}"><span class="nav-icon">📱</span>Social #s</a>
@@ -321,6 +321,7 @@
       <a href="{% url 'import_monthly_sales' %}" class="nav-item-custom nav-small {% if n == 'import_monthly_sales' %}active{% endif %}"><span class="nav-icon">⬆</span>Import Monthly Sales</a>
       <a href="{% url 'import_product_sales' %}" class="nav-item-custom nav-small {% if n == 'import_product_sales' %}active{% endif %}"><span class="nav-icon">⬆</span>Import Product Sales</a>
       <a href="{% url 'import_customer_product_sales' %}" class="nav-item-custom nav-small {% if n == 'import_customer_product_sales' %}active{% endif %}"><span class="nav-icon">⬆</span>Import Customer Product Sales</a>
+      <a href="{% url 'import_site_sales' %}" class="nav-item-custom nav-small {% if n == 'import_site_sales' %}active{% endif %}"><span class="nav-icon">⬆</span>Import Sites Sales</a>
       <a href="{% url 'import_sponsorships' %}" class="nav-item-custom nav-small {% if n == 'import_sponsorships' %}active{% endif %}"><span class="nav-icon">⬆</span>Import Sponsorships</a>
       {% endif %}
       {% endif %}{# end of the non-HR, non-Product QTY Sales menu #}

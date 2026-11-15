@@ -495,3 +495,50 @@ class SalesRep(models.Model):
     def matches(self, customer_type):
         text = (customer_type or '').lower()
         return any(re.search(r'\b' + re.escape(k), text) for k in self.keyword_list())
+
+
+# ── Sites sales ───────────────────────────────────────────────────────────
+
+class Site(models.Model):
+    """One of our own sites (ALW HQ, ALW Savaii, …), shown under All streams on Corporate Sales. Edited in the admin panel."""
+    name   = models.CharField(max_length=60, unique=True,
+                              help_text='As written in the Site Name column of the Sites Sales upload, e.g. ALW HQ')
+    color  = models.CharField(max_length=7, default='#0EA5E9', help_text='Graph colour, e.g. #7C3AED')
+    order  = models.PositiveIntegerField(default=0, help_text='Position on the page, lowest first')
+    active = models.BooleanField(default=True, help_text='Untick to hide it from Corporate Sales (sales and targets are kept)')
+
+    class Meta:
+        ordering = ['order', 'name']
+
+    def __str__(self):
+        return self.name
+
+
+class SiteSales(models.Model):
+    """Total sales for one site in one month (from the Sites Sales CSV). Re-uploading a month replaces its total."""
+    site       = models.ForeignKey(Site, on_delete=models.CASCADE, related_name='sales')
+    month      = models.DateField(help_text='Stored as the first day of the month')
+    sales      = models.DecimalField(max_digits=14, decimal_places=2)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-month', 'site__order']
+        verbose_name_plural = 'Site sales'
+        constraints = [models.UniqueConstraint(fields=['site', 'month'], name='one_sales_total_per_site_month')]
+
+    def __str__(self):
+        return f'{self.site.name} — {self.month:%b %Y}'
+
+
+class SiteTarget(models.Model):
+    """Monthly sales target for one site, entered on the Corporate Targets page."""
+    site   = models.ForeignKey(Site, on_delete=models.CASCADE, related_name='targets')
+    month  = models.DateField(help_text='Stored as the first day of the month')
+    amount = models.DecimalField(max_digits=14, decimal_places=2)
+
+    class Meta:
+        ordering = ['site__order', 'month']
+        constraints = [models.UniqueConstraint(fields=['site', 'month'], name='one_target_per_site_month')]
+
+    def __str__(self):
+        return f'{self.site.name} — {self.month:%b %Y}: {self.amount}'

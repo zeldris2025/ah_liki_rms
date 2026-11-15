@@ -25,6 +25,7 @@ urlpatterns = [
     # HORECCA
     path('corporate-sales/',                  views.corporate_sales,    name='corporate_sales'),
     path('corporate-sales/targets/',          views.corporate_targets,  name='corporate_targets'),
+    path('corporate-sales/sites/',            views.site_sales_entry,   name='site_sales_entry'),
     path('corporate-sales/<str:manager>/',    views.corporate_manager,  name='corporate_manager'),
     path('horecca/',                          views.business_list,      name='business_list'),
     path('horecca/add/',                      views.add_business,       name='add_business'),
@@ -60,6 +61,8 @@ urlpatterns = [
     path('import/customer-product-sales/',    views.import_customer_product_sales, name='import_customer_product_sales'),
     path('templates/customer-product-sales/', views.download_customer_product_sales_template, name='download_customer_product_sales_template'),
     path('templates/product-sales/',          views.download_product_sales_template, name='download_product_sales_template'),
+    path('import/site-sales/',                views.import_site_sales,   name='import_site_sales'),
+    path('templates/site-sales/',             views.download_site_sales_template, name='download_site_sales_template'),
     path('import/businesses/',                views.import_businesses,  name='import_businesses'),
     path('import/sponsorships/',              views.import_sponsorships,name='import_sponsorships'),
 
